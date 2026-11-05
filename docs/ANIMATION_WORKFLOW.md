@@ -17,9 +17,9 @@ In Climbing, drag either green handhold. An unreachable contact is red in the jo
 
 ## Rig and coordinates
 
-The canonical rig faces right, with +x towards the toes and nose and +y upwards. The backpack sits behind the body on the negative-x side. During forward walking, lifted feet swing towards +x and planted feet move towards -x relative to the body. Facing left mirrors all of these together; the playground status arrow states the selected direction. Its origin is the simulation's foot baseline. Rendered pose offsets never change simulation position, terrain collision, or the pointer grab offset.
+The canonical rig faces right, with +x towards the toes and +y upwards. The backpack sits behind the body on the negative-x side. During forward walking, lifted feet swing towards +x and planted feet move towards -x relative to the body. Facing left mirrors all of these together; the playground status arrow states the selected direction. Its origin is the simulation's foot baseline. Rendered pose offsets never change simulation position, terrain collision, or the pointer grab offset.
 
-Depth is independent of forward direction: the canonical left arm and leg are nearest the camera. The far arm draws behind the torso; the near arm draws over it. The far arm has a darker sleeve as a depth cue. Mirroring preserves these occlusion relationships. The nose retains the rounded block style and sits below the eye line.
+Depth is independent of forward direction: the canonical left arm and leg are nearest the camera. The far arm draws behind the torso; the near arm draws over it. The far arm has a darker sleeve as a depth cue. Mirroring preserves these occlusion relationships. The face has no nose, per the user's preference.
 
 | Part | Parent / pivot | Shape or length |
 | --- | --- | --- |

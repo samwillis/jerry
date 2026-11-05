@@ -92,7 +92,6 @@ final class ExplorerRig: SKNode {
         rectangle(CGRect(x: -4, y: -10, width: 14, height: 26), color: .systemBrown, parent: backpack)
         let skin = NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1)
         rectangle(CGRect(x: -10, y: -7, width: 20, height: 17), color: skin, parent: head, radius: 6)
-        rectangle(CGRect(x: 8, y: -5, width: 6, height: 5), color: skin, parent: head, radius: 2)
         rectangle(CGRect(x: -12, y: 7, width: 24, height: 8), color: .systemTeal, parent: head)
         rectangle(CGRect(x: -16, y: 6, width: 32, height: 3), color: .systemTeal, parent: head, radius: 1)
         rectangle(CGRect(x: -2, y: 2, width: 2, height: 3), color: .black, parent: head, radius: 0)
