@@ -29,8 +29,8 @@ Depth is independent of forward direction: the canonical left arm and leg are ne
 | Backpack | Hips + (-18, 10) | Behind the body; independent secondary rotation |
 | Upper arms | Shoulders at hips + (±10, 20) | 12 points each |
 | Lower arms | Child of upper arm at elbow | 12 points each; hand at endpoint |
-| Upper legs | Hips + (±7, 0) | 15 points each |
-| Lower legs | Child of upper leg at knee | 15 points each; ankle endpoint inside boot |
+| Upper legs | Hips + (±7, 0) | 13.5 points each |
+| Lower legs | Child of upper leg at knee | 13.5 points each; ankle endpoint inside boot |
 | Boots | Lower-leg endpoints | Soles three points below ankle; level and toes towards +x |
 | Parachute | Visual rig | Appears after launch anticipation; does not accept input |
 

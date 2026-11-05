@@ -80,6 +80,8 @@ The user's follow-up identified the eye-height nose block and reversed shoulder 
 
 The user preferred the earlier rounded nose shape, so restored that shape below the eyes. Also separated the rendered ankle from the sole contact: the shin now ends three points inside the boot, preventing it from showing below the sole while keeping platform contact at the same height. The Debug build passed; native screenshots were reviewed for right-facing idle and left-facing walking at enlarged and actual size.
 
+Removed the nose at the user's subsequent request. Shortened both upper and lower leg segments from 15 to 13.5 points to reduce the slouched knee bend in standing and walking. The Debug build passed; native idle and walking previews were inspected with planted soles and zero clamped contacts at default gait settings. The walking preview was left running at half speed.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.

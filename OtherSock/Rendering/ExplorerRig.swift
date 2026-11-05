@@ -58,8 +58,8 @@ final class ExplorerRig: SKNode {
     private let canopy = SKNode()
     private let leftArm = RigLimb(upper: 12, lower: 12, color: .systemOrange, foot: false)
     private let rightArm = RigLimb(upper: 12, lower: 12, color: NSColor(calibratedRed: 0.78, green: 0.38, blue: 0.06, alpha: 1), foot: false)
-    private let leftLeg = RigLimb(upper: 15, lower: 15, color: .darkGray, foot: true)
-    private let rightLeg = RigLimb(upper: 15, lower: 15, color: .darkGray, foot: true)
+    private let leftLeg = RigLimb(upper: 13.5, lower: 13.5, color: .darkGray, foot: true)
+    private let rightLeg = RigLimb(upper: 13.5, lower: 13.5, color: .darkGray, foot: true)
     private var animator = RigAnimator()
     var handTargets: (WorldPoint, WorldPoint)?
     var grabPoint = CGPoint(x: 0, y: 64)
