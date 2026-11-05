@@ -4,7 +4,7 @@ import ExpeditionCore
 
 @MainActor
 final class ExplorerScene: SKScene {
-    private let explorer = SKNode()
+    private let explorer = ExplorerRig()
     private let debug = SKNode()
     private let debugLabel = SKLabelNode(fontNamed: "Menlo")
     private let terrainGuides = SKNode()
@@ -23,52 +23,9 @@ final class ExplorerScene: SKScene {
         addChild(explorer)
         addChild(debug)
         debug.isHidden = true
-        buildExplorer()
-        startIdle()
     }
 
     required init?(coder: NSCoder) { fatalError("Use init(size:)") }
-
-    private func shape(_ rect: CGRect, color: NSColor, radius: CGFloat = 2, parent: SKNode? = nil) -> SKShapeNode {
-        let node = SKShapeNode(rect: rect, cornerRadius: radius)
-        node.fillColor = color
-        node.strokeColor = NSColor(calibratedWhite: 0.13, alpha: 1)
-        node.lineWidth = 1.5
-        (parent ?? explorer).addChild(node)
-        return node
-    }
-
-    private func buildExplorer() {
-        // Temporary vector shapes only; the articulated rig belongs to stage four.
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: 44, height: 7))
-        shadow.position = CGPoint(x: 0, y: 1)
-        shadow.fillColor = NSColor.black.withAlphaComponent(0.2)
-        shadow.strokeColor = .clear
-        explorer.addChild(shadow)
-        _ = shape(CGRect(x: 7, y: 24, width: 16, height: 26), color: .systemBrown, radius: 5)
-        _ = shape(CGRect(x: -11, y: 6, width: 9, height: 20), color: .darkGray)
-        _ = shape(CGRect(x: 3, y: 6, width: 9, height: 20), color: .darkGray)
-        _ = shape(CGRect(x: -15, y: 0, width: 14, height: 9), color: .brown)
-        _ = shape(CGRect(x: 2, y: 0, width: 15, height: 9), color: .brown)
-        _ = shape(CGRect(x: -13, y: 23, width: 27, height: 26), color: .systemOrange, radius: 5)
-        _ = shape(CGRect(x: -21, y: 24, width: 8, height: 22), color: .systemOrange, radius: 3)
-        _ = shape(CGRect(x: 14, y: 24, width: 8, height: 22), color: .systemOrange, radius: 3)
-        _ = shape(CGRect(x: -11, y: 48, width: 23, height: 19), color: NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1), radius: 7)
-        _ = shape(CGRect(x: -13, y: 61, width: 27, height: 10), color: .systemTeal, radius: 4)
-        _ = shape(CGRect(x: -18, y: 59, width: 36, height: 4), color: .systemTeal)
-        _ = shape(CGRect(x: -4, y: 53, width: 2, height: 3), color: .black, radius: 0)
-        _ = shape(CGRect(x: 5, y: 53, width: 2, height: 3), color: .black, radius: 0)
-        explorer.setScale(CGFloat(ExpeditionConfiguration.explorerHeight) / 72)
-    }
-
-    private func startIdle() {
-        let breathe = SKAction.sequence([
-            .scaleY(to: 1.025, duration: 1.2),
-            .scaleY(to: 1, duration: 1.2)
-        ])
-        breathe.timingMode = .easeInEaseOut
-        explorer.run(.repeatForever(breathe), withKey: "idle")
-    }
 
     func layout(in usableFrame: CGRect) {
         self.usableFrame = usableFrame
@@ -92,6 +49,9 @@ final class ExplorerScene: SKScene {
     }
 
     func beginDrag(at point: CGPoint) {
+        if let position = interaction?.position {
+            explorer.grabPoint = CGPoint(x: point.x - position.x, y: point.y - position.y)
+        }
         interaction?.beginDrag(at: .init(x: point.x, y: point.y))
         applyPlacement()
     }
@@ -135,17 +95,20 @@ final class ExplorerScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let elapsed = previousUpdateTime.map { min(max(currentTime - $0, 0), 0.1) } ?? 0
         previousUpdateTime = currentTime
-        guard !expeditionPaused else { return }
+        guard !expeditionPaused else { explorer.render(delta: 0); return }
         let previousState = interaction?.state
         let previousPosition = interaction?.position
         interaction?.advance(by: elapsed)
         if previousState != interaction?.state || previousPosition != interaction?.position { applyPlacement() }
+        explorer.render(delta: interaction?.state == .settling ? 0 : elapsed)
     }
 
     private func applyPlacement() {
         guard let interaction else { return }
         explorer.position = CGPoint(x: interaction.position.x, y: interaction.position.y)
-        explorer.isPaused = expeditionPaused || interaction.state != .idle
+        let motion: ExplorerMotion = interaction.state == .held ? .held : (interaction.state == .recovering ? .parachuting : .idle)
+        explorer.select(motion)
+        explorer.render(delta: 0)
         let hitFrame = CGRect(x: explorer.position.x - 24, y: explorer.position.y - 1, width: 48, height: 76)
         onPlacementChanged?(hitFrame, interaction.state.rawValue)
         rebuildDebug()

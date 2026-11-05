@@ -9,12 +9,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var debugItem: NSMenuItem!
     private var isPaused = false
     private var showsDebug = ProcessInfo.processInfo.arguments.contains("--debug-terrain")
+    #if DEBUG
+    private var playground: AnimationPlaygroundController?
+    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenu()
         overlay = OverlayController()
         overlay?.setDebugVisible(showsDebug)
         overlay?.show()
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--playground") { openPlayground() }
+        #endif
         NotificationCenter.default.addObserver(
             self, selector: #selector(displaysChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil
@@ -38,6 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pauseItem = add("Pause Expedition", action: #selector(pause), to: menu)
         resumeItem = add("Resume Expedition", action: #selector(resume), to: menu)
         debugItem = add("Show Debug Guides", action: #selector(toggleDebug), to: menu)
+        #if DEBUG
+        _ = add("Animation Playground…", action: #selector(openPlayground), to: menu)
+        #endif
         menu.addItem(.separator())
         _ = add("Quit The Other Sock", action: #selector(quit), to: menu)
         menu.autoenablesItems = false
@@ -80,10 +89,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quit() { NSApplication.shared.terminate(nil) }
 
+    #if DEBUG
+    @objc private func openPlayground() {
+        if playground == nil { playground = AnimationPlaygroundController() }
+        playground?.open()
+    }
+    #endif
+
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
         overlay?.close()
         overlay = nil
+        #if DEBUG
+        playground?.close()
+        playground = nil
+        #endif
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         statusItem = nil
     }

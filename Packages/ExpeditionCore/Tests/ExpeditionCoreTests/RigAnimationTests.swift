@@ -1,0 +1,113 @@
+import Foundation
+import XCTest
+@testable import ExpeditionCore
+
+final class RigAnimationTests: XCTestCase {
+    private func distance(_ a: WorldPoint, _ b: WorldPoint) -> Double { hypot(a.x - b.x, a.y - b.y) }
+
+    func testReachableLimbKeepsBothSegmentLengthsAndExactContact() {
+        let root = WorldPoint(x: 10, y: 40), target = WorldPoint(x: 20, y: 22)
+        let solution = TwoBoneIK.solve(root: root, target: target, upper: 12, lower: 13, bend: 1)
+        XCTAssertEqual(distance(root, solution.joint), 12, accuracy: 0.00001)
+        XCTAssertEqual(distance(solution.joint, solution.end), 13, accuracy: 0.00001)
+        XCTAssertEqual(distance(solution.end, target), 0, accuracy: 0.00001)
+        XCTAssertFalse(solution.isClamped)
+    }
+
+    func testUnreachableAndCoincidentTargetsStayFiniteAndWithinReach() {
+        for target in [WorldPoint(x: 500, y: 0), .zero, .init(x: 0.001, y: 0)] {
+            let solution = TwoBoneIK.solve(root: .zero, target: target, upper: 12, lower: 12, bend: -1)
+            XCTAssertTrue(solution.joint.x.isFinite && solution.joint.y.isFinite)
+            XCTAssertLessThanOrEqual(distance(.zero, solution.end), 24)
+            XCTAssertEqual(distance(.zero, solution.joint), 12, accuracy: 0.0001)
+            XCTAssertEqual(distance(solution.joint, solution.end), 12, accuracy: 0.0001)
+        }
+    }
+
+    func testMirroredTargetAndBendProduceMirroredJoint() {
+        let a = TwoBoneIK.solve(root: .zero, target: .init(x: 10, y: -18), upper: 12, lower: 12, bend: 1)
+        let b = TwoBoneIK.solve(root: .zero, target: .init(x: -10, y: -18), upper: 12, lower: 12, bend: -1)
+        XCTAssertEqual(a.joint.x, -b.joint.x, accuracy: 0.00001)
+        XCTAssertEqual(a.joint.y, b.joint.y, accuracy: 0.00001)
+    }
+
+    func testClimbingContactsStayFixedWhileBodyMoves() {
+        let a = AnimationClips.sample(.climbing, time: 0, tuning: .init())
+        let b = AnimationClips.sample(.climbing, time: 0.4, tuning: .init())
+        XCTAssertEqual(a.leftHand, b.leftHand)
+        XCTAssertEqual(a.rightFoot, b.rightFoot)
+        XCTAssertNotEqual(a.hips, b.hips)
+    }
+
+    func testEveryMotionProducesFinitePoseOverSeveralCycles() {
+        for motion in ExplorerMotion.allCases {
+            for step in 0..<600 {
+                let pose = AnimationClips.sample(motion, time: Double(step) / 30, tuning: .init())
+                for point in [pose.hips, pose.leftHand, pose.rightHand, pose.leftFoot, pose.rightFoot] {
+                    XCTAssertTrue(point.x.isFinite && point.y.isFinite)
+                }
+            }
+        }
+    }
+
+    func testGrabInterruptsBlendWithoutJumpingOrOldClipCompletion() {
+        var animator = RigAnimator()
+        animator.select(.walking)
+        animator.advance(by: 0.1)
+        let before = animator.pose
+        animator.select(.held)
+        let first = animator.advance(by: 0)
+        XCTAssertEqual(first.hips, before.hips)
+        XCTAssertEqual(first.leftHand, before.leftHand)
+        for _ in 0..<30 { animator.advance(by: 0.1) }
+        XCTAssertEqual(animator.motion, .held)
+        animator.select(.idle)
+        for _ in 0..<30 { animator.advance(by: 0.1) }
+        XCTAssertEqual(animator.motion, .idle)
+    }
+
+    func testPausedClockAndRestartAreDeterministic() {
+        var animator = RigAnimator()
+        animator.select(.walking)
+        animator.advance(by: 0.1)
+        let time = animator.time
+        animator.advance(by: 0)
+        XCTAssertEqual(animator.time, time)
+        animator.select(.walking, restart: true)
+        XCTAssertEqual(animator.time, 0)
+        animator.advance(by: .nan)
+        XCTAssertEqual(animator.time, 0)
+    }
+
+    func testRestartReturnsToSamePoseRegardlessOfPreviousClip() {
+        var a = RigAnimator(), b = RigAnimator()
+        a.select(.held)
+        a.advance(by: 0.1)
+        b.select(.climbing)
+        b.advance(by: 0.1)
+        a.select(.walking, restart: true)
+        b.select(.walking, restart: true)
+        XCTAssertEqual(a.pose.hips, b.pose.hips)
+        XCTAssertEqual(a.pose.leftHand, b.pose.leftHand)
+        XCTAssertEqual(a.pose.leftFoot, b.pose.leftFoot)
+        XCTAssertEqual(a.time, b.time)
+    }
+
+    func testKneePoleBendsTowardsToesAndElbowPoleBehindBody() {
+        let root = WorldPoint(x: 0, y: 30)
+        let knee = TwoBoneIK.solve(root: root, target: .init(x: 0, y: 5), upper: 15, lower: 15, pole: .init(x: 24, y: 24))
+        XCTAssertGreaterThan(knee.joint.x, root.x)
+        for handY in [10.0, 50.0] {
+            let elbow = TwoBoneIK.solve(root: root, target: .init(x: 0, y: handY), upper: 12, lower: 12, pole: .init(x: -24, y: 24))
+            XCTAssertLessThan(elbow.joint.x, root.x)
+        }
+    }
+
+    func testMirroringPolesFlipsKneesAndToesTogether() {
+        let root = WorldPoint(x: 0, y: 30)
+        let right = TwoBoneIK.solve(root: root, target: .init(x: 5, y: 5), upper: 15, lower: 15, pole: .init(x: 24, y: 24))
+        let left = TwoBoneIK.solve(root: root, target: .init(x: -5, y: 5), upper: 15, lower: 15, pole: .init(x: -24, y: 24))
+        XCTAssertEqual(right.joint.x, -left.joint.x, accuracy: 0.00001)
+        XCTAssertEqual(right.joint.y, left.joint.y, accuracy: 0.00001)
+    }
+}

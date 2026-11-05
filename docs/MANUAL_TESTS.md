@@ -55,6 +55,23 @@ Phase two originally left the explorer at its drop location; phase three adds to
 - Launched with debug guides enabled; native UI inspection confirmed live window/edge counts and visible coloured terrain lines. The user confirmed guides are visible, near-edge drops attach, and moving a supporting window carries the explorer along.
 - The user reported that dropping farther above a top continued to the desktop floor. Recovery originally ignored intermediate platforms. Added a vertical sweep against current exposed tops to land on the first suitable platform, with regression tests for large steps, platform ordering, horizontal misses, and windows moving during descent. Native verification of this improvement and support-loss recovery remains pending.
 
+## Phase four checks and validation — 5 November 2026
+
+- [x] Open the Debug playground as a separate, focusable window.
+- [x] Preview idle, walking, climbing, abseiling, parachuting, held, investigating, and the comic clip, with an actual-size explorer beside the enlarged one.
+- [x] Switch facing and light/dark background; inspect joint directions and readability.
+- [x] Move a climbing handhold within reach, then beyond reach: the arm follows and then clamps without invalid geometry. Restart restores contacts.
+- [x] Drag the body away from its climbing grips: the window and grips stay fixed, and the released pose reports unreachable contacts rather than stretching its limbs.
+- [x] Move the rope anchor and held grab point: native screenshots confirm the anchor/rope and pivot move to the edited positions.
+- [x] Pause/resume and restart the preview; set slow playback using the native slider.
+- [x] Inspect parachute canopy clearance and the comic sequence's lifted pose.
+- [ ] Close/reopen the playground through the menu and confirm rendering stops while closed.
+- [ ] Exercise the complete range of all tuning sliders and resize the preview while manipulating contacts.
+
+The user's observation that knees and feet pointed inconsistently exposed arbitrary per-limb bend signs. Replaced those signs with anatomical pole targets: knees towards the toes, elbows behind the body, mirrored together. Corrected boots to have level soles and added a neck beneath the head. Native screenshots were inspected during development, including corrected right-facing idle/walking/abseiling/held and left-facing climbing/investigation poses, across the light/dark checks. Placeholder shapes remain deliberate; this is not a final-art review.
+
+Debug and Release builds passed. All 34 core tests passed, including segment lengths, unreachable and coincident targets, mirrored joints and anatomical poles, fixed climbing contacts, finite clip poses, interruption, clock pause, and deterministic restart. Release excludes the playground; desktop terrain, input, and rendering remain in the app. Earlier unresolved operating-system edge cases and denied-permission checks remain listed above.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.

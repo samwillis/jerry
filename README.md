@@ -2,15 +2,21 @@
 
 A tiny, deeply unqualified desktop expedition searching for the other sock.
 
-## Current prototype: phases one to three
+## Current prototype: phases one to four
 
-The native macOS shell draws one 72-point placeholder explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Show Debug Guides**, and **Quit The Other Sock**.
+The native macOS shell draws one articulated, approximately 74-point shape explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle, sways when held, and displays a parachute during controlled recovery. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Show Debug Guides**, **Animation Playground…** (Debug builds), and **Quit The Other Sock**.
 
 The rendering overlay ignores mouse events and cannot become the key or main window. A separate 48 × 76 point, non-activating panel over the explorer accepts dragging. Grab anywhere inside that small character area, drag it aside, and release. The grab offset is preserved, and the explorer remains inside the primary display's usable area. All other overlay space passes mouse events through. There are no global keyboard shortcuts, input monitors, screen capture, or permission prompts.
 
 While held, idle animation stops. Drop the explorer above an exposed window top: it descends and lands on the first suitable platform below it. Placing its feet within 16 points of the top snaps it directly onto the edge. It needs its full body width on the platform and 76 points of clear space above it. It follows that window when moved or resized. If the window closes, minimises, or is covered at the foothold or body, the explorer enters a temporary controlled descent to another exposed top or the desktop floor. Unsupported drops also descend. Full falling physics and parachute animation come in the movement stage.
 
-On release or after recovery, the explorer settles for 0.8 seconds before breathing again. Dragging is still available when paused; pausing freezes settling, recovery, and automatic terrain polling. Resume refreshes geometry immediately. Releasing a dragged explorer refreshes geometry even while paused. The articulated dangling animation belongs to the animation playground stage.
+On release or after recovery, the explorer settles for 0.8 seconds before breathing again. Dragging is still available when paused; pausing freezes settling, recovery, and automatic terrain polling. Resume refreshes geometry immediately. Releasing a dragged explorer refreshes geometry even while paused.
+
+## Animation playground
+
+Open **Animation Playground…** from the hiking menu, or quit the current app and run its executable with `--playground`. Preview every motion, switch facing and background, pause/restart, slow playback, show joints, and tune stride, cadence, and bounce. Drag climbing handholds, the rope anchor, the grab pivot, or the body. A small actual-size explorer appears alongside the enlarged version. See [animation workflow and rig details](docs/ANIMATION_WORKFLOW.md).
+
+The desktop and playground share the same articulated rig and animation controller. Knees bend towards the toes; elbow poles favour the back of the body. Finished character artwork and autonomous window climbing remain later work.
 
 ## Build and run
 
@@ -57,5 +63,6 @@ These tests cover input state, coordinate conversion, edge subtraction and clipp
 - `OtherSock/Overlay`: transparent, non-activating overlay and display layout.
 - `OtherSock/Desktop`: window metadata discovery and platform filtering.
 - `OtherSock/Rendering`: placeholder explorer and development guides.
+- `OtherSock/Playground`: Debug-only clip controls, fake terrain, contact editing, and scale comparison.
 - `Packages/ExpeditionCore`: platform-independent geometry, terrain construction, attachments, and interaction state.
 - [Implementation plan](IMPLEMENTATION_PLAN.md), [product plan](PLAN.md), and [manual checks](docs/MANUAL_TESTS.md).
