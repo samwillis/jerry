@@ -18,6 +18,8 @@ Open **Animation Playground…** from the hiking menu, or quit the current app a
 
 The desktop and playground share the same articulated rig and animation controller. Knees bend towards the toes; elbow poles favour the back of the body. Finished character artwork and autonomous window climbing remain later work.
 
+The explorer now has a painted material finish with soft highlights, fabric/canvas detail, leather boots, warm skin shading, and contrasting coloured outlines. **Flat shading** in the playground compares it with simple fills. The existing silhouettes, proportions, and movement are preserved.
+
 ## Build and run
 
 Requires Xcode with macOS developer support; deployment target is macOS 14 or later. Currently verified on the development Mac, not on every supported OS version.

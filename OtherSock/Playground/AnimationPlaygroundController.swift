@@ -39,6 +39,7 @@ final class AnimationPlaygroundController: NSWindowController, NSWindowDelegate 
         row.addArrangedSubview(NSButton(checkboxWithTitle: "Face left", target: self, action: #selector(flip)))
         row.addArrangedSubview(NSButton(checkboxWithTitle: "Joints & contacts", target: self, action: #selector(toggleJoints)))
         row.addArrangedSubview(NSButton(checkboxWithTitle: "Light background", target: self, action: #selector(toggleBackground)))
+        row.addArrangedSubview(NSButton(checkboxWithTitle: "Flat shading", target: self, action: #selector(toggleFlatShading)))
         controls.addArrangedSubview(row)
 
         let sliders = NSStackView()
@@ -104,6 +105,7 @@ final class AnimationPlaygroundController: NSWindowController, NSWindowDelegate 
     @objc private func flip(_ sender: NSButton) { scene.facing = sender.state == .on ? -1 : 1 }
     @objc private func toggleJoints(_ sender: NSButton) { scene.showJoints = sender.state == .on }
     @objc private func toggleBackground(_ sender: NSButton) { scene.darkBackground = sender.state != .on }
+    @objc private func toggleFlatShading(_ sender: NSButton) { scene.flatShading = sender.state == .on }
     @objc private func rateChanged(_ sender: NSSlider) { scene.playbackRate = sender.doubleValue }
     @objc private func zoomChanged(_ sender: NSSlider) { scene.zoom = sender.doubleValue }
     @objc private func cadenceChanged(_ sender: NSSlider) { scene.tuning.cadence = sender.doubleValue }

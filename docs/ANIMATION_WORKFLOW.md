@@ -17,6 +17,10 @@ In Climbing, drag either green handhold. An unreachable contact is red in the jo
 
 ## Rig and coordinates
 
+The default finish uses cached material textures: soft gradients, restrained grain, canvas weave/flap detail, leather highlights/soles, felt hat bands, and warm face shading beneath the brim. Material-coloured outlines are 0.7 points wide, darkened for contrast. Arms and legs use restrained shading and a continuous outlined silhouette across each joint, avoiding separate borders at elbows and knees. Textures are generated at 4× resolution once per unique part/style and shared. Joint positions and physics are unchanged.
+
+Use **Flat shading** in the playground to compare solid fills and the heavier outline against the painted finish. Pause or seek first for a comparison in the identical pose. The checkbox affects both the enlarged and actual-size previews; the desktop uses the painted finish by default.
+
 The canonical rig faces right, with +x towards the toes and +y upwards. The backpack sits behind the body on the negative-x side. During forward walking, lifted feet swing towards +x and planted feet move towards -x relative to the body. Facing left mirrors all of these together; the playground status arrow states the selected direction. Its origin is the simulation's foot baseline. Rendered pose offsets never change simulation position, terrain collision, or the pointer grab offset.
 
 Depth is independent of forward direction: the canonical left arm and leg are nearest the camera. The far arm draws behind the torso; the near arm draws over it. The far arm has a darker sleeve as a depth cue. Mirroring preserves these occlusion relationships. The face has no nose, per the user's preference.

@@ -4,45 +4,69 @@ import ExpeditionCore
 
 @MainActor
 private final class RigLimb: SKNode {
+    private let upperNode = SKNode()
     let lowerNode = SKNode()
     private let endNode = SKNode()
+    private let outline = SKShapeNode()
+    private let mask = SKShapeNode()
+    private let cloth = SKCropNode()
     private let isFoot: Bool
+    private let baseColor: NSColor
+    private let width: CGFloat
     let upperLength: Double
     let lowerLength: Double
 
     init(upper: Double, lower: Double, color: NSColor, foot: Bool) {
         upperLength = upper; lowerLength = lower; isFoot = foot
+        baseColor = color
+        width = foot ? 6 : 5
         super.init()
-        let width: CGFloat = foot ? 6 : 5
-        addChild(Self.segment(length: upper, width: width, color: color))
+        // One rounded, continuous cloth silhouette covers both bones, with no internal cap borders.
+        outline.lineCap = .round
+        outline.lineJoin = .round
+        outline.fillColor = .clear
+        addChild(outline)
+        mask.lineCap = .round
+        mask.lineJoin = .round
+        mask.lineWidth = width
+        mask.strokeColor = .white
+        mask.fillColor = .clear
+        cloth.maskNode = mask
+        cloth.addChild(PaintedPart(rect: CGRect(x: -32, y: -36, width: 64, height: 72), radius: 0, color: color, material: .limbCloth))
+        addChild(cloth)
+        // Keep the articulated hierarchy for the hand/boot attachments.
+        addChild(upperNode)
+        upperNode.addChild(lowerNode)
         lowerNode.position.y = -upper
-        addChild(lowerNode)
-        lowerNode.addChild(Self.segment(length: lower, width: width, color: color))
-        endNode.position.y = -lower
         lowerNode.addChild(endNode)
-        let end = SKShapeNode(rect: CGRect(x: -3, y: foot ? -3 : -2, width: foot ? 10 : 6, height: 5), cornerRadius: 2)
-        end.fillColor = foot ? .brown : NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1)
-        end.strokeColor = NSColor(calibratedWhite: 0.15, alpha: 1)
-        end.lineWidth = 1
+        endNode.position.y = -lower
+        let end = PaintedPart(rect: CGRect(x: -3, y: foot ? -3 : -2, width: foot ? 10 : 6, height: 5), radius: 2, color: foot ? ExplorerPalette.boots : ExplorerPalette.skin, material: foot ? .leather : .skin)
         endNode.addChild(end)
+        setPainted(true)
     }
     required init?(coder: NSCoder) { fatalError("Use init(upper:lower:color:foot:)") }
 
-    private static func segment(length: Double, width: CGFloat, color: NSColor) -> SKShapeNode {
-        let shape = SKShapeNode(rect: CGRect(x: -width / 2, y: -length, width: width, height: length + 2), cornerRadius: width / 2)
-        shape.fillColor = color
-        shape.strokeColor = NSColor(calibratedWhite: 0.15, alpha: 1)
-        shape.lineWidth = 1
-        return shape
+    func setPainted(_ painted: Bool) {
+        outline.strokeColor = painted
+            ? (baseColor.blended(withFraction: 0.6, of: .black) ?? baseColor).withAlphaComponent(0.9)
+            : NSColor(calibratedWhite: 0.15, alpha: 1)
+        outline.lineWidth = width + (painted ? 1.4 : 2)
     }
 
     func place(root: WorldPoint, solution: LimbSolution) {
         position = CGPoint(x: root.x, y: root.y)
         let a = atan2(solution.joint.y - root.y, solution.joint.x - root.x) + .pi / 2
         let b = atan2(solution.end.y - solution.joint.y, solution.end.x - solution.joint.x) + .pi / 2
-        zRotation = a
+        upperNode.zRotation = a
         lowerNode.zRotation = b - a
         if isFoot { endNode.zRotation = -b }
+        let path = CGMutablePath()
+        path.move(to: .zero)
+        path.addLine(to: CGPoint(x: solution.joint.x - root.x, y: solution.joint.y - root.y))
+        // Leave the rounded shin cap inside the boot rather than below its sole.
+        path.addLine(to: CGPoint(x: solution.end.x - root.x, y: solution.end.y - root.y + (isFoot ? 1 : 0)))
+        outline.path = path
+        mask.path = path
     }
 }
 
@@ -60,10 +84,10 @@ final class ExplorerRig: SKNode {
     private var cords: [(SKShapeNode, CGFloat)] = []
     private let leftEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
     private let rightEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
-    private let leftArm = RigLimb(upper: 12, lower: 12, color: .systemOrange, foot: false)
-    private let rightArm = RigLimb(upper: 12, lower: 12, color: NSColor(calibratedRed: 0.78, green: 0.38, blue: 0.06, alpha: 1), foot: false)
-    private let leftLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: .darkGray, foot: true)
-    private let rightLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: .darkGray, foot: true)
+    private let leftArm = RigLimb(upper: 12, lower: 12, color: ExplorerPalette.jacket, foot: false)
+    private let rightArm = RigLimb(upper: 12, lower: 12, color: ExplorerPalette.farSleeve, foot: false)
+    private let leftLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: ExplorerPalette.trousers, foot: true)
+    private let rightLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: ExplorerPalette.trousers, foot: true)
     private var animator = RigAnimator()
     private var expressionTime: Double = 0
     private var landingTime: Double?
@@ -95,13 +119,12 @@ final class ExplorerRig: SKNode {
         canopy.zPosition = -4
         body.addChild(joints)
         joints.zPosition = 10
-        rectangle(CGRect(x: -4, y: 20, width: 8, height: 8), color: NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1), parent: torso)
-        rectangle(CGRect(x: -12, y: -1, width: 24, height: 23), color: .systemOrange, parent: torso)
-        rectangle(CGRect(x: -4, y: -10, width: 14, height: 26), color: .systemBrown, parent: backpack)
-        let skin = NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1)
-        rectangle(CGRect(x: -10, y: -7, width: 20, height: 17), color: skin, parent: head, radius: 6)
-        rectangle(CGRect(x: -12, y: 7, width: 24, height: 8), color: .systemTeal, parent: head)
-        rectangle(CGRect(x: -16, y: 6, width: 32, height: 3), color: .systemTeal, parent: head, radius: 1)
+        rectangle(CGRect(x: -4, y: 20, width: 8, height: 8), color: ExplorerPalette.skin, parent: torso, material: .skin)
+        rectangle(CGRect(x: -12, y: -1, width: 24, height: 23), color: ExplorerPalette.jacket, parent: torso)
+        rectangle(CGRect(x: -4, y: -10, width: 14, height: 26), color: ExplorerPalette.bag, parent: backpack, material: .canvas)
+        rectangle(CGRect(x: -10, y: -7, width: 20, height: 17), color: ExplorerPalette.skin, parent: head, radius: 6, material: .skin)
+        rectangle(CGRect(x: -12, y: 7, width: 24, height: 8), color: ExplorerPalette.hat, parent: head, material: .felt)
+        rectangle(CGRect(x: -16, y: 6, width: 32, height: 3), color: ExplorerPalette.hat, parent: head, radius: 1, material: .felt)
         for (eye, x) in [(leftEye, -1.0), (rightEye, 6.0)] {
             eye.position = CGPoint(x: x, y: 3.5)
             eye.fillColor = .black
@@ -110,16 +133,27 @@ final class ExplorerRig: SKNode {
             head.addChild(eye)
         }
         buildParachute()
+        setPainted(true)
         render(delta: 0)
     }
     required init?(coder: NSCoder) { fatalError("Use init()") }
 
-    private func rectangle(_ rect: CGRect, color: NSColor, parent: SKNode, radius: CGFloat = 3) {
-        let shape = SKShapeNode(rect: rect, cornerRadius: radius)
-        shape.fillColor = color
-        shape.strokeColor = NSColor(calibratedWhite: 0.15, alpha: 1)
-        shape.lineWidth = 1
-        parent.addChild(shape)
+    private func rectangle(_ rect: CGRect, color: NSColor, parent: SKNode, radius: CGFloat = 3, material: ExplorerMaterial = .cloth) {
+        parent.addChild(PaintedPart(rect: rect, radius: radius, color: color, material: material))
+    }
+
+    func setPainted(_ painted: Bool) {
+        func update(_ node: SKNode) {
+            (node as? PaintedPart)?.setPainted(painted)
+            (node as? RigLimb)?.setPainted(painted)
+            for child in node.children { update(child) }
+        }
+        update(body)
+        for eye in [leftEye, rightEye] {
+            eye.fillColor = painted ? NSColor(calibratedRed: 0.19, green: 0.13, blue: 0.1, alpha: 1) : .black
+            eye.strokeColor = eye.fillColor
+            eye.lineWidth = painted ? 0.4 : 1
+        }
     }
 
     private func buildParachute() {
@@ -127,10 +161,7 @@ final class ExplorerRig: SKNode {
         path.move(to: CGPoint(x: -34, y: 105))
         path.addQuadCurve(to: CGPoint(x: 34, y: 105), control: CGPoint(x: 0, y: 155))
         path.addQuadCurve(to: CGPoint(x: -34, y: 105), control: CGPoint(x: 0, y: 98))
-        let fabric = SKShapeNode(path: path)
-        fabric.fillColor = .systemYellow
-        fabric.strokeColor = .darkGray
-        fabric.lineWidth = 1
+        let fabric = PaintedPart(path: path, color: NSColor(calibratedRed: 0.93, green: 0.72, blue: 0.22, alpha: 1), material: .canopy, tag: "parachute")
         canopy.addChild(canopyFabric)
         canopyFabric.addChild(fabric)
         for x: CGFloat in [-34, -12, 12, 34] {

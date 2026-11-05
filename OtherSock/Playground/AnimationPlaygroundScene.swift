@@ -28,6 +28,9 @@ final class AnimationPlaygroundScene: SKScene {
     var showJoints = false {
         didSet { rig.showsJoints = showJoints; actualSizeRig.showsJoints = showJoints }
     }
+    var flatShading = false {
+        didSet { rig.setPainted(!flatShading); actualSizeRig.setPainted(!flatShading) }
+    }
     var tuning = AnimationTuning() {
         didSet { rig.tuning = tuning; actualSizeRig.tuning = tuning }
     }

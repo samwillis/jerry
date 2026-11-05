@@ -95,6 +95,14 @@ Corrected the parachute's asymmetric three-cord layout to four balanced suspensi
 
 Final Debug and Release builds passed, all 42 core tests passed, and whitespace checks passed. Earlier OS-specific manual checks remain open; this validation does not claim they were completed.
 
+## Painted finish — 5 November 2026
+
+Replaced flat shape fills with cached 4× material paintings while preserving part silhouettes, rig positions, contacts, and animation. Added soft lighting, warm cheek/brim shading, quiet cloth folds, canvas weave/flap detail, felt bands, and leather highlights/soles. The playground's Flat shading checkbox switches the same rig back to solid fills for comparison. Native screenshots were reviewed in enlarged and actual-size idle/walking, on light and dark backgrounds, including mirroring and finish toggling.
+
+The user liked the shading but requested more silhouette contrast. Increased the painted outlines to 0.7 points and a darker, more opaque material-derived colour. This pass changes rendering only; existing core motion tests were not repeated solely for a visual change.
+
+Follow-up feedback reduced arm/leg gradients and replaced individually outlined limb segments with a continuous cloth silhouette across elbows and knees. The Debug build passed after this change; final visual acceptance of the continuous joints remains with the user.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.
