@@ -78,6 +78,8 @@ The user spotted a mismatch between walking direction and backpack placement. Th
 
 The user's follow-up identified the eye-height nose block and reversed shoulder occlusion. Replaced the nose block with a small protrusion in one continuous face outline below the eyes, swapped arm layering, and kept the near leg consistent with the near arm. The far sleeve is slightly darker. The Debug build passed, and native screenshots were reviewed in both facings at enlarged and actual size. This follow-up changes rendering only; the gait and solver are unchanged.
 
+The user preferred the earlier rounded nose shape, so restored that shape below the eyes. Also separated the rendered ankle from the sole contact: the shin now ends three points inside the boot, preventing it from showing below the sole while keeping platform contact at the same height. The Debug build passed; native screenshots were reviewed for right-facing idle and left-facing walking at enlarged and actual size.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.

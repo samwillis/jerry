@@ -20,7 +20,7 @@ private final class RigLimb: SKNode {
         lowerNode.addChild(Self.segment(length: lower, width: width, color: color))
         endNode.position.y = -lower
         lowerNode.addChild(endNode)
-        let end = SKShapeNode(rect: CGRect(x: -3, y: foot ? 0 : -2, width: foot ? 10 : 6, height: 5), cornerRadius: 2)
+        let end = SKShapeNode(rect: CGRect(x: -3, y: foot ? -3 : -2, width: foot ? 10 : 6, height: 5), cornerRadius: 2)
         end.fillColor = foot ? .brown : NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1)
         end.strokeColor = NSColor(calibratedWhite: 0.15, alpha: 1)
         end.lineWidth = 1
@@ -90,24 +90,9 @@ final class ExplorerRig: SKNode {
         rectangle(CGRect(x: -4, y: 20, width: 8, height: 8), color: NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1), parent: torso)
         rectangle(CGRect(x: -12, y: -1, width: 24, height: 23), color: .systemOrange, parent: torso)
         rectangle(CGRect(x: -4, y: -10, width: 14, height: 26), color: .systemBrown, parent: backpack)
-        // One continuous face outline: the small nose sits below the eye line.
-        let facePath = CGMutablePath()
-        facePath.move(to: CGPoint(x: -10, y: 4))
-        facePath.addQuadCurve(to: CGPoint(x: -4, y: 10), control: CGPoint(x: -10, y: 10))
-        facePath.addLine(to: CGPoint(x: 5, y: 10))
-        facePath.addQuadCurve(to: CGPoint(x: 10, y: 5), control: CGPoint(x: 10, y: 10))
-        facePath.addLine(to: CGPoint(x: 10, y: -1))
-        facePath.addQuadCurve(to: CGPoint(x: 13, y: -3), control: CGPoint(x: 13, y: -1))
-        facePath.addLine(to: CGPoint(x: 10, y: -4))
-        facePath.addQuadCurve(to: CGPoint(x: 5, y: -7), control: CGPoint(x: 10, y: -7))
-        facePath.addLine(to: CGPoint(x: -4, y: -7))
-        facePath.addQuadCurve(to: CGPoint(x: -10, y: -1), control: CGPoint(x: -10, y: -7))
-        facePath.closeSubpath()
-        let face = SKShapeNode(path: facePath)
-        face.fillColor = NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1)
-        face.strokeColor = NSColor(calibratedWhite: 0.15, alpha: 1)
-        face.lineWidth = 1
-        head.addChild(face)
+        let skin = NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1)
+        rectangle(CGRect(x: -10, y: -7, width: 20, height: 17), color: skin, parent: head, radius: 6)
+        rectangle(CGRect(x: 8, y: -5, width: 6, height: 5), color: skin, parent: head, radius: 2)
         rectangle(CGRect(x: -12, y: 7, width: 24, height: 8), color: .systemTeal, parent: head)
         rectangle(CGRect(x: -16, y: 6, width: 32, height: 3), color: .systemTeal, parent: head, radius: 1)
         rectangle(CGRect(x: -2, y: 2, width: 2, height: 3), color: .black, parent: head, radius: 0)
@@ -175,7 +160,9 @@ final class ExplorerRig: SKNode {
     private func place(_ limb: RigLimb, root: WorldPoint, target: WorldPoint, knee: Bool) {
         // Toe direction is +x. Mirroring the whole rig flips feet and poles together.
         let pole = WorldPoint(x: root.x + (knee ? 24 : -24), y: root.y - 6)
-        let solution = TwoBoneIK.solve(root: root, target: target, upper: limb.upperLength, lower: limb.lowerLength, pole: pole)
+        // Foot targets mark the sole; the shin ends at an ankle three points inside the boot.
+        let jointTarget = WorldPoint(x: target.x, y: target.y + (knee ? 3 : 0))
+        let solution = TwoBoneIK.solve(root: root, target: jointTarget, upper: limb.upperLength, lower: limb.lowerLength, pole: pole)
         limb.place(root: root, solution: solution)
         if solution.isClamped { clampedContacts += 1 }
         guard showsJoints else { return }

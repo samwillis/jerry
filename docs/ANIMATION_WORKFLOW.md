@@ -19,7 +19,7 @@ In Climbing, drag either green handhold. An unreachable contact is red in the jo
 
 The canonical rig faces right, with +x towards the toes and nose and +y upwards. The backpack sits behind the body on the negative-x side. During forward walking, lifted feet swing towards +x and planted feet move towards -x relative to the body. Facing left mirrors all of these together; the playground status arrow states the selected direction. Its origin is the simulation's foot baseline. Rendered pose offsets never change simulation position, terrain collision, or the pointer grab offset.
 
-Depth is independent of forward direction: the canonical left arm and leg are nearest the camera. The far arm draws behind the torso; the near arm draws over it. The far arm has a darker sleeve as a depth cue. Mirroring preserves these occlusion relationships. The nose is integrated into the face outline below the eye line.
+Depth is independent of forward direction: the canonical left arm and leg are nearest the camera. The far arm draws behind the torso; the near arm draws over it. The far arm has a darker sleeve as a depth cue. Mirroring preserves these occlusion relationships. The nose retains the rounded block style and sits below the eye line.
 
 | Part | Parent / pivot | Shape or length |
 | --- | --- | --- |
@@ -30,8 +30,8 @@ Depth is independent of forward direction: the canonical left arm and leg are ne
 | Upper arms | Shoulders at hips + (±10, 20) | 12 points each |
 | Lower arms | Child of upper arm at elbow | 12 points each; hand at endpoint |
 | Upper legs | Hips + (±7, 0) | 15 points each |
-| Lower legs | Child of upper leg at knee | 15 points each; foot at endpoint |
-| Boots | Lower-leg endpoints | Level soles and toes towards +x |
+| Lower legs | Child of upper leg at knee | 15 points each; ankle endpoint inside boot |
+| Boots | Lower-leg endpoints | Soles three points below ankle; level and toes towards +x |
 | Parachute | Visual rig | Appears after launch anticipation; does not accept input |
 
 Two-bone IK solves each elbow/knee and endpoint. Anatomical pole targets favour knees ahead of the body and elbows behind it, rather than assigning arbitrary signs independently to each limb. Mirroring the entire rig preserves the relation between knees and toes. The hand or foot target is exact when reachable; beyond reach, the target remains visible for debugging while the actual endpoint is clamped.
