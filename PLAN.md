@@ -87,3 +87,15 @@ Prioritise getting the Mac version right; the first prototype should help decide
 ## First milestone
 
 One draggable explorer, one display, real window climbing, one parachute jump, and one disappointing banana. This should establish whether the central idea feels alive before building the whole expedition.
+
+## Later ideas
+
+Optional ideas to explore after the core expedition works, outside the first milestone:
+
+- **The user is their mysterious benefactor.** Dragging an explorer across a gap earns an awestruck salute. The leader records it as excellent leadership.
+- **Equipment has consequences.** A parachute occasionally opens into a picnic blanket. They land safely, then reluctantly have lunch.
+- **Monitors become continents.** They establish a departure camp at the boundary between displays. The first crossing gets an unnecessarily elaborate ceremony.
+- **The sock is nesting.** It steals flags, ropes, and unattended sandwiches to furnish its hiding place.
+- **Their map remembers the desktop.** Landmarks acquire names based on actual expedition events: "The Great Browser Cliffs" and "The Valley Where Brian Fell." Generate these from geometry and expedition history without reading window contents.
+- **Rare moments of competence.** After dozens of mishaps, the team executes a perfect coordinated crossing, exchanges tiny high fives, and immediately walks the wrong way.
+- **An expedition journal.** Open a little journal from the menu bar, with entries inspired by events: "Day 12. The giant moved the mountain again. Morale adequate. Biscuits low."
