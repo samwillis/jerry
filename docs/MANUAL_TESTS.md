@@ -76,6 +76,8 @@ Debug and Release builds passed. All 34 core tests passed, including segment len
 
 The user spotted a mismatch between walking direction and backpack placement. The original lifted-foot phase travelled backwards, and the backpack was on the positive-x (front) side. Reversed the foot sweep, moved the backpack to the back, and gave the face a small forward nose and offset eyes so its direction agrees with the toes. The playground status now includes a facing arrow. Native screenshots confirmed right- and left-facing backpack/face placement; the updated preview is running at half speed. The Debug build and all 35 core tests passed, including a regression checking forward swing and backward stance for both feet.
 
+The user's follow-up identified the eye-height nose block and reversed shoulder occlusion. Replaced the nose block with a small protrusion in one continuous face outline below the eyes, swapped arm layering, and kept the near leg consistent with the near arm. The far sleeve is slightly darker. The Debug build passed, and native screenshots were reviewed in both facings at enlarged and actual size. This follow-up changes rendering only; the gait and solver are unchanged.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.
