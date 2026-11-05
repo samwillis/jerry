@@ -110,4 +110,24 @@ final class RigAnimationTests: XCTestCase {
         XCTAssertEqual(right.joint.x, -left.joint.x, accuracy: 0.00001)
         XCTAssertEqual(right.joint.y, left.joint.y, accuracy: 0.00001)
     }
+
+    func testLiftedFeetSwingForwardsAndPlantedFeetMoveBackwards() {
+        let earlySwing = AnimationClips.sample(.walking, time: 0.125, tuning: .init())
+        let lateSwing = AnimationClips.sample(.walking, time: 0.375, tuning: .init())
+        XCTAssertGreaterThan(earlySwing.leftFoot.y, 0)
+        XCTAssertGreaterThan(lateSwing.leftFoot.y, 0)
+        XCTAssertGreaterThan(lateSwing.leftFoot.x, earlySwing.leftFoot.x)
+        XCTAssertEqual(earlySwing.rightFoot.y, 0)
+        XCTAssertEqual(lateSwing.rightFoot.y, 0)
+        XCTAssertLessThan(lateSwing.rightFoot.x, earlySwing.rightFoot.x)
+
+        let otherEarly = AnimationClips.sample(.walking, time: 0.625, tuning: .init())
+        let otherLate = AnimationClips.sample(.walking, time: 0.875, tuning: .init())
+        XCTAssertGreaterThan(otherEarly.rightFoot.y, 0)
+        XCTAssertGreaterThan(otherLate.rightFoot.y, 0)
+        XCTAssertGreaterThan(otherLate.rightFoot.x, otherEarly.rightFoot.x)
+        XCTAssertEqual(otherEarly.leftFoot.y, 0)
+        XCTAssertEqual(otherLate.leftFoot.y, 0)
+        XCTAssertLessThan(otherLate.leftFoot.x, otherEarly.leftFoot.x)
+    }
 }

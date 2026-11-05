@@ -183,7 +183,7 @@ final class AnimationPlaygroundScene: SKScene {
             let t = rig.animationTime.truncatingRemainder(dividingBy: 9)
             beat = t < 2 ? "Approach the edge" : (t < 3.5 ? "Look down. Reconsider." : (t < 5 ? "Back away with dignity" : "Picked up by the mysterious giant"))
         }
-        status.text = "\(liveMotion.rawValue.uppercased()) · \(String(format: "%.2f", playbackRate))× · \(rig.clampedContacts) clamped contacts · \(beat)"
+        status.text = "\(liveMotion.rawValue.uppercased()) \(facing > 0 ? "→" : "←") · \(String(format: "%.2f", playbackRate))× · \(rig.clampedContacts) clamped contacts · \(beat)"
     }
 
     override func mouseDown(with event: NSEvent) {

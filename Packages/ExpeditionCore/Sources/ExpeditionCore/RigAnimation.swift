@@ -89,8 +89,9 @@ public enum AnimationClips {
         case .walking:
             let stride = min(max(tuning.stride, 0), 12)
             pose.hips.y += abs(sin(phase)) * 0.8 * tuning.bounce
-            pose.leftFoot = .init(x: -7 + cos(phase) * stride, y: max(0, sin(phase)) * 6)
-            pose.rightFoot = .init(x: 7 - cos(phase) * stride, y: max(0, -sin(phase)) * 6)
+            // A lifted foot swings towards +x; a planted foot moves backwards relative to the body.
+            pose.leftFoot = .init(x: -7 - cos(phase) * stride, y: max(0, sin(phase)) * 6)
+            pose.rightFoot = .init(x: 7 + cos(phase) * stride, y: max(0, -sin(phase)) * 6)
             pose.leftHand.x -= sin(phase) * 4
             pose.rightHand.x += sin(phase) * 4
             pose.backpackTilt = sin(phase + 0.5) * 0.08 * tuning.bounce

@@ -17,14 +17,14 @@ In Climbing, drag either green handhold. An unreachable contact is red in the jo
 
 ## Rig and coordinates
 
-The canonical rig faces right, with +x towards the toes and +y upwards. Its origin is the simulation's foot baseline. Facing left mirrors the complete rig, including feet, contacts, and joint bend directions. Rendered pose offsets never change simulation position, terrain collision, or the pointer grab offset.
+The canonical rig faces right, with +x towards the toes and nose and +y upwards. The backpack sits behind the body on the negative-x side. During forward walking, lifted feet swing towards +x and planted feet move towards -x relative to the body. Facing left mirrors all of these together; the playground status arrow states the selected direction. Its origin is the simulation's foot baseline. Rendered pose offsets never change simulation position, terrain collision, or the pointer grab offset.
 
 | Part | Parent / pivot | Shape or length |
 | --- | --- | --- |
 | Presentation pivot | Simulation origin; grab point when held | Rotates the visual rig only |
 | Torso | Hips, nominally (0, 27) | Orange shape, neck, head attachment |
 | Head and hat | Hips + (0, 32) | Combined rig height about 74 points |
-| Backpack | Hips + (14, 10) | Independent secondary rotation |
+| Backpack | Hips + (-18, 10) | Behind the body; independent secondary rotation |
 | Upper arms | Shoulders at hips + (±10, 20) | 12 points each |
 | Lower arms | Child of upper arm at elbow | 12 points each; hand at endpoint |
 | Upper legs | Hips + (±7, 0) | 15 points each |

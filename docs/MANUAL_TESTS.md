@@ -72,6 +72,10 @@ The user's observation that knees and feet pointed inconsistently exposed arbitr
 
 Debug and Release builds passed. All 34 core tests passed, including segment lengths, unreachable and coincident targets, mirrored joints and anatomical poles, fixed climbing contacts, finite clip poses, interruption, clock pause, and deterministic restart. Release excludes the playground; desktop terrain, input, and rendering remain in the app. Earlier unresolved operating-system edge cases and denied-permission checks remain listed above.
 
+## Walking-direction correction — 5 November 2026
+
+The user spotted a mismatch between walking direction and backpack placement. The original lifted-foot phase travelled backwards, and the backpack was on the positive-x (front) side. Reversed the foot sweep, moved the backpack to the back, and gave the face a small forward nose and offset eyes so its direction agrees with the toes. The playground status now includes a facing arrow. Native screenshots confirmed right- and left-facing backpack/face placement; the updated preview is running at half speed. The Debug build and all 35 core tests passed, including a regression checking forward swing and backward stance for both feet.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.
