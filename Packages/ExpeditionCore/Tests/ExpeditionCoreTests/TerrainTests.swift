@@ -118,4 +118,44 @@ final class TerrainTests: XCTestCase {
         let terrain = TerrainSnapshot(windows: [window(1, height: 550)], viewport: viewport)
         XCTAssertNil(TerrainSupport.attach(at: .init(x: 100, y: 550), in: terrain))
     }
+
+    func testDropWellAboveWindowLandsAndFollowsThatWindow() {
+        var explorer = ExplorerInteraction(position: .init(x: 100, y: 450), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 776, y: 524)))
+        explorer.beginDrag(at: explorer.position)
+        explorer.endDrag(on: TerrainSnapshot(windows: [window(1)], viewport: viewport))
+        XCTAssertEqual(explorer.state, .recovering)
+        // One large step crosses the whole platform height, exercising swept collision.
+        explorer.advance(by: 2)
+        XCTAssertEqual(explorer.position, .init(x: 100, y: 300))
+        XCTAssertEqual(explorer.attachment?.owner, .window(1))
+        XCTAssertEqual(explorer.state, .settling)
+        explorer.updateTerrain(TerrainSnapshot(windows: [window(1, x: 50, y: 20)], viewport: viewport))
+        XCTAssertEqual(explorer.position, .init(x: 150, y: 320))
+    }
+
+    func testDescentLandsOnHighestValidTopAndNeverSnapsUpFromBelow() {
+        let terrain = TerrainSnapshot(windows: [window(1, height: 350), window(2, height: 200)], viewport: viewport)
+        let landing = TerrainSupport.landing(from: .init(x: 100, y: 500), to: .init(x: 100, y: 0), in: terrain)
+        XCTAssertEqual(landing?.0.owner, .window(1))
+        XCTAssertEqual(landing?.1.y, 350)
+        let below = TerrainSupport.landing(from: .init(x: 100, y: 150), to: .init(x: 100, y: 0), in: terrain)
+        XCTAssertEqual(below?.0.owner, .screen)
+    }
+
+    func testDescentOutsideWindowWidthContinuesToFloor() {
+        let terrain = TerrainSnapshot(windows: [window(1)], viewport: viewport)
+        let landing = TerrainSupport.landing(from: .init(x: 500, y: 500), to: .init(x: 500, y: 0), in: terrain)
+        XCTAssertEqual(landing?.0.owner, .screen)
+    }
+
+    func testWindowMovingDuringDescentUsesFreshTerrain() {
+        var explorer = ExplorerInteraction(position: .init(x: 100, y: 450), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 776, y: 524)))
+        explorer.beginDrag(at: explorer.position)
+        explorer.endDrag(on: TerrainSnapshot(windows: [window(1)], viewport: viewport))
+        explorer.advance(by: 0.2)
+        explorer.updateTerrain(TerrainSnapshot(windows: [window(1, x: 500, width: 200)], viewport: viewport))
+        explorer.advance(by: 3)
+        XCTAssertEqual(explorer.position.y, 0)
+        XCTAssertEqual(explorer.attachment?.owner, .screen)
+    }
 }

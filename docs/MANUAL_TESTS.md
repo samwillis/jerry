@@ -37,12 +37,13 @@ Phase two originally left the explorer at its drop location; phase three adds to
 - [ ] Enable debug guides: green tops and pink sides match exposed rectangular window bounds; teal lines mark rescue screen boundaries.
 - [ ] Overlap two windows: the nearer window hides covered portions of the rear window's terrain.
 - [ ] Drag a window partly beyond the screen: no artificial top platform appears at the screen ceiling.
-- [ ] Use a smaller window with at least 76 points of room above it. Drop the explorer with its feet near its exposed green top, away from corners: it snaps onto the top.
+- [x] Drop the explorer with its feet near an exposed green top: it snaps onto the top. Confirmed by the user on 5 November 2026.
+- [x] Move the supporting window: the explorer stays on its top. Confirmed by the user on 5 November 2026. Resize edge cases remain unchecked.
 - [ ] Move and resize that supporting window: the explorer keeps its window-relative horizontal offset while the foothold remains valid.
 - [ ] Split another part of its supporting edge with a foreground window: the explorer stays attached if its own foothold and body are still clear.
 - [ ] Close, minimise, cover, or narrow away its supporting window: the explorer descends visibly to the desktop floor rather than remaining suspended.
 - [ ] Grab during recovery: descent stops and the explorer follows the pointer; keyboard focus remains in the other app.
-- [ ] Drop in mid-air: controlled descent reaches the screen floor, then settles and resumes breathing. Intermediate windows are not landing targets yet.
+- [ ] Drop above an exposed window top: controlled descent lands on the highest suitable top below the explorer, settles, and resumes breathing. Drop outside all platform widths to descend to the screen floor.
 - [ ] Pause: geometry polling and recovery stop. Resume refreshes terrain; user dragging still works while paused.
 - [ ] Quit and relaunch: no stale terrain timer, overlay, or input panel remains.
 - [ ] On a separate test account or machine without screen-capture access, check geometry availability without granting new permissions. Do not change the user's permissions just for this check.
@@ -51,7 +52,8 @@ Phase two originally left the explorer at its drop location; phase three adds to
 
 - Native Debug build passed. Core tests cover coordinate conversion, overlaps, clipping, non-climbable occluders, relative anchors, body clearance, moving/resizing support, and controlled recovery.
 - The geometry-only report read 9 windows, 8 climbable windows, and 8 edge segments in the development launch context. Existing screen-capture permission reported true; no permission was requested. This does not establish denied-permission behaviour.
-- Launched with debug guides enabled; native UI inspection confirmed live window/edge counts and visible coloured terrain lines. Full desktop alignment and native attachment/recovery are awaiting user verification.
+- Launched with debug guides enabled; native UI inspection confirmed live window/edge counts and visible coloured terrain lines. The user confirmed guides are visible, near-edge drops attach, and moving a supporting window carries the explorer along.
+- The user reported that dropping farther above a top continued to the desktop floor. Recovery originally ignored intermediate platforms. Added a vertical sweep against current exposed tops to land on the first suitable platform, with regression tests for large steps, platform ordering, horizontal misses, and windows moving during descent. Native verification of this improvement and support-loss recovery remains pending.
 
 ## Validation record — 5 November 2026
 

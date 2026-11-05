@@ -23,6 +23,7 @@ public struct ExplorerInteraction {
     private var bounds: Bounds
     private var grabOffset = Point.zero
     private var settlingRemaining: Double = 0
+    private var terrain: TerrainSnapshot?
 
     public init(position: Point, bounds: Bounds) {
         self.position = position
@@ -55,7 +56,15 @@ public struct ExplorerInteraction {
         guard elapsed.isFinite, elapsed > 0 else { return }
         if state == .recovering {
             // Temporary controlled descent. Full falling/parachute motion belongs to stage five.
-            position.y = max(bounds.minimum.y, position.y - 180 * elapsed)
+            let next = Point(x: position.x, y: max(bounds.minimum.y, position.y - 180 * elapsed))
+            if let terrain, let (anchor, landed) = TerrainSupport.landing(from: position, to: next, in: terrain) {
+                attachment = anchor
+                position = landed
+                state = .settling
+                settlingRemaining = 0.8
+                return
+            }
+            position = next
             if position.y <= bounds.minimum.y {
                 state = .settling
                 settlingRemaining = 0.8
@@ -69,6 +78,7 @@ public struct ExplorerInteraction {
 
     public mutating func updateBounds(_ bounds: Bounds) {
         self.bounds = bounds
+        terrain = nil
         attachment = nil
         // A changed display invalidates the pointer's coordinate space and any active drag.
         if state == .held { endDrag() }
@@ -76,6 +86,7 @@ public struct ExplorerInteraction {
     }
 
     public mutating func updateTerrain(_ terrain: TerrainSnapshot) {
+        self.terrain = terrain
         guard state != .held else { return }
         if let attachment {
             if let supported = TerrainSupport.resolve(attachment, in: terrain) {

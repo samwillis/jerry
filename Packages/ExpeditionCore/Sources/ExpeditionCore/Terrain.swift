@@ -116,6 +116,20 @@ public struct TerrainAttachment: Equatable, Sendable {
 }
 
 public enum TerrainSupport {
+    /// Sweep the feet across the entire descent step so thin platforms cannot be skipped.
+    public static func landing(from start: WorldPoint, to end: WorldPoint, in terrain: TerrainSnapshot) -> (TerrainAttachment, WorldPoint)? {
+        guard end.y <= start.y else { return nil }
+        let crossed = terrain.surfaces.filter {
+            ($0.id.edge == .top || $0.id.edge == .floor)
+                && $0.start.y <= start.y && $0.start.y >= end.y
+        }.sorted { $0.start.y > $1.start.y }
+        for surface in crossed {
+            let feet = WorldPoint(x: end.x, y: surface.start.y)
+            if let support = attach(at: feet, in: terrain, tolerance: 0) { return support }
+        }
+        return nil
+    }
+
     public static func attach(at position: WorldPoint, in terrain: TerrainSnapshot, tolerance: Double = 16) -> (TerrainAttachment, WorldPoint)? {
         let candidates = terrain.surfaces.filter {
             ($0.id.edge == .top || $0.id.edge == .floor)
