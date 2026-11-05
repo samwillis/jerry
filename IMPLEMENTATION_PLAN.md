@@ -55,6 +55,8 @@ Create directories as their implementation becomes necessary, rather than adding
 
 Acceptance: launch and quit reliably; type, scroll, select text, and drag underlying windows normally while the placeholder is visible. Pause stops animation; quit removes every app-owned panel.
 
+Implementation status (5 November 2026): app shell, local core package, Xcode target/shared scheme, click-through overlay, placeholder idle animation, menu controls, and debug guides are implemented. The Debug build and initial launch/rendering passed. See [manual checks](docs/MANUAL_TESTS.md) for remaining interactive acceptance checks.
+
 ## 2. Prove dragging before adding movement
 
 1. Create a small non-activating input panel that follows the explorer's body. Keep ropes, flags, parachutes, and empty overlay space non-interactive.
@@ -65,6 +67,8 @@ Acceptance: launch and quit reliably; type, scroll, select text, and drag underl
 6. Verify focus remains with the user's application. Start without global input hooks or Accessibility access; reassess only if the prototype demonstrates a need.
 
 Acceptance: repeatedly pick up and move the character without activating the toy, losing a drag, or blocking clicks away from its small hit area. If input panels are unreliable, resolve the approach here before proceeding.
+
+Implementation status (5 November 2026): a small non-activating character input panel, grab-offset handling, held/settling/idle states, screen bounds, display-change cancellation, and paused dragging are implemented. Six core tests and the native Debug build passed. The user confirmed that actual dragging and typing in another app both work. Remaining native edge-case checks are listed in docs/MANUAL_TESTS.md; core tests alone are not proof of window-server input behaviour.
 
 ## 3. Discover windows and derive terrain
 
