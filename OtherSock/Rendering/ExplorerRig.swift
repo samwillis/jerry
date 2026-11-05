@@ -119,13 +119,16 @@ final class ExplorerRig: SKNode {
         fabric.strokeColor = .darkGray
         fabric.lineWidth = 1
         canopy.addChild(fabric)
-        for x: CGFloat in [-34, 0, 34] {
+        for x: CGFloat in [-34, -12, 12, 34] {
             let cord = CGMutablePath()
-            cord.move(to: CGPoint(x: x, y: 105))
+            // Sample the canopy's quadratic lower edge, rather than its straight chord.
+            let edgeY = 101.5 + 14 * x * x / (68 * 68)
+            cord.move(to: CGPoint(x: x, y: edgeY))
             cord.addLine(to: CGPoint(x: x < 0 ? -17 : 17, y: 66))
             let line = SKShapeNode(path: cord)
             line.strokeColor = .lightGray
             line.lineWidth = 0.7
+            line.zPosition = -1
             canopy.addChild(line)
         }
     }

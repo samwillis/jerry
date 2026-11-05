@@ -82,6 +82,8 @@ The user preferred the earlier rounded nose shape, so restored that shape below 
 
 Removed the nose at the user's subsequent request. Shortened both upper and lower leg segments from 15 to 13.5 points to reduce the slouched knee bend in standing and walking. The Debug build passed; native idle and walking previews were inspected with planted soles and zero clamped contacts at default gait settings. The walking preview was left running at half speed.
 
+Corrected the parachute's asymmetric three-cord layout to four balanced suspension cords, two per hand. Inner attachments now follow the curved lower canopy edge, and cords render behind the fabric so they cannot cross its face. The Debug build passed and a native parachute screenshot confirmed all four lines at enlarged and actual size.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.
