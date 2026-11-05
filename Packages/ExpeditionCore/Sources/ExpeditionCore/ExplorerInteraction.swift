@@ -16,9 +16,10 @@ public struct ExplorerInteraction {
         }
     }
 
-    public enum State: String { case idle, held, settling }
+    public enum State: String { case idle, held, settling, recovering }
     public private(set) var position: Point
     public private(set) var state: State = .idle
+    public private(set) var attachment: TerrainAttachment?
     private var bounds: Bounds
     private var grabOffset = Point.zero
     private var settlingRemaining: Double = 0
@@ -32,6 +33,7 @@ public struct ExplorerInteraction {
     public mutating func beginDrag(at pointer: Point) {
         grabOffset = Point(x: pointer.x - position.x, y: pointer.y - position.y)
         settlingRemaining = 0
+        attachment = nil
         state = .held
     }
 
@@ -41,24 +43,58 @@ public struct ExplorerInteraction {
         clampPosition()
     }
 
-    public mutating func endDrag() {
+    public mutating func endDrag(on terrain: TerrainSnapshot? = nil) {
         guard state == .held else { return }
         state = .settling
         settlingRemaining = 0.8
+        if let terrain { updateTerrain(terrain) }
     }
 
     /// Called only while the expedition is running. Pausing preserves the settling interval.
     public mutating func advance(by elapsed: Double) {
-        guard state == .settling, elapsed.isFinite, elapsed > 0 else { return }
+        guard elapsed.isFinite, elapsed > 0 else { return }
+        if state == .recovering {
+            // Temporary controlled descent. Full falling/parachute motion belongs to stage five.
+            position.y = max(bounds.minimum.y, position.y - 180 * elapsed)
+            if position.y <= bounds.minimum.y {
+                state = .settling
+                settlingRemaining = 0.8
+            }
+            return
+        }
+        guard state == .settling else { return }
         settlingRemaining -= elapsed
         if settlingRemaining <= 0 { state = .idle }
     }
 
     public mutating func updateBounds(_ bounds: Bounds) {
         self.bounds = bounds
+        attachment = nil
         // A changed display invalidates the pointer's coordinate space and any active drag.
         if state == .held { endDrag() }
         clampPosition()
+    }
+
+    public mutating func updateTerrain(_ terrain: TerrainSnapshot) {
+        guard state != .held else { return }
+        if let attachment {
+            if let supported = TerrainSupport.resolve(attachment, in: terrain) {
+                position = supported
+                clampPosition()
+                return
+            }
+            self.attachment = nil
+            state = .recovering
+            return
+        }
+        guard state != .recovering else { return }
+        if let (anchor, supported) = TerrainSupport.attach(at: position, in: terrain) {
+            attachment = anchor
+            position = supported
+            clampPosition()
+        } else {
+            state = .recovering
+        }
     }
 
     private mutating func clampPosition() {

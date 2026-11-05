@@ -14,7 +14,7 @@ Build and launch using the README. These are interactive acceptance checks, not 
 - [ ] Quit from the menu: explorer, overlay, guides, and status item disappear; no process remains.
 - [ ] Relaunch: exactly one explorer and one status item appear.
 
-Real window terrain, full-screen behaviour, and multiple-display support are outside these first two phases.
+Full-screen behaviour and multiple-display support remain outside the current prototype.
 
 ## Phase two manual checks
 
@@ -30,7 +30,28 @@ Real window terrain, full-screen behaviour, and multiple-display support are out
 - [ ] Change display layout during a drag: capture ends, the character is kept on the primary display, and the hand cursor is restored.
 - [ ] Quit: both rendering and input panels disappear; relaunch creates only one explorer.
 
-Phase two intentionally leaves the explorer at its drop location. Platform attachment and parachute recovery are later work.
+Phase two originally left the explorer at its drop location; phase three adds top-edge attachment and temporary controlled recovery.
+
+## Phase three manual checks
+
+- [ ] Enable debug guides: green tops and pink sides match exposed rectangular window bounds; teal lines mark rescue screen boundaries.
+- [ ] Overlap two windows: the nearer window hides covered portions of the rear window's terrain.
+- [ ] Drag a window partly beyond the screen: no artificial top platform appears at the screen ceiling.
+- [ ] Use a smaller window with at least 76 points of room above it. Drop the explorer with its feet near its exposed green top, away from corners: it snaps onto the top.
+- [ ] Move and resize that supporting window: the explorer keeps its window-relative horizontal offset while the foothold remains valid.
+- [ ] Split another part of its supporting edge with a foreground window: the explorer stays attached if its own foothold and body are still clear.
+- [ ] Close, minimise, cover, or narrow away its supporting window: the explorer descends visibly to the desktop floor rather than remaining suspended.
+- [ ] Grab during recovery: descent stops and the explorer follows the pointer; keyboard focus remains in the other app.
+- [ ] Drop in mid-air: controlled descent reaches the screen floor, then settles and resumes breathing. Intermediate windows are not landing targets yet.
+- [ ] Pause: geometry polling and recovery stop. Resume refreshes terrain; user dragging still works while paused.
+- [ ] Quit and relaunch: no stale terrain timer, overlay, or input panel remains.
+- [ ] On a separate test account or machine without screen-capture access, check geometry availability without granting new permissions. Do not change the user's permissions just for this check.
+
+## Phase three validation record — 5 November 2026
+
+- Native Debug build passed. Core tests cover coordinate conversion, overlaps, clipping, non-climbable occluders, relative anchors, body clearance, moving/resizing support, and controlled recovery.
+- The geometry-only report read 9 windows, 8 climbable windows, and 8 edge segments in the development launch context. Existing screen-capture permission reported true; no permission was requested. This does not establish denied-permission behaviour.
+- Launched with debug guides enabled; native UI inspection confirmed live window/edge counts and visible coloured terrain lines. Full desktop alignment and native attachment/recovery are awaiting user verification.
 
 ## Validation record — 5 November 2026
 

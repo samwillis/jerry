@@ -17,6 +17,9 @@ final class OverlayController {
     private let inputPanel: ExplorerInputPanel
     private let inputView: ExplorerInputView
     private var displayOrigin = CGPoint.zero
+    private let windowProvider = WindowProvider()
+    private var terrainTimer: Timer?
+    private var paused = false
 
     init() {
         let frame = NSScreen.screens.first?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
@@ -73,8 +76,19 @@ final class OverlayController {
             guard let self else { return }
             self.scene.drag(to: self.scenePoint(point))
         }
-        inputView.onEnd = { [weak self] in self?.scene.endDrag() }
+        inputView.onEnd = { [weak self] in
+            self?.refreshTerrain()
+            self?.scene.endDrag()
+        }
         updateDisplay()
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.paused else { return }
+                self.refreshTerrain()
+            }
+        }
+        terrainTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func scenePoint(_ point: CGPoint) -> CGPoint {
@@ -100,10 +114,18 @@ final class OverlayController {
         scene.size = screen.frame.size
         let usable = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
         scene.layout(in: usable)
+        refreshTerrain()
         show()
     }
 
+    private func refreshTerrain() {
+        guard let screen = NSScreen.screens.first else { return }
+        scene.updateTerrain(windowProvider.snapshot(on: screen))
+    }
+
     func setPaused(_ paused: Bool) {
+        self.paused = paused
+        if !paused { refreshTerrain() }
         scene.setExpeditionPaused(paused)
         // Keep rendering user-driven placement even while autonomous animation is paused.
     }
@@ -111,6 +133,8 @@ final class OverlayController {
     func setDebugVisible(_ visible: Bool) { scene.setDebugVisible(visible) }
 
     func close() {
+        terrainTimer?.invalidate()
+        terrainTimer = nil
         inputView.cancelDrag()
         scene.onPlacementChanged = nil
         inputPanel.orderOut(nil)

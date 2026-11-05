@@ -82,6 +82,8 @@ Implementation status (5 November 2026): a small non-activating character input 
 
 Acceptance: debug lines match exposed window edges, including overlapping and resized windows. Moving or closing a supporting window updates the character predictably. Confirm basic terrain works with the actual permission state on the target Mac.
 
+Implementation status (5 November 2026): metadata discovery at 10 Hz, explicit coordinate conversion, visible-edge subtraction, window-relative top attachments, debug terrain, and placeholder controlled descent on support loss are implemented. The native build and geometry/attachment tests pass, and live metadata and terrain rendering have been inspected. The launch context already has screen-capture permission, so denied-permission behaviour remains unverified. Native drop/move/close acceptance checks are recorded separately in docs/MANUAL_TESTS.md. Climbing, side attachments, and real parachute recovery remain later work.
+
 ## 4. Build the animation playground and character rig
 
 Build a development-only preview window before connecting full movement to real windows. Keep it separate from the non-activating desktop overlay so preview controls can accept normal input.

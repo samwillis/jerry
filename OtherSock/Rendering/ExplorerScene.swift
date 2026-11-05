@@ -7,6 +7,9 @@ final class ExplorerScene: SKScene {
     private let explorer = SKNode()
     private let debug = SKNode()
     private let debugLabel = SKLabelNode(fontNamed: "Menlo")
+    private let terrainGuides = SKNode()
+    private var terrain: TerrainSnapshot?
+    private var geometryUnavailable = true
     private var usableFrame = CGRect.zero
     private var expeditionPaused = false
     private var interaction: ExplorerInteraction?
@@ -69,6 +72,7 @@ final class ExplorerScene: SKScene {
 
     func layout(in usableFrame: CGRect) {
         self.usableFrame = usableFrame
+        terrain = nil
         let safeOrigins = ExplorerInteraction.Bounds(
             minimum: .init(x: usableFrame.minX + 24, y: usableFrame.minY + 2),
             maximum: .init(x: usableFrame.maxX - 24, y: usableFrame.maxY - 76)
@@ -98,8 +102,34 @@ final class ExplorerScene: SKScene {
     }
 
     func endDrag() {
-        interaction?.endDrag()
+        interaction?.endDrag(on: terrain)
         applyPlacement()
+    }
+
+    func updateTerrain(_ snapshot: TerrainSnapshot?) {
+        let unavailable = snapshot == nil
+        // If window-server metadata fails, retain only the guaranteed rescue boundaries.
+        let next = snapshot ?? TerrainSnapshot(windows: [], viewport: WorldRect(x: usableFrame.minX, y: usableFrame.minY + 2, width: usableFrame.width, height: max(0, usableFrame.height - 2)))
+        guard terrain != next || geometryUnavailable != unavailable else { return }
+        terrain = next
+        geometryUnavailable = unavailable
+        interaction?.updateTerrain(next)
+        rebuildTerrainGuides()
+        applyPlacement()
+    }
+
+    private func rebuildTerrainGuides() {
+        terrainGuides.removeAllChildren()
+        guard let terrain else { return }
+        for surface in terrain.surfaces {
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: surface.start.x, y: surface.start.y))
+            path.addLine(to: CGPoint(x: surface.end.x, y: surface.end.y))
+            let line = SKShapeNode(path: path)
+            line.strokeColor = surface.id.owner == .screen ? .systemTeal : (surface.id.edge == .top ? .systemGreen : .systemPink)
+            line.lineWidth = 2
+            terrainGuides.addChild(line)
+        }
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -107,8 +137,9 @@ final class ExplorerScene: SKScene {
         previousUpdateTime = currentTime
         guard !expeditionPaused else { return }
         let previousState = interaction?.state
+        let previousPosition = interaction?.position
         interaction?.advance(by: elapsed)
-        if previousState != interaction?.state { applyPlacement() }
+        if previousState != interaction?.state || previousPosition != interaction?.position { applyPlacement() }
     }
 
     private func applyPlacement() {
@@ -127,6 +158,7 @@ final class ExplorerScene: SKScene {
 
     private func rebuildDebug() {
         debug.removeAllChildren()
+        debug.addChild(terrainGuides)
         let outline = SKShapeNode(rect: usableFrame.insetBy(dx: 3, dy: 3))
         outline.strokeColor = .systemTeal
         outline.lineWidth = 1
@@ -135,7 +167,9 @@ final class ExplorerScene: SKScene {
         bounds.strokeColor = .systemYellow
         bounds.lineWidth = 1
         debug.addChild(bounds)
-        debugLabel.text = "PHASE 2 · \(expeditionPaused ? "PAUSED" : "RUNNING") · \(interaction?.state.rawValue.uppercased() ?? "IDLE") · DRAG EXPLORER · terrain not connected"
+        let count = terrain?.windows.filter(\.canClimb).count ?? 0
+        let status = geometryUnavailable ? "GEOMETRY UNAVAILABLE" : "\(count) WINDOWS · \(terrain?.surfaces.count ?? 0) EDGES"
+        debugLabel.text = "PHASE 3 · \(expeditionPaused ? "PAUSED" : "RUNNING") · \(interaction?.state.rawValue.uppercased() ?? "IDLE") · \(status)"
         debugLabel.fontSize = 11
         debugLabel.fontColor = .white
         debugLabel.horizontalAlignmentMode = .left

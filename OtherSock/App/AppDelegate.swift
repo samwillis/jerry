@@ -8,11 +8,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var resumeItem: NSMenuItem!
     private var debugItem: NSMenuItem!
     private var isPaused = false
-    private var showsDebug = false
+    private var showsDebug = ProcessInfo.processInfo.arguments.contains("--debug-terrain")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenu()
         overlay = OverlayController()
+        overlay?.setDebugVisible(showsDebug)
         overlay?.show()
         NotificationCenter.default.addObserver(
             self, selector: #selector(displaysChanged),
