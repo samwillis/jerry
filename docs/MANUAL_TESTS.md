@@ -84,6 +84,17 @@ Removed the nose at the user's subsequent request. Shortened both upper and lowe
 
 Corrected the parachute's asymmetric three-cord layout to four balanced suspension cords, two per hand. Inner attachments now follow the curved lower canopy edge, and cords render behind the fabric so they cannot cross its face. The Debug build passed and a native parachute screenshot confirmed all four lines at enlarged and actual size.
 
+## Expressions and release motion — 5 November 2026
+
+- Added varied blinks with an 18 ms offset between eyes; a paused native preview at 2.46 seconds confirmed different eyelid closure amounts.
+- Added planted-foot landing compression and recovery, triggered after descent and gentle placement. The Landing clip provides a repeatable preview.
+- Animated the canopy emerging from the backpack and inflating behind the explorer; deployment timing also eases downward speed from 270 to 140 points/second.
+- Raised standing hips and adjusted walking hip height to planted-leg reach. Native idle inspection confirmed the straighter stance. Abseiling has its own elbow pole direction.
+- Added filtered drag-release velocity, air resistance, display bounds, and diagonal platform sweeps. Automated cases cover sideways and upward throws, stale velocity, re-grabbing, and crossing-point landings. Full native throw/landing feel remains a manual check.
+- Added a preview-time slider for deterministic visual inspection. The user accepted the current version for commit.
+
+Final Debug and Release builds passed, all 42 core tests passed, and whitespace checks passed. Earlier OS-specific manual checks remain open; this validation does not claim they were completed.
+
 ## Validation record — 5 November 2026
 
 - Xcode 27.2 Debug build succeeded on macOS 27.2, Apple Silicon, using the local ExpeditionCore package.

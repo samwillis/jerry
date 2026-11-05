@@ -124,7 +124,8 @@ public enum TerrainSupport {
                 && $0.start.y <= start.y && $0.start.y >= end.y
         }.sorted { $0.start.y > $1.start.y }
         for surface in crossed {
-            let feet = WorldPoint(x: end.x, y: surface.start.y)
+            let fraction = start.y > end.y ? (start.y - surface.start.y) / (start.y - end.y) : 0
+            let feet = WorldPoint(x: start.x + (end.x - start.x) * fraction, y: surface.start.y)
             if let support = attach(at: feet, in: terrain, tolerance: 0) { return support }
         }
         return nil

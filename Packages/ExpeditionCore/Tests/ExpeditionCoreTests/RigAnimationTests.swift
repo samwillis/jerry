@@ -5,6 +5,31 @@ import XCTest
 final class RigAnimationTests: XCTestCase {
     private func distance(_ a: WorldPoint, _ b: WorldPoint) -> Double { hypot(a.x - b.x, a.y - b.y) }
 
+    func testStraighterWalkingStanceKeepsBothFootTargetsReachableAcrossTuningRange() {
+        for stride in [2.0, 10, 12] {
+            for bounce in [0.0, 1, 2] {
+                var tuning = AnimationTuning()
+                tuning.stride = stride; tuning.bounce = bounce
+                for step in 0..<120 {
+                    let pose = AnimationClips.sample(.walking, time: Double(step) / 120, tuning: tuning)
+                    for (foot, offset) in [(pose.leftFoot, -7.0), (pose.rightFoot, 7.0)] {
+                        let root = WorldPoint(x: pose.hips.x + offset, y: pose.hips.y)
+                        let target = WorldPoint(x: foot.x, y: foot.y + ExpeditionConfiguration.ankleHeight)
+                        let solution = TwoBoneIK.solve(root: root, target: target, upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, pole: .init(x: root.x + 24, y: root.y - 6))
+                        XCTAssertFalse(solution.isClamped)
+                    }
+                }
+            }
+        }
+    }
+
+    func testRecoverySlowsAsCanopyOpensAndIsIndependentOfStepSize() {
+        XCTAssertGreaterThan(RecoveryAnimation.distance(from: 0, to: 0.1), RecoveryAnimation.distance(from: 1, to: 1.1))
+        let whole = RecoveryAnimation.distance(from: 0, to: 2)
+        let pieces = (0..<200).reduce(0.0) { $0 + RecoveryAnimation.distance(from: Double($1) / 100, to: Double($1 + 1) / 100) }
+        XCTAssertEqual(whole, pieces, accuracy: 0.00001)
+    }
+
     func testReachableLimbKeepsBothSegmentLengthsAndExactContact() {
         let root = WorldPoint(x: 10, y: 40), target = WorldPoint(x: 20, y: 22)
         let solution = TwoBoneIK.solve(root: root, target: target, upper: 12, lower: 13, bend: 1)

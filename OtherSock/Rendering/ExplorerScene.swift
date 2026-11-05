@@ -52,18 +52,19 @@ final class ExplorerScene: SKScene {
         if let position = interaction?.position {
             explorer.grabPoint = CGPoint(x: point.x - position.x, y: point.y - position.y)
         }
-        interaction?.beginDrag(at: .init(x: point.x, y: point.y))
+        interaction?.beginDrag(at: .init(x: point.x, y: point.y), time: ProcessInfo.processInfo.systemUptime)
         applyPlacement()
     }
 
     func drag(to point: CGPoint) {
-        interaction?.drag(to: .init(x: point.x, y: point.y))
+        interaction?.drag(to: .init(x: point.x, y: point.y), time: ProcessInfo.processInfo.systemUptime)
         applyPlacement()
     }
 
     func endDrag() {
         interaction?.endDrag(on: terrain)
         applyPlacement()
+        if interaction?.state == .settling, interaction?.attachment != nil { explorer.land(strength: 0.5) }
     }
 
     func updateTerrain(_ snapshot: TerrainSnapshot?) {
@@ -99,8 +100,9 @@ final class ExplorerScene: SKScene {
         let previousState = interaction?.state
         let previousPosition = interaction?.position
         interaction?.advance(by: elapsed)
+        if previousState == .recovering, interaction?.state == .settling { explorer.land() }
         if previousState != interaction?.state || previousPosition != interaction?.position { applyPlacement() }
-        explorer.render(delta: interaction?.state == .settling ? 0 : elapsed)
+        explorer.render(delta: elapsed)
     }
 
     private func applyPlacement() {

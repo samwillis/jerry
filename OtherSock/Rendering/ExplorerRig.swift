@@ -56,11 +56,18 @@ final class ExplorerRig: SKNode {
     private let backpack = SKNode()
     private let joints = SKNode()
     private let canopy = SKNode()
+    private let canopyFabric = SKNode()
+    private var cords: [(SKShapeNode, CGFloat)] = []
+    private let leftEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
+    private let rightEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
     private let leftArm = RigLimb(upper: 12, lower: 12, color: .systemOrange, foot: false)
     private let rightArm = RigLimb(upper: 12, lower: 12, color: NSColor(calibratedRed: 0.78, green: 0.38, blue: 0.06, alpha: 1), foot: false)
-    private let leftLeg = RigLimb(upper: 13.5, lower: 13.5, color: .darkGray, foot: true)
-    private let rightLeg = RigLimb(upper: 13.5, lower: 13.5, color: .darkGray, foot: true)
+    private let leftLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: .darkGray, foot: true)
+    private let rightLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: .darkGray, foot: true)
     private var animator = RigAnimator()
+    private var expressionTime: Double = 0
+    private var landingTime: Double?
+    private var landingStrength: Double = 1
     var handTargets: (WorldPoint, WorldPoint)?
     var grabPoint = CGPoint(x: 0, y: 64)
     var showsJoints = false
@@ -85,6 +92,7 @@ final class ExplorerRig: SKNode {
         body.addChild(head)
         body.addChild(leftArm)
         body.addChild(canopy)
+        canopy.zPosition = -4
         body.addChild(joints)
         joints.zPosition = 10
         rectangle(CGRect(x: -4, y: 20, width: 8, height: 8), color: NSColor(calibratedRed: 0.94, green: 0.74, blue: 0.54, alpha: 1), parent: torso)
@@ -94,8 +102,13 @@ final class ExplorerRig: SKNode {
         rectangle(CGRect(x: -10, y: -7, width: 20, height: 17), color: skin, parent: head, radius: 6)
         rectangle(CGRect(x: -12, y: 7, width: 24, height: 8), color: .systemTeal, parent: head)
         rectangle(CGRect(x: -16, y: 6, width: 32, height: 3), color: .systemTeal, parent: head, radius: 1)
-        rectangle(CGRect(x: -2, y: 2, width: 2, height: 3), color: .black, parent: head, radius: 0)
-        rectangle(CGRect(x: 5, y: 2, width: 2, height: 3), color: .black, parent: head, radius: 0)
+        for (eye, x) in [(leftEye, -1.0), (rightEye, 6.0)] {
+            eye.position = CGPoint(x: x, y: 3.5)
+            eye.fillColor = .black
+            eye.strokeColor = NSColor(calibratedWhite: 0.15, alpha: 1)
+            eye.lineWidth = 1
+            head.addChild(eye)
+        }
         buildParachute()
         render(delta: 0)
     }
@@ -118,25 +131,72 @@ final class ExplorerRig: SKNode {
         fabric.fillColor = .systemYellow
         fabric.strokeColor = .darkGray
         fabric.lineWidth = 1
-        canopy.addChild(fabric)
+        canopy.addChild(canopyFabric)
+        canopyFabric.addChild(fabric)
         for x: CGFloat in [-34, -12, 12, 34] {
-            let cord = CGMutablePath()
-            // Sample the canopy's quadratic lower edge, rather than its straight chord.
-            let edgeY = 101.5 + 14 * x * x / (68 * 68)
-            cord.move(to: CGPoint(x: x, y: edgeY))
-            cord.addLine(to: CGPoint(x: x < 0 ? -17 : 17, y: 66))
-            let line = SKShapeNode(path: cord)
+            let line = SKShapeNode()
             line.strokeColor = .lightGray
             line.lineWidth = 0.7
             line.zPosition = -1
             canopy.addChild(line)
+            cords.append((line, x))
         }
     }
 
-    func select(_ motion: ExplorerMotion, restart: Bool = false) { animator.select(motion, restart: restart) }
+    private func renderParachute(pose: ExplorerPose) {
+        canopy.isHidden = motion != .parachuting || animationTime < RecoveryAnimation.deploymentStart
+        guard !canopy.isHidden else { return }
+        let opening = RecoveryAnimation.deployment(at: animationTime)
+        canopyFabric.xScale = 0.05 + 0.95 * opening
+        canopyFabric.yScale = 0.025 + 0.975 * opening
+        canopyFabric.zRotation = -0.3 * (1 - opening)
+        canopyFabric.position = CGPoint(
+            x: backpack.position.x * (1 - opening) - sin(.pi * opening) * 5,
+            y: backpack.position.y * (1 - opening) + 105 * opening - 105 * canopyFabric.yScale
+        )
+        for (line, x) in cords {
+            let edgeY = 101.5 + 14 * x * x / (68 * 68)
+            let path = CGMutablePath()
+            path.move(to: canopyFabric.convert(CGPoint(x: x, y: edgeY), to: canopy))
+            let hand = x < 0 ? pose.leftHand : pose.rightHand
+            path.addLine(to: CGPoint(x: hand.x, y: hand.y))
+            line.path = path
+            line.alpha = max(0, (opening - 0.2) / 0.8)
+        }
+    }
+
+    func select(_ motion: ExplorerMotion, restart: Bool = false) {
+        if restart { expressionTime = 0 }
+        if restart || motion == .held || motion == .parachuting { landingTime = nil }
+        animator.select(motion, restart: restart)
+    }
+
+    func land(strength: Double = 1) {
+        landingTime = 0
+        landingStrength = strength
+    }
+
+    func seek(to time: Double) {
+        animator.seek(to: time)
+        expressionTime = animator.time
+        landingTime = nil
+        render(delta: 0)
+    }
 
     func render(delta: Double) {
         var pose = animator.advance(by: delta)
+        let elapsed = delta.isFinite ? min(max(delta, 0), 0.1) : 0
+        expressionTime += elapsed
+        for (index, eye) in [leftEye, rightEye].enumerated() {
+            let openness = BlinkAnimation.openness(time: expressionTime, eye: index)
+            eye.yScale = openness
+            eye.position.y = 2 + 1.5 * openness
+        }
+        if let time = landingTime {
+            let next = time + elapsed
+            landingTime = next < LandingAnimation.duration ? next : nil
+            pose = LandingAnimation.apply(to: pose, elapsed: next, strength: landingStrength)
+        }
         if let handTargets { pose.leftHand = handTargets.0; pose.rightHand = handTargets.1 }
         let held = motion == .held || (motion == .comic && animationTime.truncatingRemainder(dividingBy: 9) >= 5)
         let origin = held ? grabPoint : CGPoint(x: 0, y: 60)
@@ -144,26 +204,25 @@ final class ExplorerRig: SKNode {
         pivot.zRotation = pose.sway
         body.position = CGPoint(x: -origin.x, y: -origin.y)
         torso.position = CGPoint(x: pose.hips.x, y: pose.hips.y)
-        head.position = CGPoint(x: pose.hips.x, y: pose.hips.y + 32)
+        head.position = CGPoint(x: pose.hips.x, y: pose.hips.y + ExpeditionConfiguration.headOffset)
         head.zRotation = pose.headTilt
         backpack.position = CGPoint(x: pose.hips.x - 18, y: pose.hips.y + 10)
         backpack.zRotation = pose.backpackTilt
-        canopy.isHidden = motion != .parachuting || animationTime < 0.45
-        canopy.alpha = min(max((animationTime - 0.45) * 3, 0), 1)
+        renderParachute(pose: pose)
         joints.removeAllChildren()
         joints.isHidden = !showsJoints
         clampedContacts = 0
-        place(leftArm, root: .init(x: pose.hips.x - 10, y: pose.hips.y + 20), target: pose.leftHand, knee: false)
-        place(rightArm, root: .init(x: pose.hips.x + 10, y: pose.hips.y + 20), target: pose.rightHand, knee: false)
+        place(leftArm, root: .init(x: pose.hips.x - 10, y: pose.hips.y + 20), target: pose.leftHand, knee: false, elbowPole: pose.elbowPole)
+        place(rightArm, root: .init(x: pose.hips.x + 10, y: pose.hips.y + 20), target: pose.rightHand, knee: false, elbowPole: pose.elbowPole)
         place(leftLeg, root: .init(x: pose.hips.x - 7, y: pose.hips.y), target: pose.leftFoot, knee: true)
         place(rightLeg, root: .init(x: pose.hips.x + 7, y: pose.hips.y), target: pose.rightFoot, knee: true)
     }
 
-    private func place(_ limb: RigLimb, root: WorldPoint, target: WorldPoint, knee: Bool) {
+    private func place(_ limb: RigLimb, root: WorldPoint, target: WorldPoint, knee: Bool, elbowPole: WorldPoint = .init(x: -24, y: -6)) {
         // Toe direction is +x. Mirroring the whole rig flips feet and poles together.
-        let pole = WorldPoint(x: root.x + (knee ? 24 : -24), y: root.y - 6)
+        let pole = WorldPoint(x: root.x + (knee ? 24 : elbowPole.x), y: root.y + (knee ? -6 : elbowPole.y))
         // Foot targets mark the sole; the shin ends at an ankle three points inside the boot.
-        let jointTarget = WorldPoint(x: target.x, y: target.y + (knee ? 3 : 0))
+        let jointTarget = WorldPoint(x: target.x, y: target.y + (knee ? ExpeditionConfiguration.ankleHeight : 0))
         let solution = TwoBoneIK.solve(root: root, target: jointTarget, upper: limb.upperLength, lower: limb.lowerLength, pole: pole)
         limb.place(root: root, solution: solution)
         if solution.isClamped { clampedContacts += 1 }

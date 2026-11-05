@@ -11,7 +11,7 @@ build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --playground
 
 The playground is a normal, focusable window separate from the desktop overlay. Closing it stops its rendering. It is excluded from Release builds. The enlarged preview and the actual-size preview use the same rig, clips, clock increments, and tuning values as the desktop character.
 
-The clip menu contains idle, walking, climbing, abseiling, parachuting, held, investigating, and a nine-second edge-hesitation comic sequence. Pause freezes the clip clock but still permits manual contact editing. Restart resets the pose, clip time, origin, handholds, rope anchor, and grab point. Playback ranges from 0.1× to 1×; zoom ranges from 1× to 3×. Cadence, stride, and bounce are independent tuning controls.
+The clip menu contains idle, walking, climbing, abseiling, parachuting, held, investigating, landing, and a nine-second edge-hesitation comic sequence. Pause freezes the clip clock but still permits manual contact editing. Restart resets the pose, clip/expression time, origin, handholds, rope anchor, and grab point. Playback ranges from 0.1× to 1×; zoom ranges from 1× to 3×. Cadence, stride, and bounce are independent tuning controls. The **Preview time (pauses)** slider seeks both animation and expression clocks to an exact time and pauses playback; Resume continues from that frame.
 
 In Climbing, drag either green handhold. An unreachable contact is red in the joint overlay, and the status line counts clamped contacts. The arm stays within its reachable length. In Abseiling, drag the yellow rope anchor. In Held, drag the pink grab point to change the pivot. In any clip, grab the body to interrupt it with the held pose; release blends back to the selected clip. Fake terrain stays fixed during that drag, and climbing handholds and the rope anchor retain their scene positions.
 
@@ -24,8 +24,8 @@ Depth is independent of forward direction: the canonical left arm and leg are ne
 | Part | Parent / pivot | Shape or length |
 | --- | --- | --- |
 | Presentation pivot | Simulation origin; grab point when held | Rotates the visual rig only |
-| Torso | Hips, nominally (0, 27) | Orange shape, neck, head attachment |
-| Head and hat | Hips + (0, 32) | Combined rig height about 74 points |
+| Torso | Standing hips nominally (0, 29.5) | Height follows planted-leg reach during walking |
+| Head and hat | Hips + (0, 30) | Combined rig height about 74–75 points |
 | Backpack | Hips + (-18, 10) | Behind the body; independent secondary rotation |
 | Upper arms | Shoulders at hips + (±10, 20) | 12 points each |
 | Lower arms | Child of upper arm at elbow | 12 points each; hand at endpoint |
@@ -35,6 +35,18 @@ Depth is independent of forward direction: the canonical left arm and leg are ne
 | Parachute | Visual rig | Appears after launch anticipation; does not accept input |
 
 Two-bone IK solves each elbow/knee and endpoint. Anatomical pole targets favour knees ahead of the body and elbows behind it, rather than assigning arbitrary signs independently to each limb. Mirroring the entire rig preserves the relation between knees and toes. The hand or foot target is exact when reachable; beyond reach, the target remains visible for debugging while the actual endpoint is clamped.
+
+Abseiling uses a forward/down elbow pole so elbows fold below the grips rather than across the face. Standing hips are higher, and walking hips follow a nearly extended planted leg across the stride range. Climbing keeps a deliberately bent posture.
+
+## Expressions, deployment, and landing
+
+Blinks use an independent expression clock with varied intervals and occasional double blinks. The second eye follows the first by 18 ms, with the leading eye alternating. Closing is quicker than reopening. Pause freezes expressions; clip changes preserve the expression clock, while Restart resets it. To inspect a staggered blink, seek to about 2.46 seconds in Idle.
+
+The parachute begins deploying after 0.18 seconds and inflates over 0.55 seconds. Fabric starts as a folded bundle at the backpack, rises behind the body, and expands overhead. Four suspension lines follow the moving fabric edge and the hand targets. Both fabric and cords render behind the explorer.
+
+The desktop recovery clock uses the same deployment timing to ease downward speed from 270 to 140 points/second. Drag release preserves filtered pointer velocity, capped at 900 points/second, then damps it with air resistance that increases as the canopy opens. Upward throws can rise briefly; sideways throws carry across the screen. A still hold before release clears stale velocity, and re-grabbing cancels flight. Display bounds constrain the trajectory and swept platform checks use the actual crossing point. Playground body dragging remains a pose-editing tool; release inertia applies to the desktop explorer.
+
+Landing keeps soles on the surface while lowering hips and hands by up to four points: compression takes 0.08 seconds and recovery 0.28 seconds. Recovery-to-settling triggers it on the desktop, and a direct platform placement uses a gentler version. Grabbing cancels a landing. The Landing preview repeats the crouch every 2.5 seconds; seek to 0.68 seconds to inspect maximum compression. These are visual offsets and do not move the terrain anchor.
 
 `RigAnimator` blends numeric poses over 0.2 seconds and owns no asynchronous animation completions. Switching clips captures the current displayed pose. Restart deliberately bypasses the blend to establish a repeatable baseline. The desktop maps held input to the held clip, recovery to the parachute clip, and resting/settling to idle. Real walking routes and climbing progression are phase five; playground clips are animation demonstrations.
 

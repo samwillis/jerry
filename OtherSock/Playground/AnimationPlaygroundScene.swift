@@ -93,6 +93,13 @@ final class AnimationPlaygroundScene: SKScene {
 
     func restart() { select(selected, restart: true) }
 
+    func seek(to time: Double) {
+        playbackPaused = true
+        previousTime = nil
+        rig.seek(to: time)
+        actualSizeRig.seek(to: time)
+    }
+
     private func handle(_ name: String, at local: CGPoint, color: NSColor) {
         let point = rig.convert(local, to: self)
         let node = SKShapeNode(circleOfRadius: 7)

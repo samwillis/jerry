@@ -3,6 +3,13 @@ import XCTest
 
 final class TerrainTests: XCTestCase {
     private let viewport = WorldRect(x: 0, y: 0, width: 800, height: 600)
+
+    func testDiagonalDescentUsesTheActualCrossingPointToLand() {
+        let terrain = TerrainSnapshot(windows: [window(1)], viewport: viewport)
+        let landed = TerrainSupport.landing(from: .init(x: 50, y: 500), to: .init(x: 700, y: 0), in: terrain)
+        XCTAssertEqual(landed?.0.owner, .window(1))
+        XCTAssertEqual(landed?.1, .init(x: 310, y: 300))
+    }
     private func window(_ id: UInt32, x: Double = 0, y: Double = 0, width: Double = 400, height: Double = 300, canClimb: Bool = true) -> DesktopWindow {
         DesktopWindow(id: id, frame: .init(x: x, y: y, width: width, height: height), canClimb: canClimb)
     }
@@ -85,7 +92,8 @@ final class TerrainTests: XCTestCase {
         explorer.updateTerrain(TerrainSnapshot(windows: [], viewport: viewport))
         XCTAssertEqual(explorer.state, .recovering)
         explorer.advance(by: 0.1)
-        XCTAssertEqual(explorer.position.y, 282)
+        XCTAssertGreaterThan(explorer.position.y, 0)
+        XCTAssertLessThan(explorer.position.y, 300)
         explorer.advance(by: 3)
         XCTAssertEqual(explorer.position.y, 0)
         XCTAssertEqual(explorer.state, .settling)
@@ -154,7 +162,7 @@ final class TerrainTests: XCTestCase {
         explorer.endDrag(on: TerrainSnapshot(windows: [window(1)], viewport: viewport))
         explorer.advance(by: 0.2)
         explorer.updateTerrain(TerrainSnapshot(windows: [window(1, x: 500, width: 200)], viewport: viewport))
-        explorer.advance(by: 3)
+        explorer.advance(by: 5)
         XCTAssertEqual(explorer.position.y, 0)
         XCTAssertEqual(explorer.attachment?.owner, .screen)
     }

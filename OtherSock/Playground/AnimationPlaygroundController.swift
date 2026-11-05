@@ -48,6 +48,7 @@ final class AnimationPlaygroundController: NSWindowController, NSWindowDelegate 
         addSlider("Cadence", value: 1, min: 0.3, max: 2, action: #selector(cadenceChanged), to: sliders)
         addSlider("Stride", value: 10, min: 2, max: 12, action: #selector(strideChanged), to: sliders)
         addSlider("Bounce", value: 1, min: 0, max: 2, action: #selector(bounceChanged), to: sliders)
+        addSlider("Preview time (pauses)", value: 0, min: 0, max: 9, action: #selector(timeChanged), to: sliders)
         controls.addArrangedSubview(sliders)
         let hint = NSTextField(labelWithString: "Climbing: drag green handholds. Abseiling: drag the rope anchor. Held: move the pink grab point. Grab the body in any clip to interrupt it.")
         hint.font = .systemFont(ofSize: 11)
@@ -108,5 +109,9 @@ final class AnimationPlaygroundController: NSWindowController, NSWindowDelegate 
     @objc private func cadenceChanged(_ sender: NSSlider) { scene.tuning.cadence = sender.doubleValue }
     @objc private func strideChanged(_ sender: NSSlider) { scene.tuning.stride = sender.doubleValue }
     @objc private func bounceChanged(_ sender: NSSlider) { scene.tuning.bounce = sender.doubleValue }
+    @objc private func timeChanged(_ sender: NSSlider) {
+        scene.seek(to: sender.doubleValue)
+        pauseButton.title = "Resume"
+    }
 }
 #endif
