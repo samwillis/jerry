@@ -76,3 +76,9 @@ swift test --package-path Packages/ExpeditionCore
 ```
 
 Numerical tests cover segment lengths, unreachable targets, finite poses, fixed climbing contacts, mirroring, anatomical pole directions, interruptions, clock pause, and deterministic restart. Use the playground to assess silhouette, soles, bend direction, contact sliding, canopy clipping, and comic timing. Numerical tests cannot establish visual quality.
+
+## Desktop travel and mission integration
+
+The desktop now consumes fixed-step walking, climbing, abseiling and recovery states from ExpeditionCore. Facing follows travel or the contacted wall. Climbing contacts stay fixed relative to their supporting window during stance and lift during the next stroke. Near/far hand heights and foot stroke heights are checked against limb reach throughout body bobbing. Abseiling rope anchors stay attached to the supporting window top; props, cords, flags and speech never enlarge the body input panel. Falling/deployment/open-canopy timing remains shared between presentation and recovery distance.
+
+`BananaMission` drives spotting/binoculars, investigation, banana reveal, map marking and rest through fixed-clock stages. A grab cancels the mission immediately even while paused. Animation uses numeric blending and stage/state changes rather than delayed completion callbacks. Use the real-window fixture and `--movement-only` to reproduce traversal separately from the adventure; see [validation](PROTOTYPE_VALIDATION.md).

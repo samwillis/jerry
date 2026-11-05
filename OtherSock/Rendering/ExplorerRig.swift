@@ -93,6 +93,7 @@ final class ExplorerRig: SKNode {
     private var landingTime: Double?
     private var landingStrength: Double = 1
     var handTargets: (WorldPoint, WorldPoint)?
+    var footTargets: (WorldPoint, WorldPoint)?
     var grabPoint = CGPoint(x: 0, y: 64)
     var showsJoints = false
     var tuning: AnimationTuning {
@@ -229,6 +230,7 @@ final class ExplorerRig: SKNode {
             pose = LandingAnimation.apply(to: pose, elapsed: next, strength: landingStrength)
         }
         if let handTargets { pose.leftHand = handTargets.0; pose.rightHand = handTargets.1 }
+        if let footTargets { pose.leftFoot = footTargets.0; pose.rightFoot = footTargets.1 }
         let held = motion == .held || (motion == .comic && animationTime.truncatingRemainder(dividingBy: 9) >= 5)
         let origin = held ? grabPoint : CGPoint(x: 0, y: 60)
         pivot.position = origin

@@ -7,8 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pauseItem: NSMenuItem!
     private var resumeItem: NSMenuItem!
     private var debugItem: NSMenuItem!
-    private var isPaused = false
-    private var showsDebug = ProcessInfo.processInfo.arguments.contains("--debug-terrain")
+    private var isPaused = ProcessInfo.processInfo.arguments.contains("--paused") || UserDefaults.standard.bool(forKey: "expeditionPaused")
+    private var gentlePace = UserDefaults.standard.bool(forKey: "gentlePace")
+    private var paceItem: NSMenuItem!
+    private var showsDebug = ProcessInfo.processInfo.arguments.contains("--debug-terrain") || UserDefaults.standard.bool(forKey: "debugGuides")
     #if DEBUG
     private var playground: AnimationPlaygroundController?
     #endif
@@ -17,7 +19,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installMenu()
         overlay = OverlayController()
         overlay?.setDebugVisible(showsDebug)
+        overlay?.setGentlePace(gentlePace)
+        overlay?.setPaused(isPaused)
         overlay?.show()
+        let workspace = NSWorkspace.shared.notificationCenter
+        workspace.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
+        workspace.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
+        workspace.addObserver(self, selector: #selector(spaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
+        workspace.addObserver(self, selector: #selector(frontAppChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--playground") { openPlayground() }
         #endif
@@ -43,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         pauseItem = add("Pause Expedition", action: #selector(pause), to: menu)
         resumeItem = add("Resume Expedition", action: #selector(resume), to: menu)
+        _ = add("Reset Expedition", action: #selector(resetExpedition), to: menu)
+        paceItem = add("Gentle Pace", action: #selector(togglePace), to: menu)
         debugItem = add("Show Debug Guides", action: #selector(toggleDebug), to: menu)
         #if DEBUG
         _ = add("Animation Playground…", action: #selector(openPlayground), to: menu)
@@ -66,20 +77,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func resume() { setPaused(false) }
     private func setPaused(_ paused: Bool) {
         isPaused = paused
+        UserDefaults.standard.set(paused, forKey: "expeditionPaused")
         overlay?.setPaused(paused)
         updateMenu()
     }
 
+    @objc private func resetExpedition() { overlay?.resetExpedition() }
+
     @objc private func toggleDebug() {
         showsDebug.toggle()
+        UserDefaults.standard.set(showsDebug, forKey: "debugGuides")
         overlay?.setDebugVisible(showsDebug)
         updateMenu()
     }
+
+    @objc private func togglePace() {
+        gentlePace.toggle()
+        UserDefaults.standard.set(gentlePace, forKey: "gentlePace")
+        overlay?.setGentlePace(gentlePace)
+        updateMenu()
+    }
+
+    @objc private func willSleep() { overlay?.setSleeping(true) }
+    @objc private func didWake() { overlay?.setSleeping(false) }
+    @objc private func frontAppChanged() { overlay?.checkDesktop() }
+    @objc private func spaceChanged() { overlay?.desktopChanged() }
 
     private func updateMenu() {
         pauseItem.isEnabled = !isPaused
         resumeItem.isEnabled = isPaused
         debugItem.state = showsDebug ? .on : .off
+        paceItem.state = gentlePace ? .on : .off
         statusItem?.button?.toolTip = "The Other Sock — expedition \(isPaused ? "paused" : "running")"
     }
 
@@ -98,6 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
         overlay?.close()
         overlay = nil
         #if DEBUG

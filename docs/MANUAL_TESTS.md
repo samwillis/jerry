@@ -118,3 +118,7 @@ Follow-up feedback reduced arm/leg gradients and replaced individually outlined 
 - Six core interaction tests passed, covering grab offsets, out-of-bounds pointer movement and release, settling, re-grabbing, display changes, and invalid clock values.
 - The new app launched and rendered. Native automation did not establish a successful drag: the overlay tree stayed unchanged and one coordinate attempt returned `AXError.notImplemented`.
 - The user then tested the running prototype and confirmed that dragging and typing both work. This establishes basic native dragging and retained keyboard focus; the remaining edge cases above are still unchecked.
+
+## Phases five to seven — 5 November 2026
+
+The latest requirement-by-requirement evidence, native lifecycle checks, real-window fixture observations, simulated soak tests, package details and remaining OS limits are in [prototype validation](PROTOTYPE_VALIDATION.md). Earlier unchecked OS cases above remain historical open coverage, not claims that this increment tested every macOS configuration. No overnight user testing was requested.

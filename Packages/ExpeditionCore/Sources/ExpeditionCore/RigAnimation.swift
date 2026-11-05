@@ -10,6 +10,15 @@ public enum RecoveryAnimation {
     public static let freeFallSpeed: Double = 270
     public static let openChuteSpeed: Double = 140
 
+    public static func duration(for distance: Double, startingAt time: Double = 0) -> Double {
+        var low = 0.0, high = max(0, distance) / openChuteSpeed + 1
+        for _ in 0..<24 {
+            let middle = (low + high) / 2
+            if self.distance(from: time, to: time + middle) < distance { low = middle } else { high = middle }
+        }
+        return (low + high) / 2
+    }
+
     public static func deployment(at time: Double) -> Double {
         let u = min(max((time - deploymentStart) / deploymentDuration, 0), 1)
         return u * u * (3 - 2 * u)
@@ -274,5 +283,27 @@ public struct RigAnimator {
         let smooth = fraction * fraction * (3 - 2 * fraction)
         pose = AnimationClips.sample(motion, time: time, tuning: tuning).blended(from: transitionFrom, fraction: smooth)
         return pose
+    }
+}
+
+/// Wall-relative contacts: stance targets follow the support while the body climbs past them.
+/// Near/far hand heights account for the rig's offset shoulders and finite arm reach.
+public struct ClimbingContacts {
+    public let leftHand: WorldPoint
+    public let rightHand: WorldPoint
+    public let leftFoot: WorldPoint
+    public let rightFoot: WorldPoint
+    public init(heightAlongWall: Double) {
+        func contact(height: Double, offset: Double) -> WorldPoint {
+            let cycle = (heightAlongWall + offset) / 24
+            let phase = cycle - floor(cycle)
+            let swing = max(0, (phase - 0.65) / 0.35)
+            let lift = swing * swing * (3 - 2 * swing) * 24
+            return .init(x: 20 - sin(swing * .pi) * 5, y: height - phase * 24 + lift)
+        }
+        leftHand = contact(height: 55, offset: 0)
+        rightHand = contact(height: 65, offset: 12)
+        leftFoot = contact(height: 24, offset: 12)
+        rightFoot = contact(height: 24, offset: 0)
     }
 }

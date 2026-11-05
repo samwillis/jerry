@@ -16,6 +16,11 @@ public struct WorldRect: Equatable, Sendable {
 }
 
 public enum DesktopCoordinates {
+    public static func isFullScreen(window: WorldRect, display: WorldRect) -> Bool {
+        window.minX <= display.minX + 1 && window.minY <= display.minY + 1
+            && window.maxX >= display.maxX - 1 && window.maxY >= display.maxY - 1
+    }
+
     /// Core Graphics uses a downward y axis from the primary display's top.
     public static func sceneRect(_ rect: WorldRect, primaryTop: Double, displayOrigin: WorldPoint) -> WorldRect {
         WorldRect(x: rect.minX - displayOrigin.x, y: primaryTop - rect.maxY - displayOrigin.y, width: rect.width, height: rect.height)
@@ -147,11 +152,27 @@ public enum TerrainSupport {
 
     public static func resolve(_ anchor: TerrainAttachment, in terrain: TerrainSnapshot) -> WorldPoint? {
         if anchor.owner == .screen, anchor.edge == .floor {
-            return .init(x: min(max(terrain.viewport.minX + anchor.offset, terrain.viewport.minX + 24), terrain.viewport.maxX - 24), y: terrain.viewport.minY)
+            let point = WorldPoint(x: min(max(terrain.viewport.minX + anchor.offset, terrain.viewport.minX + 24), terrain.viewport.maxX - 24), y: terrain.viewport.minY)
+            return point
         }
         guard case .window(let id) = anchor.owner,
-              let index = terrain.windows.firstIndex(where: { $0.id == id }), anchor.edge == .top else { return nil }
+              let index = terrain.windows.firstIndex(where: { $0.id == id }) else { return nil }
         let frame = terrain.windows[index].frame
+        if anchor.edge == .left || anchor.edge == .right {
+            let y = frame.minY + anchor.offset
+            let x = anchor.edge == .left ? frame.minX - 24 : frame.maxX + 24
+            guard x >= terrain.viewport.minX + 24, x <= terrain.viewport.maxX - 24,
+                  y >= terrain.viewport.minY, y + 76 <= terrain.viewport.maxY,
+                  terrain.surfaces.contains(where: {
+                      $0.id.owner == anchor.owner && $0.id.edge == anchor.edge
+                          && y >= $0.start.y - 64 && y <= $0.end.y
+                          && min(y + 60, frame.maxY) <= $0.end.y
+                  }) else { return nil }
+            let body = WorldRect(x: x - 23, y: y + 1, width: 46, height: 74)
+            guard !terrain.windows[..<index].contains(where: { $0.frame.intersects(body) }) else { return nil }
+            return .init(x: x, y: y)
+        }
+        guard anchor.edge == .top else { return nil }
         let point = WorldPoint(x: frame.minX + anchor.offset, y: frame.maxY)
         guard point.y + 76 <= terrain.viewport.maxY,
               terrain.surfaces.contains(where: {

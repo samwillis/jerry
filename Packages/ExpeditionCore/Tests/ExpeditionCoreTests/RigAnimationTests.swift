@@ -156,3 +156,34 @@ final class RigAnimationTests: XCTestCase {
         XCTAssertLessThan(otherLate.leftFoot.x, otherEarly.leftFoot.x)
     }
 }
+
+extension RigAnimationTests {
+    func testDesktopClimbingContactsStayWithinReachThroughoutStrokeAndBodyBob() {
+        for tick in 0..<240 {
+            let contacts = ClimbingContacts(heightAlongWall: Double(tick) / 10)
+            for time in [0.0, 0.5, 1.0, 1.5] {
+                let pose = AnimationClips.sample(.climbing, time: time, tuning: .init())
+                for (root, target) in [
+                    (WorldPoint(x: pose.hips.x - 10, y: pose.hips.y + 20), contacts.leftHand),
+                    (WorldPoint(x: pose.hips.x + 10, y: pose.hips.y + 20), contacts.rightHand)
+                ] {
+                    XCTAssertFalse(TwoBoneIK.solve(root: root, target: target, upper: 12, lower: 12).isClamped)
+                }
+                for (root, sole) in [
+                    (WorldPoint(x: pose.hips.x - 7, y: pose.hips.y), contacts.leftFoot),
+                    (WorldPoint(x: pose.hips.x + 7, y: pose.hips.y), contacts.rightFoot)
+                ] {
+                    let ankle = WorldPoint(x: sole.x, y: sole.y + ExpeditionConfiguration.ankleHeight)
+                    XCTAssertFalse(TwoBoneIK.solve(root: root, target: ankle, upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength).isClamped)
+                }
+            }
+        }
+    }
+    func testDesktopClimbingStanceTargetsRemainFixedInWorldSpace() {
+        let first = ClimbingContacts(heightAlongWall: 1)
+        let next = ClimbingContacts(heightAlongWall: 2)
+        XCTAssertEqual(first.leftHand.x, next.leftHand.x)
+        XCTAssertEqual(first.leftHand.y + 1, next.leftHand.y + 2, accuracy: 0.0001)
+        XCTAssertEqual(first.rightFoot.y + 1, next.rightFoot.y + 2, accuracy: 0.0001)
+    }
+}

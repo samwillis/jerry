@@ -15,6 +15,19 @@ enum OtherSockApp {
             print("Screen capture permission already granted: \(CGPreflightScreenCaptureAccess()). No permission requested.")
             return
         }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--native-checks") {
+            application.setActivationPolicy(.accessory)
+            let overlay = OverlayController()
+            let passed = overlay.runNativeChecks()
+            exit(passed ? 0 : 1)
+        }
+        #endif
+        if let bundleID = Bundle.main.bundleIdentifier,
+           NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }) {
+            print("The Other Sock is already running. Use its hiking menu to quit before launching another build.")
+            return
+        }
         let delegate = AppDelegate()
         application.delegate = delegate
         application.setActivationPolicy(.accessory)

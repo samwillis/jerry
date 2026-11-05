@@ -19,7 +19,11 @@ final class OverlayController {
     private var displayOrigin = CGPoint.zero
     private let windowProvider = WindowProvider()
     private var terrainTimer: Timer?
-    private var paused = false
+    private var policy = RuntimePolicy()
+    private var desktopCheck: DispatchWorkItem?
+    private var terrainRefreshCount = 0
+    private var characterHeld = false
+    private var renderPauseWork: DispatchWorkItem?
 
     init() {
         let frame = NSScreen.screens.first?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
@@ -67,6 +71,9 @@ final class OverlayController {
             guard let self else { return }
             self.inputPanel.setFrame(frame.offsetBy(dx: self.displayOrigin.x, dy: self.displayOrigin.y), display: true)
             self.inputView.setAccessibilityValue("\(state) at \(Int(frame.midX)), \(Int(frame.minY))")
+            let wasHeld = self.characterHeld
+            self.characterHeld = state == "held"
+            self.updateRenderingPause(allowFinalFrame: wasHeld && !self.characterHeld)
         }
         inputView.onBegin = { [weak self] point in
             guard let self else { return }
@@ -83,7 +90,7 @@ final class OverlayController {
         updateDisplay()
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, !self.paused else { return }
+                guard let self, self.policy.shouldPollTerrain else { return }
                 self.refreshTerrain()
             }
         }
@@ -96,6 +103,7 @@ final class OverlayController {
     }
 
     func show() {
+        guard policy.shouldShow else { return }
         panel.orderFrontRegardless()
         inputPanel.order(.above, relativeTo: panel.windowNumber)
     }
@@ -103,9 +111,8 @@ final class OverlayController {
     func updateDisplay() {
         // The first screen owns the menu bar. Do not follow whichever screen has keyboard focus.
         guard let screen = NSScreen.screens.first else {
-            inputView.cancelDrag()
-            panel.orderOut(nil)
-            inputPanel.orderOut(nil)
+            policy.desktopSupported = false
+            applyPolicy()
             return
         }
         inputView.cancelDrag()
@@ -115,24 +122,84 @@ final class OverlayController {
         let usable = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
         scene.layout(in: usable)
         refreshTerrain()
+        checkDesktop()
         show()
     }
 
     private func refreshTerrain() {
+        terrainRefreshCount += 1
         guard let screen = NSScreen.screens.first else { return }
         scene.updateTerrain(windowProvider.snapshot(on: screen))
     }
 
     func setPaused(_ paused: Bool) {
-        self.paused = paused
-        if !paused { refreshTerrain() }
-        scene.setExpeditionPaused(paused)
-        // Keep rendering user-driven placement even while autonomous animation is paused.
+        policy.manuallyPaused = paused
+        if paused { applyPolicy() } else { checkDesktop() }
     }
+
+    func setGentlePace(_ gentle: Bool) { scene.playbackRate = gentle ? 0.65 : 1 }
+
+    func setSleeping(_ sleeping: Bool) {
+        policy.sleeping = sleeping
+        if !sleeping { updateDisplay(); checkDesktop() }
+        applyPolicy()
+    }
+
+    func desktopChanged() {
+        // Hide during the transition, then read the new Space rather than retaining old anchors.
+        desktopCheck?.cancel()
+        policy.desktopSupported = false
+        applyPolicy()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.checkDesktop() }
+        }
+        desktopCheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    func checkDesktop() {
+        guard !policy.manuallyPaused, !policy.sleeping else { applyPolicy(); return }
+        guard let screen = NSScreen.screens.first else { return }
+        policy.desktopSupported = windowProvider.isSupportedDesktop(on: screen)
+        applyPolicy()
+    }
+
+    private func applyPolicy() {
+        if policy.shouldRun { refreshTerrain() }
+        scene.setExpeditionPaused(!policy.shouldRun)
+        if policy.shouldShow { show() }
+        else {
+            inputView.cancelDrag()
+            panel.orderOut(nil)
+            inputPanel.orderOut(nil)
+        }
+        updateRenderingPause()
+    }
+
+    private func updateRenderingPause(allowFinalFrame: Bool = false) {
+        renderPauseWork?.cancel()
+        if policy.shouldRun || (policy.shouldShow && characterHeld) { view.isPaused = false }
+        else if allowFinalFrame && policy.shouldShow {
+            // A paused drag still needs rendering, including its final release position.
+            view.isPaused = false
+            let work = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, !self.policy.shouldRun, !self.characterHeld else { return }
+                    self.view.isPaused = true
+                }
+            }
+            renderPauseWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: work)
+        } else { view.isPaused = true }
+    }
+
+    func resetExpedition() { refreshTerrain(); scene.resetExpedition() }
 
     func setDebugVisible(_ visible: Bool) { scene.setDebugVisible(visible) }
 
     func close() {
+        desktopCheck?.cancel()
+        renderPauseWork?.cancel()
         terrainTimer?.invalidate()
         terrainTimer = nil
         inputView.cancelDrag()
@@ -145,4 +212,51 @@ final class OverlayController {
         panel.orderOut(nil)
         panel.close()
     }
+    #if DEBUG
+    /// Tests our real AppKit panel/lifecycle integration without synthesising user input,
+    /// sleeping the machine, or changing Spaces on the user's desktop.
+    func runNativeChecks() -> Bool {
+        var passed = true
+        func check(_ condition: Bool, _ name: String) {
+            print("NATIVE \(condition ? "PASS" : "FAIL") \(name)")
+            passed = passed && condition
+        }
+        let focus = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        show()
+        check(panel.isVisible && inputPanel.isVisible, "both panels visible")
+        check(panel.ignoresMouseEvents && !inputPanel.ignoresMouseEvents, "input confined to body panel")
+        check(!panel.canBecomeKey && !inputPanel.canBecomeKey, "panels cannot take keyboard focus")
+        check(inputPanel.frame.width == 48 && inputPanel.frame.height == 76, "body-only hit area")
+        setPaused(true)
+        check(!policy.shouldPollTerrain && view.isPaused, "explicit pause suspends polling and scene")
+        let pausedPolls = terrainRefreshCount
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+        check(terrainRefreshCount == pausedPolls, "paused timer performs no geometry reads")
+        let original = inputPanel.frame
+        let grab = CGPoint(x: original.midX, y: original.midY)
+        inputView.onBegin?(grab)
+        inputView.onDrag?(CGPoint(x: grab.x + 60, y: grab.y + 30))
+        check(abs(inputPanel.frame.midX - original.midX - 60) < 0.1, "paused drag callback moves body panel")
+        check(!view.isPaused && !policy.shouldRun, "paused drag renders without advancing simulation")
+        inputView.onEnd?()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+        check(view.isPaused, "paused release renders final frame then stops")
+        setSleeping(true)
+        check(!panel.isVisible && !inputPanel.isVisible, "sleep hides all panels")
+        setSleeping(false)
+        check(policy.manuallyPaused && !policy.shouldRun, "wake preserves explicit pause")
+        policy.desktopSupported = false
+        applyPolicy()
+        check(!panel.isVisible && !inputPanel.isVisible && !policy.shouldPollTerrain, "unsupported desktop is hidden and suspended")
+        policy.desktopSupported = true
+        setPaused(false)
+        check(policy.shouldRun && panel.isVisible && inputPanel.isVisible, "return refreshes and resumes")
+        resetExpedition()
+        check(NSWorkspace.shared.frontmostApplication?.processIdentifier == focus, "launch/reset/lifecycle preserve frontmost app")
+        close()
+        check(!panel.isVisible && !inputPanel.isVisible && terrainTimer == nil, "close removes panels and timer")
+        return passed
+    }
+    #endif
+
 }

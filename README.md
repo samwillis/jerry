@@ -2,21 +2,27 @@
 
 A tiny, deeply unqualified desktop expedition searching for the other sock.
 
-## Current prototype: phases one to four
+## Current prototype: phases one to seven
 
-The native macOS shell draws one articulated, approximately 74-point shape explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle, sways when held, and displays a parachute during controlled recovery. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Show Debug Guides**, **Animation Playground…** (Debug builds), and **Quit The Other Sock**.
+The native macOS shell draws one articulated, approximately 74-point shape explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle, sways when held, and displays a parachute during controlled recovery. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Reset Expedition**, **Gentle Pace**, **Show Debug Guides**, **Animation Playground…** (Debug builds), and **Quit The Other Sock**. Pause, pace, and guide preferences survive relaunch.
 
 The rendering overlay ignores mouse events and cannot become the key or main window. A separate 48 × 76 point, non-activating panel over the explorer accepts dragging. Grab anywhere inside that small character area, drag it aside, and release. The grab offset is preserved, and the explorer remains inside the primary display's usable area. All other overlay space passes mouse events through. There are no global keyboard shortcuts, input monitors, screen capture, or permission prompts.
 
-While held, idle movement stops. Release carries recent drag momentum, so quick sideways or upward motions produce an arc. Holding still before release gives a normal drop. The explorer initially falls faster; its chute emerges from behind the backpack, opens overhead, and slows the descent and drift. It lands on the first suitable exposed top below its trajectory. Gentle placement within 16 points of a top snaps it directly onto the edge. It needs its full body width on the platform and 76 points of clear space above it. It follows that window when moved or resized. Losing support starts another recovery. Autonomous routes and full movement behaviours remain later work.
+While held, idle movement stops. Release carries recent drag momentum, so quick sideways or upward motions produce an arc. Holding still before release gives a normal drop. The explorer initially falls faster; its chute emerges from behind the backpack, opens overhead, and slows the descent and drift. It lands on the first suitable exposed top below its trajectory. Gentle placement within 16 points of a top snaps it directly onto the edge. It needs its full body width on the platform and 76 points of clear space above it. It follows that window when moved or resized. Losing support starts another recovery. It autonomously walks exposed tops, climbs reachable window sides, abseils from a window-relative rope, and steers parachutes towards safe landing areas. Window changes revalidate each transition; losing support or an invalid route starts recovery. A new grab cancels its route and mission immediately.
 
 On landing, the explorer briefly crouches with planted feet and then rises. A settling interval prevents immediate autonomous movement. Occasional blinks have a tiny timing offset between the eyes. Dragging is still available when paused; pausing freezes visual clocks, settling, recovery, and automatic terrain polling. Resume refreshes geometry immediately. Releasing a dragged explorer refreshes geometry even while paused.
+
+## The banana adventure
+
+The explorer spots a supposed sock through binoculars, approaches a launch point, crosses to a reachable discovery, investigates, discovers a banana, plants a flag, marks its map, and rests before trying again. It prefers a valid parachute crossing; climbing and shorter walks provide alternatives. The prop follows its supporting window. Grabbing the explorer, losing support, or removing the destination cancels or replans the expedition. A sparse desktop permits short floor expeditions; no reachable route means a safe rest.
+
+Movement uses a fixed 120 Hz simulation with at most 0.25 seconds of catch-up after a stall, presented at 30 fps. Walking is 20 points/second, climbing 24, and abseiling 48; Gentle Pace runs the expedition at 65% speed. Climb/abseil transitions are limited to 1,200 points and need exposed wall contacts. Planned flights have a 65 points/second steering cap and land farther inside tops than ordinary dropped-character recovery. Windows are platforms, rather than solid boxes: rear windows can form the visual background behind a foreground climb, and the screen floor remains rescue terrain.
 
 ## Animation playground
 
 Open **Animation Playground…** from the hiking menu, or quit the current app and run its executable with `--playground`. Preview every motion (including Landing), switch facing and background, pause/restart, slow playback, show joints, and tune stride, cadence, and bounce. **Preview time (pauses)** freezes an exact frame for inspection. Drag climbing handholds, the rope anchor, the grab pivot, or the body. A small actual-size explorer appears alongside the enlarged version. See [animation workflow and rig details](docs/ANIMATION_WORKFLOW.md).
 
-The desktop and playground share the same articulated rig and animation controller. Knees bend towards the toes; elbow poles favour the back of the body. Finished character artwork and autonomous window climbing remain later work.
+The desktop and playground share the same articulated rig and animation controller. Knees bend towards the toes; elbow poles favour the back of the body. The desktop now drives those same movement poses from real surface routes. Final character artwork remains a later refinement.
 
 The explorer now has a painted material finish with soft highlights, fabric/canvas detail, leather boots, warm skin shading, and contrasting coloured outlines. **Flat shading** in the playground compares it with simple fills. The existing silhouettes, proportions, and movement are preserved.
 
@@ -35,7 +41,7 @@ Look just above the Dock, near the horizontal centre of the primary display. The
 
 Debug guides show exposed window tops in green, sides in pink, rescue screen boundaries in teal, and the character's input bounds in yellow. The label reports character state, climbable window count, and visible edge count. Terrain refreshes at approximately 10 Hz and uses window stacking order to subtract covered edges. Guides and geometry remain in logical points on the primary display.
 
-Window discovery reads IDs, owning process IDs, bounds, layer, and opacity metadata, without reading titles or capturing images. Normal layer-zero windows are terrain candidates; visible application panels can occlude them. The app's own windows, desktop background, and known shell helper windows are excluded. Rectangles approximate the visible shapes: rounded corners, shadows, and transparent regions within a window are not modelled. A window-detection failure reports `GEOMETRY UNAVAILABLE` and falls back to the screen floor. Full-screen and multi-display expedition behaviour remain unsupported.
+Window discovery reads IDs, owning process IDs, bounds, layer, and opacity metadata, without reading titles or capturing images. Normal layer-zero windows are terrain candidates; visible application panels can occlude them. The app's own windows, desktop background, and known shell helper windows are excluded. Rectangles approximate the visible shapes: rounded corners, shadows, and transparent regions within a window are not modelled. A window-detection failure reports `GEOMETRY UNAVAILABLE` and falls back to the screen floor. The expedition stays on the primary display. It hides and suspends during sleep, Space transitions, and detected full-screen Spaces, then refreshes geometry and resets its clock on return. These guards are conservative; full-screen traversal, Stage Manager, and multiple-display expeditions remain unsupported.
 
 For a development launch with guides enabled, quit the running copy, then run:
 
@@ -51,20 +57,37 @@ build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --terrain-repo
 
 The report prints counts and existing screen-capture permission status, and never requests permission. The development context already has screen-capture access; behaviour with access denied has not yet been verified. Apple's [window metadata documentation](https://developer.apple.com/documentation/coregraphics/cgwindowlistcopywindowinfo(_:_:)) describes the geometry API.
 
+## Local release package
+
+```sh
+./scripts/package.sh
+open build/Distribution/OtherSock.app
+```
+
+This produces a host-architecture Release app and `build/Distribution/TheOtherSock-local-arm64.zip` on Apple Silicon. It is an unsigned local prototype. Developer ID signing and notarisation are still needed before distributing it to other Macs. The app prevents a second expedition instance from launching; quit the existing copy before switching builds.
+
 ## Core checks
 
 ```sh
 swift test --package-path Packages/ExpeditionCore
 ```
 
-These tests cover input state, coordinate conversion, edge subtraction and clipping, window-relative attachments, and support-loss recovery. Native focus, click-through, and window alignment still require the interactive checks in the manual checklist.
+These tests cover input state, coordinates, terrain, IK, contacts, seeded routing, all travel modes, mission beats, interruption, route continuation after landing, changing-terrain soak scenarios, and runtime policy. Native focus, click-through, and window alignment still require the interactive checks in the manual checklist.
+
+For native panel/lifecycle checks (Debug build, no real sleep or Space changes):
+
+```sh
+build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --native-checks
+```
+
+For reproducible real-window fixtures, run `./scripts/terrain-fixture.sh`, then launch the printed app executable. `--exercise` makes the fixture move, narrow, cover, and close its own high window. The Debug explorer accepts `--fixture-terrain --start-on-window --trace-movement --performance-report` to isolate those real window records, begin on a top, and report state changes/frame timing. Add `--movement-only` to exercise wandering separately from the mission, or `--start-low --rope-demo --freeze-rope` for a paused rope-descent review. No titles or window images are read. `scripts/measure-process.py PID --seconds 30` reads local CPU time and RSS. See [prototype validation](docs/PROTOTYPE_VALIDATION.md) for results and limitations.
 
 ## Structure
 
 - `OtherSock/App`: lifecycle and menu bar controls.
 - `OtherSock/Overlay`: transparent, non-activating overlay and display layout.
 - `OtherSock/Desktop`: window metadata discovery and platform filtering.
-- `OtherSock/Rendering`: placeholder explorer and development guides.
+- `OtherSock/Rendering`: shared explorer rig, painted parts, mission props, ropes, and development guides.
 - `OtherSock/Playground`: Debug-only clip controls, fake terrain, contact editing, and scale comparison.
-- `Packages/ExpeditionCore`: platform-independent geometry, terrain construction, attachments, and interaction state.
+- `Packages/ExpeditionCore`: platform-independent geometry, terrain construction, attachments, movement, route planning, mission rules, and runtime policy.
 - [Implementation plan](IMPLEMENTATION_PLAN.md), [product plan](PLAN.md), and [manual checks](docs/MANUAL_TESTS.md).

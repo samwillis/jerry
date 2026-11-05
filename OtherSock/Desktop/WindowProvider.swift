@@ -4,6 +4,24 @@ import ExpeditionCore
 
 @MainActor
 struct WindowProvider {
+    /// Conservatively hide in a full-screen Space. A normally zoomed window occupies only
+    /// visibleFrame and leaves the menu bar/Dock strip, so it does not trigger this guard.
+    func isSupportedDesktop(on screen: NSScreen) -> Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication,
+              front.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+              let primary = NSScreen.screens.first,
+              let records = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return true }
+        for record in records {
+            guard (record[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == front.processIdentifier,
+                  (record[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  let dict = record[kCGWindowBounds as String] as? [String: Any],
+                  let rect = CGRect(dictionaryRepresentation: dict as CFDictionary) else { continue }
+            let world = DesktopCoordinates.sceneRect(.init(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height), primaryTop: primary.frame.maxY, displayOrigin: .init(x: screen.frame.minX, y: screen.frame.minY))
+            return !DesktopCoordinates.isFullScreen(window: world, display: .init(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height))
+        }
+        return true
+    }
+
     /// Reads geometry only: no window titles, images, Accessibility calls, or permission prompts.
     func snapshot(on screen: NSScreen) -> TerrainSnapshot? {
         guard let primary = NSScreen.screens.first,
@@ -27,6 +45,10 @@ struct WindowProvider {
             )
             guard converted.intersects(worldViewport) else { continue }
             let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+            if bundle == Bundle.main.bundleIdentifier { continue }
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--fixture-terrain"), bundle != "com.othersock.terrainfixture" { continue }
+            #endif
             let systemOwner = bundle == "com.apple.dock" || bundle == "com.apple.WindowManager" || bundle == "com.apple.controlcenter" || bundle == "com.apple.notificationcenterui"
             // Shell helper windows often have transparent, screen-sized backing rectangles.
             guard !systemOwner else { continue }

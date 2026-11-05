@@ -6,6 +6,10 @@ Deliver a runnable macOS prototype with one draggable explorer that climbs real 
 
 The product concept and later ideas live in [PLAN.md](PLAN.md). This document describes the build order. Do not start with three characters, finished artwork, a journal, or Windows support.
 
+## Current status
+
+Phases 1–7 are implemented for the local, single-display macOS prototype. The latest increment connects real desktop travel, the repeating banana adventure, saved menu preferences, lifecycle guards, and Release packaging. Verification and practical limits are recorded in [prototype validation](docs/PROTOTYPE_VALIDATION.md); this does not claim full-screen traversal, a Windows port, or public distribution readiness.
+
 ## Initial technical decisions
 
 - Use Swift, AppKit for desktop integration, and SpriteKit for animation.
@@ -145,6 +149,8 @@ Implement a state machine with explicit entry, update, and exit behaviour:
 
 Acceptance: walk to an edge, climb, abseil, parachute, and land on real windows. Repeat while moving, closing, and covering windows, and while dragging the explorer during each movement type.
 
+Implementation status (5 November 2026): fixed 120 Hz stepping with bounded catch-up, seeded surface routing, real top walking, side climbing, window-anchored abseiling, steered parachuting, swept landing, and route continuation after landing are implemented. Current and upcoming transitions are revalidated against fresh terrain. Grabbing cancels navigation immediately, including while paused. The shared rig receives facing and world-stable climbing contacts; recovery retains release momentum. Reset Expedition provides an escape hatch. The `recovering` movement state contains the initial falling/deployment and open-canopy subphases; investigation is controlled by the mission stage rather than a second movement controller. See the focused movement tests and native evidence in [prototype validation](docs/PROTOTYPE_VALIDATION.md).
+
 ## 6. Assemble the banana adventure
 
 1. Implement mission stages: select destination, spot suspected sock, approach launch point, cross, investigate, reveal banana, update map, rest.
@@ -156,6 +162,8 @@ Acceptance: walk to an edge, climb, abseil, parachute, and land on real windows.
 
 Acceptance: the entire sequence runs unattended on a suitable desktop layout, and interruption by dragging or window changes does not strand the mission. A sparse desktop still permits safe wandering and rest.
 
+Implementation status (5 November 2026): the deterministic mission director selects a reachable discovery, prefers parachute routes when available, and runs spotting, approach, crossing, investigation, banana reveal, map update, and rest beats. Simple binoculars, a sock silhouette, banana, flag, map, canopy, and anchored rope render in the click-through layer. Window-relative props follow their supports; missing destinations and grabs invalidate the old mission. Tests cover unattended repetition on sparse and suitable desktops, interruption, moving/removing destinations, and landing continuations.
+
 ## 7. Package and evaluate the first prototype
 
 1. Add minimal settings and persist them. Mission persistence can wait until the longer expedition exists.
@@ -165,6 +173,8 @@ Acceptance: the entire sequence runs unattended on a suitable desktop layout, an
 5. Add a manual test checklist and a runnable development app build. Signing and notarisation become required when distributing outside the development machine.
 
 Acceptance: use the prototype during an ordinary work session without input interference, stuck characters, or accumulating panels. Document known limitations instead of claiming unsupported display or Space behaviour works.
+
+Implementation status (5 November 2026): Pause, Gentle Pace, and guide preferences persist. Pause suspends simulation and routine geometry polling, with dragging still available. Sleep/Space/foreground-app notifications drive visibility guards; return refreshes terrain and resets clocks while preserving explicit pause. The explorer remains on the primary display and resets safely after display changes. Duplicate app instances are prevented. `scripts/package.sh` produces a local Release app/archive. Automated core/soak tests, native AppKit lifecycle checks, runtime observations, performance samples, and known OS limitations are recorded in [prototype validation](docs/PROTOTYPE_VALIDATION.md). Signing/notarisation remains a distribution increment, as scoped above.
 
 ## Verification
 
