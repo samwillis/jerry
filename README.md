@@ -18,6 +18,10 @@ Bring the pointer near him and he notices it: his eyes follow first, with a smal
 
 On first launch, a welcome guide introduces the explorer, idle exploration, keyboard controls and optional click access. Open it again from **Controls & Tips…**. It closes when you choose **Take Control**; instructions stay out of the way while you play.
 
+## AI survey and helper prototype
+
+The hiking menu’s **Tasks…** window supports ChatGPT browser sign-in, an OpenAI API key, and an offline native tool-loop test. A model plans inspections of three illustrated flags; the original explorer invites up to two helpers only for independent ready jobs. Friends inspect with binoculars and head home. This is a bounded survey prototype, not general desktop automation. See [the prototype guide](docs/AGENT_PROTOTYPE.md) for setup and the next increments.
+
 ## Play with the keyboard
 
 Press **Control–Option–Space** from any app while The Other Sock is open, or choose hiking menu → **Take Control**. The same shortcut releases control. Manual mode captures the play keys without opening a controls window. The click marker beside the explorer indicates that you are in control. The explorer stops choosing adventures until you leave control mode.

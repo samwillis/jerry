@@ -18,6 +18,8 @@ final class OverlayController {
     private let inputView: ExplorerInputView
     private var displayOrigin = CGPoint.zero
     private let windowProvider = WindowProvider()
+    private var teamPanels: [String: (ExplorerInputPanel, ExplorerInputView)] = [:]
+    var onTeamStatus: ((String) -> Void)?
     private var terrainTimer: Timer?
     private var featureTimer: Timer?
     private let featureCapture = WindowFeatureCapture()
@@ -75,6 +77,8 @@ final class OverlayController {
         view.preferredFramesPerSecond = ExpeditionConfiguration.framesPerSecond
         panel.contentView = view
         view.presentScene(scene)
+        scene.missionTeam.onStatus = { [weak self] in self?.onTeamStatus?($0) }
+        scene.missionTeam.onHitAreas = { [weak self] in self?.updateTeamPanels($0) }
         scene.onPlacementChanged = { [weak self] frame, state in
             guard let self else { return }
             self.inputPanel.setFrame(frame.offsetBy(dx: self.displayOrigin.x, dy: self.displayOrigin.y), display: true)
@@ -185,6 +189,33 @@ final class OverlayController {
     }
     var windowExplorationStatus: String { featureCapture.status }
 
+    func startSurvey(_ plan: SurveyPlan) {
+        setKeyboardControl(false); setPaused(false)
+        try? scene.missionTeam.start(plan)
+    }
+    func stopSurvey() { scene.missionTeam.stop() }
+    private func updateTeamPanels(_ frames: [String: CGRect]) {
+        for id in Array(teamPanels.keys) where frames[id] == nil {
+            if let (child, _) = teamPanels.removeValue(forKey: id) { panel.removeChildWindow(child); child.close() }
+        }
+        for (id, frame) in frames {
+            if teamPanels[id] == nil {
+                let child = ExplorerInputPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+                child.isOpaque = false; child.backgroundColor = .clear; child.hasShadow = false; child.level = .floating; child.hidesOnDeactivate = false
+                child.isReleasedWhenClosed = false; child.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
+                let input = ExplorerInputView(frame: .zero); input.autoresizingMask = [.width, .height]; child.contentView = input
+                input.onBegin = { [weak self] point in guard let self else { return }; self.scene.missionTeam.beginDrag(id, at: self.scenePoint(point)) }
+                input.onDrag = { [weak self] point in guard let self else { return }; self.scene.missionTeam.drag(id, to: self.scenePoint(point)) }
+                input.onEnd = { [weak self] in self?.scene.missionTeam.endDrag(id) }
+                panel.addChildWindow(child, ordered: .above); teamPanels[id] = (child, input)
+            }
+            if let (child, _) = teamPanels[id] {
+                child.setFrame(frame.offsetBy(dx: displayOrigin.x, dy: displayOrigin.y), display: true)
+                if policy.shouldShow { child.order(.above, relativeTo: panel.windowNumber) }
+            }
+        }
+    }
+
     func setPaused(_ paused: Bool) {
         if paused { setKeyboardControl(false) }
         policy.manuallyPaused = paused
@@ -272,6 +303,7 @@ final class OverlayController {
         if policy.shouldShow { show() }
         else {
             inputView.cancelDrag()
+            for (child, input) in teamPanels.values { input.cancelDrag(); child.orderOut(nil) }
             panel.orderOut(nil)
             inputPanel.orderOut(nil)
         }
@@ -300,6 +332,9 @@ final class OverlayController {
     func setDebugVisible(_ visible: Bool) { scene.setDebugVisible(visible) }
 
     func close() {
+        scene.missionTeam.stop()
+        for (child, _) in teamPanels.values { panel.removeChildWindow(child); child.close() }
+        teamPanels.removeAll()
         keyboard.close()
         desktopCheck?.cancel()
         renderPauseWork?.cancel()

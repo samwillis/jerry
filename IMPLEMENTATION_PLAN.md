@@ -248,3 +248,10 @@ Validation includes synthetic classification/scrolling/occlusion/physics tests, 
 ## Toolbar crouching — 6 November 2026
 
 Added hold-C crouching, a 160 ms planted-foot transition, a lower hand/click marker, and half-speed crouched walking with matched gait timing. E keeps both manual control and the held crouch. Physical held-key reconciliation after a desktop click includes C; focus/shortcut/stop cleanup releases it. Down retains its ledge-drop role. Crouch is grounded and does not replace jump or rope poses. The shared Crouching clip is available in the animation playground and the welcome guide documents the key.
+
+
+## Swift AI and on-demand helpers — 6 November 2026
+
+Prototyped native Foundation Models custom providers, image prompts and validated survey tools, with ChatGPT browser sign-in and an optional app-owned API key. The permanent leader schedules ready jobs and invites up to two helpers only for independent work. Friends walk in, inspect synthetic flags with binoculars, and leave. Serial dependencies retain only the leader. Cancellation invalidates stale work and retires helpers.
+
+This establishes planning and team lifecycle with a bounded illustrated survey. General desktop observation, physical input ownership, window manipulation, scrolling, onscreen keyboard discovery and typing remain subsequent increments, detailed in [the agent prototype plan](docs/AGENT_PROTOTYPE.md).

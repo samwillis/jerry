@@ -111,6 +111,8 @@ final class ExplorerRig: SKNode {
     private let joints = SKNode()
     private let canopy = SKNode()
     private let grappleGun = SKNode()
+    private let binoculars = SKNode()
+    var usingBinoculars = false
     private let canopyFabric = SKNode()
     private var cords: [(SKShapeNode, CGFloat)] = []
     private let leftEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
@@ -179,6 +181,13 @@ final class ExplorerRig: SKNode {
         body.addChild(leftArm)
         body.addChild(grappleGun)
         buildGrappleGun()
+        body.addChild(binoculars); binoculars.zPosition = 6
+        for x in [-2.0, 6.0] {
+            let lens = SKShapeNode(circleOfRadius: 3.5)
+            lens.fillColor = .darkGray; lens.strokeColor = .black; lens.lineWidth = 0.7; lens.position.x = x
+            let glass = SKShapeNode(circleOfRadius: 2)
+            glass.fillColor = .systemTeal; glass.strokeColor = .clear; lens.addChild(glass); binoculars.addChild(lens)
+        }
         body.addChild(canopy)
         canopy.zPosition = -4
         body.addChild(joints)
@@ -300,7 +309,7 @@ final class ExplorerRig: SKNode {
         var pose = animator.advance(by: delta, synchronizedTime: synchronizedTime)
         // Both rope grips must read in front of the jacket, with the line between
         // the torso and gloves. Restore the usual far-arm stack for other motions.
-        let onRope = crouchAmount > 0.001 || motion == .crouching || crackPose != nil || ropePose != nil || [.ropeClimbing, .ropeSwinging, .abseiling].contains(motion)
+        let onRope = usingBinoculars || crouchAmount > 0.001 || motion == .crouching || crackPose != nil || ropePose != nil || [.ropeClimbing, .ropeSwinging, .abseiling].contains(motion)
         rightArm.zPosition = onRope ? 2 : 0
         leftArm.zPosition = onRope ? 3 : 0
         ropeBlendTime += delta.isFinite ? min(max(delta, 0), 0.1) : 0
@@ -328,6 +337,12 @@ final class ExplorerRig: SKNode {
             }
             pose.leftHand = hand(4, -3); pose.rightHand = hand(-3, -4)
             pose.headTilt = min(0.15, max(-0.15, angle * 0.12))
+        }
+        binoculars.isHidden = !usingBinoculars
+        binoculars.position = .init(x: pose.hips.x, y: pose.hips.y + ExpeditionConfiguration.headOffset + 3.5)
+        if usingBinoculars {
+            pose.leftHand = .init(x: -7, y: pose.hips.y + 28)
+            pose.rightHand = .init(x: 11, y: pose.hips.y + 28)
         }
         let elapsed = delta.isFinite ? min(max(delta, 0), 0.1) : 0
         expressionTime += elapsed

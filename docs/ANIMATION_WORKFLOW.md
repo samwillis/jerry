@@ -155,3 +155,7 @@ A post-blur crop subtracts rounded window frames below the feet, including a sma
 ## Toolbar crouch — 6 November 2026
 
 `CrouchAnimation` lowers the hips by 12 points, inclines the head, and brings the forward hand down while retaining the source pose’s foot contacts. The core supplies an eased 160 ms blend shared by the rendered pose and the click target (44 points above the feet standing, 16 crouched). Crouched movement slows the existing walking gait clock rather than sliding the same clip at a different world speed. Shift-running is suppressed during the crouch. Foreground arm layering keeps the reaching hand visible. The standalone Crouching playground clip was visually inspected with both feet on the fake window and zero clamped contacts.
+
+## Survey companions and binoculars
+
+The task prototype reuses `ExplorerRig` for the permanent leader and temporary Scout/Rigger helpers. `usingBinoculars` adds a foreground lens prop and two visible hand contacts; inspection lasts 1.8 seconds after arrival. Helper entry/exit uses the same walking physics and rig gait. `--agent-checks` exercises rendered recruitment, travel, inspection, retirement and cancellation without invoking an online model.

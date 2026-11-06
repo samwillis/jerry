@@ -5,6 +5,7 @@ import ExpeditionCore
 @MainActor
 final class ExplorerScene: SKScene {
     private let explorer = ExplorerRig()
+    let missionTeam = MissionTeamNode()
     private let debug = SKNode()
     private let rope = SKShapeNode()
     private let hook = SKShapeNode()
@@ -45,6 +46,7 @@ final class ExplorerScene: SKScene {
         rope.lineWidth = 1.2
         rope.zPosition = 1 // Over the jacket, beneath the foreground rope grips.
         addChild(explorer)
+        addChild(missionTeam)
         let hookPath = CGMutablePath()
         hookPath.move(to: .init(x: -5, y: 0)); hookPath.addLine(to: .init(x: 4, y: 0))
         hookPath.move(to: .init(x: 0, y: 0)); hookPath.addQuadCurve(to: .init(x: 1, y: 5), control: .init(x: 7, y: 5))
@@ -105,6 +107,7 @@ final class ExplorerScene: SKScene {
         return .init(x: point.x, y: point.y)
     }
     func setKeyboardControl(_ enabled: Bool) {
+        if enabled { missionTeam.stop() }
         interaction?.setKeyboardControl(enabled)
         if !enabled { setGrappleAiming(false) }
         applyPlacement()
@@ -159,6 +162,7 @@ final class ExplorerScene: SKScene {
     }
 
     func beginDrag(at point: CGPoint) {
+        missionTeam.stop()
         if let position = interaction?.position {
             explorer.grabPoint = CGPoint(x: point.x - position.x, y: point.y - position.y)
         }
@@ -202,6 +206,7 @@ final class ExplorerScene: SKScene {
             }
         }
         #endif
+        missionTeam.updateTerrain(next, usable: usableFrame)
         interaction?.updateTerrain(next, sampleElapsed: sampleElapsed)
         #if DEBUG
         if !startedActivityDemo, let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--activity=") }),
@@ -236,10 +241,13 @@ final class ExplorerScene: SKScene {
         let elapsed = min(rawElapsed, 0.25)
         previousUpdateTime = currentTime
         guard !expeditionPaused else { return }
+        if let interaction {
+            missionTeam.advance(by: elapsed, leader: interaction.position, leaderReady: interaction.attachment != nil && [.idle, .settling].contains(interaction.state))
+        }
         updateGrappleAim(by: elapsed)
         let previousState = interaction?.state
         let previousLandingCount = interaction?.landingCount
-        interaction?.advance(by: elapsed * playbackRate)
+        if !missionTeam.leaderUsesBinoculars { interaction?.advance(by: elapsed * playbackRate) }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--freeze-grapple"), interaction?.state == .grappling, (interaction?.ropeSession?.age ?? 0) > 0.15 { setExpeditionPaused(true) }
         if ProcessInfo.processInfo.arguments.contains("--freeze-swing"), interaction?.state == .swinging, interaction?.ropeSession?.isTakingUp == false, (interaction?.ropeSession?.age ?? 0) > 0.5 { setExpeditionPaused(true) }
@@ -312,6 +320,7 @@ final class ExplorerScene: SKScene {
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         if motion == .running { explorer.synchronizedTime = interaction.runningTime }
+        explorer.usingBinoculars = missionTeam.leaderUsesBinoculars
         explorer.crouchAmount = interaction.canCrouch ? interaction.crouchBlend : 0
         explorer.jumpPose = interaction.dropPose ?? interaction.keyboardJumpPose
         explorer.crackPose = interaction.internalClimbingPose
@@ -351,6 +360,7 @@ final class ExplorerScene: SKScene {
         if motion == .abseiling && interaction.ropeSession == nil {
             explorer.handTargets = (.init(x: 0, y: ropeGripHeight), .init(x: 8, y: ropeGripHeight + 1))
         }
+        if missionTeam.isInviting { explorer.handTargets = (.init(x: -8, y: 58), .init(x: 18, y: 62)) }
         props.update(mission: interaction.mission, explorer: interaction.position, target: target, facing: facing, viewport: usableFrame, held: interaction.state == .held)
         explorer.select(motion)
         explorer.render(delta: 0)

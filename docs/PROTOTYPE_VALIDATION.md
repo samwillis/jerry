@@ -194,3 +194,12 @@ A front-rim pin now validates its exposed window top and hanging-body clearance 
 ## Toolbar crouch — 6 November 2026
 
 149 core tests pass. New cases cover planted feet and an eased enter/exit, click-marker height, mirrored click reach, the 40-point/s crouched gait, Shift suppression, cleanup on control release and keeping crouch out of jumping/rope poses. Native checks cover holding/releasing C, clicking E without losing crouch/control, and sampled crouched-walking limb reach. The hold-C state is also reconciled from the physical key after desktop clicks. The playground Crouching clip was visually inspected at enlarged and actual desktop size with zero clamped contacts. Debug and packaged Release builds pass.
+
+## Swift agent and helper prototype — 6 November 2026
+
+- Core: 156 tests pass, including dependency scheduling, permanent leader, helper retirement, stale completion rejection and bounded SSE parsing without blank-line separators.
+- Native regression checks: 55 pass.
+- Agent checks: 10 pass, including rendered helper lifecycle, serial/parallel recruitment, binocular inspections, the native Foundation Models image/tool/result/final-response loop, JSON Schema encoding and PKCE vectors.
+- Live ChatGPT: browser consent completed by the user; callback validation and Keychain persistence succeeded. Model catalog loaded eight models. A `gpt-6.1-sol` image/tool request queued three independent inspections, which completed and retired the helpers. Fixed listener handler ordering and retained streamed output items when the terminal response envelope omitted them.
+- Debug and Release builds and local distribution packaging pass. `git diff --check` passes.
+- API-key inference, expired-token refresh, revoked grants and cross-account sign-in are not live acceptance-tested. General desktop observation and computer operation are outside this survey increment.

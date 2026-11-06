@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var overlay: OverlayController?
     private var welcome: WelcomeController?
+    private var taskController: AgentTaskController?
     private var needsWelcome: Bool { UserDefaults.standard.integer(forKey: "welcomeVersion") < 1 }
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
@@ -54,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         workspace.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
         workspace.addObserver(self, selector: #selector(spaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         workspace.addObserver(self, selector: #selector(frontAppChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        if ProcessInfo.processInfo.arguments.contains("--tasks") { openTasks() }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--show-menu") {
             DispatchQueue.main.async { [weak self] in self?.statusItem?.button?.performClick(nil) }
@@ -96,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = add("Bring Explorer Back to Desktop", action: #selector(resetExpedition), to: settings)
         let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
         settingsItem.submenu = settings; menu.addItem(settingsItem)
+        _ = add("Tasks…", action: #selector(openTasks), to: menu)
         _ = add("Controls & Tips…", action: #selector(showTips), to: menu)
         #if DEBUG
         let development = NSMenu(title: "Developer Tools"); development.autoenablesItems = false
@@ -196,6 +199,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fasterRopeWork.toggle(); UserDefaults.standard.set(fasterRopeWork, forKey: "fasterRopeWork")
         overlay?.setFasterRopeWork(fasterRopeWork); updateMenu()
     }
+    @objc private func openTasks() {
+        overlay?.setKeyboardControl(false)
+        if taskController == nil {
+            let controller = AgentTaskController()
+            controller.onPlan = { [weak self] in self?.overlay?.startSurvey($0) }
+            controller.onStop = { [weak self] in self?.overlay?.stopSurvey() }
+            overlay?.onTeamStatus = { [weak controller] in controller?.updateTeamStatus($0) }
+            taskController = controller
+        }
+        taskController?.open()
+    }
     @objc private func showTips() { showWelcome(markSeen: true) }
     private func showWelcome(markSeen: Bool) {
         overlay?.setKeyboardControl(false)
@@ -290,6 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #endif
     func applicationWillTerminate(_ notification: Notification) {
         hotKey.close()
+        taskController?.stop(); taskController?.close(); taskController = nil
         welcome?.close(); welcome = nil
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
