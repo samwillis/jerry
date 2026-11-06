@@ -289,7 +289,8 @@ Implemented the compact Meet Jerry welcome, unified Settings sections, concise m
 
 Remaining publication gates:
 
-- [ ] Final app icon and release/version metadata.
+- [x] Jerry app icon, native macOS sizes and bundle integration.
+- [ ] Final release/version metadata.
 - [ ] Developer ID signing, hardened-runtime/entitlement review, notarisation and a distributable installer/archive.
 - [ ] Review the supported ChatGPT authentication/distribution arrangement before advertising plan sign-in publicly.
 - [ ] Verify minimum OS support, with AI availability clearly gated, plus Intel/Apple silicon distribution targets.

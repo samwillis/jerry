@@ -30,6 +30,8 @@ final class PaintedPart: SKSpriteNode {
     private let bounds: CGRect
     private let cacheTag: String
     private static var textures: [String: SKTexture] = [:]
+    /// Higher resolution for exported artwork; desktop rendering keeps its usual cache size.
+    static var rasterScale: CGFloat = 4
 
     init(rect: CGRect, radius: CGFloat, color: NSColor, material: ExplorerMaterial) {
         silhouette = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
@@ -56,7 +58,7 @@ final class PaintedPart: SKSpriteNode {
     required init?(coder: NSCoder) { fatalError("Use the material constructors") }
 
     func setPainted(_ painted: Bool) {
-        let key = "\(cacheTag)-\(bounds)-\(base.redComponent)-\(base.greenComponent)-\(base.blueComponent)-\(material.rawValue)-\(painted)"
+        let key = "\(cacheTag)-\(bounds)-\(base.redComponent)-\(base.greenComponent)-\(base.blueComponent)-\(material.rawValue)-\(painted)-\(Self.rasterScale)"
         if let cached = Self.textures[key] { texture = cached; return }
         let image = paint(painted: painted)
         let result = SKTexture(cgImage: image)
@@ -66,7 +68,7 @@ final class PaintedPart: SKSpriteNode {
     }
 
     private func paint(painted: Bool) -> CGImage {
-        let scale: CGFloat = 4
+        let scale = max(1, min(32, Self.rasterScale))
         let width = Int(ceil(size.width * scale)), height = Int(ceil(size.height * scale))
         let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         context.scaleBy(x: scale, y: scale)

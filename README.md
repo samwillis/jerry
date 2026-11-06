@@ -166,3 +166,8 @@ For repeatable development checks, run the Debug executable with `--feature-chec
 ## Crouch for toolbar clicks
 
 While in keyboard control, hold **C** to crouch with his feet planted. The click marker lowers by 28 points; press **E** while holding C to click there. Release C to rise. C + left/right gives a slower, gait-matched crouched walk; Shift does not turn it into a run. Down keeps its step-off/descent behaviour. Crouching applies to standing surfaces, including internal toolbar ledges; rope and crack poses remain available as before. The animation playground also includes a Crouching clip.
+
+
+## Application icon
+
+The app icon uses Jerry’s actual rig on a warm paper tile. The master is `OtherSock/Resources/AppIcon.png`; both builds bundle `AppIcon.icns`. Run `./scripts/render-app-icon.sh` to regenerate the master and native macOS sizes after character artwork changes. The exporter bakes geometry at icon resolution and leaves normal desktop rendering unchanged.

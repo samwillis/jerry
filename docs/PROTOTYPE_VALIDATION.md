@@ -322,3 +322,10 @@ Reviewed and shortened all five Settings sections. General contains preferences 
 Removed the separate scene-level binocular prop from idle sock spotting. Both idle spotting and AI screen reading now use the same head-mounted rig component, mirrored with the explorer and following head movement. The design uses shaded dark-green barrels, muted brass rims, blue-green glass and small reflections. Both modes share a two-hand grip with downward elbow poles; pointer attention eases away during reading so it does not turn the optics away from the task. Held explorers put them away.
 
 78 native and 28 agent checks pass. Three mode regressions exercise idle spotting, reuse of the exact same binocular node for AI reading with no clamped contacts, and hiding it when reading ends. A native SpriteKit preview was rendered and reviewed at enlarged size in both directions. Debug and packaged Release builds pass; the updated app is running.
+
+
+## Jerry application icon — 6 November 2026
+
+Added a 1024-pixel Jerry portrait on the warm paper tile, preserving his original idle hand pose and keeping the entire hat clear of the tile edge. The icon uses the real rig, with high-resolution material textures and magnification baked into every sprite, shape and crop-mask geometry. This avoids enlarged low-resolution SpriteKit stroke/mask caches. Desktop material rendering retains its existing 4× scale and cache sizes.
+
+The reproducible scripts/render-app-icon.sh exporter creates the PNG master and all ten standard macOS iconset representations, then packages AppIcon.icns. Debug and Release bundle the ICNS and reference it through the explicit Info.plist icon key. Verified all ten PNG dimensions, matching bundled ICNS bytes and preserved bundle identity/menu-bar-only metadata in both products. Both builds and 78 native checks pass. Large and 128-pixel previews were visually reviewed.
