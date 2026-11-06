@@ -228,3 +228,12 @@ This supersedes the earlier synthetic survey/helper prototype. Recruitment, comp
 - 63 native checks pass. Both global shortcuts register together, route only their own event IDs, suppress held-key repeats, handle release and unregister cleanly. Menu checks confirm terrain guides and activity tests are inside Developer Tools and Ask advertises Control–Option–Return.
 - Live UI: Control–Option–Return opened the small Ask explorer input beside the character; Escape dismissed it. Global Carbon event routing was checked natively; the live UI check exercised the application key equivalent.
 - Debug and packaged Release builds pass. The updated Debug app remains running. Movement and computer-operation code are unchanged by this menu increment.
+
+
+## Field notebook styling and prompt corners — 6 November 2026
+
+The task bubble now draws its rounded background directly into a transparent panel, replacing the visual-effect backdrop that leaked a pale rectangle outside the corners. The send symbol is explicitly sized at 27 points with a 38-point button area.
+
+The journal is now a borderless, resizable field notebook: warm paper, subtle fibres, stitched brown spine, red margin, ink serif writing and compact controls. Its custom close action hides the journal without discarding history. Expandable tool details, selectable text, following and log export are retained. Both floating panels can become key for input and text selection.
+
+Debug and packaged Release builds pass; 63 native and 11 agent checks pass. Live review verified the clean rounded input and larger send symbol, the rendered notebook without a system title bar, menu reopening and the follow-latest control. The final Debug app is running with the journal open. No live model request or external computer action was needed for this visual change.

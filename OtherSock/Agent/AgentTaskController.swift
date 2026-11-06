@@ -5,9 +5,19 @@ import UniformTypeIdentifiers
 import SwiftUI
 
 @MainActor
-private final class ExplorerPromptPanel: NSPanel {
+private final class ExplorerFloatingPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+}
+
+/// A drawn surface avoids the rectangular backdrop that visual-effect views can
+/// composite outside their rounded layer when hosted in a borderless panel.
+private final class PromptSurface: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 14, yRadius: 14)
+        NSColor.windowBackgroundColor.setFill(); shape.fill()
+        NSColor.separatorColor.setStroke(); shape.lineWidth = 1; shape.stroke()
+    }
 }
 
 /// Owns connection settings, the task composer and the non-activating task journal.
@@ -126,21 +136,22 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         body.addArrangedSubview(row([button("Forget saved connections", #selector(forget)), button("Done", #selector(doneSettings))]))
     }
     private func buildPrompt() {
-        promptWindow = ExplorerPromptPanel(contentRect: .init(x: 0, y: 0, width: 360, height: 52), styleMask: [.borderless], backing: .buffered, defer: false)
+        promptWindow = ExplorerFloatingPanel(contentRect: .init(x: 0, y: 0, width: 360, height: 52), styleMask: [.borderless], backing: .buffered, defer: false)
         promptWindow.title = "Ask explorer"; promptWindow.isReleasedWhenClosed = false; promptWindow.delegate = self; promptWindow.level = .floating
         promptWindow.isOpaque = false; promptWindow.backgroundColor = .clear; promptWindow.hasShadow = true
         promptWindow.hidesOnDeactivate = false; promptWindow.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let glass = NSVisualEffectView(); glass.material = .popover; glass.blendingMode = .behindWindow; glass.state = .active
-        glass.wantsLayer = true; glass.layer?.cornerRadius = 14; glass.layer?.masksToBounds = true; promptWindow.contentView = glass
+        let glass = PromptSurface(); promptWindow.contentView = glass
         requestField.placeholderString = "Ask your explorer…"
         requestField.setAccessibilityLabel("Explorer task")
         requestField.font = .systemFont(ofSize: 14); requestField.isBordered = false; requestField.drawsBackground = false
         requestField.focusRingType = .none; requestField.delegate = self; requestField.target = self; requestField.action = #selector(plan)
         run.target = self; run.action = #selector(plan); run.isBordered = false
         run.image = NSImage(systemSymbolName: "arrow.up.circle.fill", accessibilityDescription: "Send task")
+        run.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 27, weight: .medium)
+        run.imageScaling = .scaleProportionallyUpOrDown
         run.imagePosition = .imageOnly; run.setAccessibilityLabel("Send task"); run.toolTip = "Send · Return"; run.contentTintColor = .controlAccentColor
         let input = row([requestField, run]); input.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(input)
-        NSLayoutConstraint.activate([input.leadingAnchor.constraint(equalTo: glass.leadingAnchor, constant: 14), input.trailingAnchor.constraint(equalTo: glass.trailingAnchor, constant: -10), input.centerYAnchor.constraint(equalTo: glass.centerYAnchor), run.widthAnchor.constraint(equalToConstant: 28), run.heightAnchor.constraint(equalToConstant: 28)])
+        NSLayoutConstraint.activate([input.leadingAnchor.constraint(equalTo: glass.leadingAnchor, constant: 14), input.trailingAnchor.constraint(equalTo: glass.trailingAnchor, constant: -10), input.centerYAnchor.constraint(equalTo: glass.centerYAnchor), run.widthAnchor.constraint(equalToConstant: 38), run.heightAnchor.constraint(equalToConstant: 38)])
     }
     func updatePromptPosition(force: Bool = false) {
         guard force || promptWindow.isVisible else { return }
@@ -160,11 +171,13 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         return false
     }
     private func buildJournal() {
-        journal = NSPanel(contentRect: .init(x: 0, y: 0, width: 340, height: 480), styleMask: [.titled, .nonactivatingPanel, .closable, .resizable], backing: .buffered, defer: false)
+        journal = ExplorerFloatingPanel(contentRect: .init(x: 0, y: 0, width: 380, height: 600), styleMask: [.borderless, .nonactivatingPanel, .resizable], backing: .buffered, defer: false)
         journal.title = "Expedition journal"; journal.isReleasedWhenClosed = false; journal.hidesOnDeactivate = false; journal.level = .floating
-        journal.minSize = .init(width: 340, height: 340)
+        journal.minSize = .init(width: 340, height: 400)
+        journal.isOpaque = false; journal.backgroundColor = .clear; journal.hasShadow = true
+        journal.isMovableByWindowBackground = true
         journal.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let glass = NSVisualEffectView(); glass.material = .sidebar; glass.blendingMode = .behindWindow; glass.state = .active; journal.contentView = glass
+        let glass = NSView(); journal.contentView = glass
         let host = NSHostingView(rootView: ExpeditionJournalView(journal: journalState, stop: { [weak self] in self?.stop() }, newTask: { [weak self] in self?.newPrompt() }, hide: { [weak self] in self?.hideJournal() }, save: { [weak self] in self?.saveLog() }))
         host.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(host)
         NSLayoutConstraint.activate([host.leadingAnchor.constraint(equalTo: glass.leadingAnchor), host.trailingAnchor.constraint(equalTo: glass.trailingAnchor), host.topAnchor.constraint(equalTo: glass.topAnchor), host.bottomAnchor.constraint(equalTo: glass.bottomAnchor)])

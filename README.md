@@ -20,7 +20,7 @@ On first launch, a welcome guide introduces the explorer, idle exploration, keyb
 
 ## AI tasks
 
-Set up ChatGPT sign-in or an API key in **Settings → AI Connection…**. Press **Control–Option–Return** from any app, or **Return** while controlling the explorer, for a small input bubble beside him; Return sends and Escape cancels. **Ask Explorer…** also opens it. The **Expedition journal** keeps readable entries and model replies across tasks, with expandable details for tool calls and metadata, plus Save Log, Stop/New Task and Hide controls. **Expedition Journal…** brings it back.
+Set up ChatGPT sign-in or an API key in **Settings → AI Connection…**. Press **Control–Option–Return** from any app, or **Return** while controlling the explorer, for a small input bubble beside him; Return sends and Escape cancels. **Ask Explorer…** also opens it. The **Expedition journal** is a floating field notebook with warm paper, a stitched spine and ink typography. It keeps readable entries and model replies across tasks, with expandable details for tool calls and metadata, plus Save Log, Stop/New Task and Hide controls. **Expedition Journal…** brings it back.
 
 The agent can now inspect the active app and physically reach controls to click, scroll or drag. It opens apps through their UI and types by pressing an onscreen keyboard, which must also be opened physically. The explorer can grapple to the display rim, hang and traverse there, then lower on a rope into menus. He renders above the Dock and, during AI work, above menus. Survey flags and demo inspections are removed. There is one explorer in every mode. See [the computer-task guide](docs/AGENT_PROTOTYPE.md) for permissions and current limits.
 
