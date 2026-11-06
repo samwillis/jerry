@@ -20,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var debugItem: NSMenuItem?
     private var interiorItem: NSMenuItem?
     private var exploreInsideWindows = UserDefaults.standard.bool(forKey: "exploreInsideWindows")
-    private var activitiesMenu: NSMenu!
+    private var developerMenu: NSMenu!
     private let hotKey = ExplorerControlHotKey()
     private let askHotKey = ExplorerControlHotKey(keyCode: 36, id: 2)
     private var isPaused = ProcessInfo.processInfo.arguments.contains("--paused")
@@ -115,26 +115,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let settings = NSMenu(title: "Settings"); settings.autoenablesItems = false
         _ = add("AI Connection…", action: #selector(openAISettings), to: settings)
         interiorItem = add("Explore Inside Windows…", action: #selector(toggleInterior), to: settings)
-        let movement = NSMenu(title: "Movement"); movement.autoenablesItems = false
-        runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: movement)
-        ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: movement)
-        paceItem = add("Slow Movement", action: #selector(togglePace), to: movement)
-        let movementItem = NSMenuItem(title: "Movement", action: nil, keyEquivalent: ""); movementItem.submenu = movement; settings.addItem(movementItem)
+        settings.addItem(.separator())
+        runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: settings)
+        ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: settings)
+        paceItem = add("Slow Movement", action: #selector(togglePace), to: settings)
         settings.addItem(.separator())
         _ = add("Desktop Click Access…", action: #selector(allowClicks), to: settings)
         _ = add("Bring Explorer Back to Desktop", action: #selector(resetExpedition), to: settings)
         let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: ""); settingsItem.submenu = settings; menu.addItem(settingsItem)
         _ = add("Controls & Tips…", action: #selector(showTips), to: menu)
 
-        let development = NSMenu(title: "Developer Tools"); development.autoenablesItems = false
-        debugItem = add("Show Terrain Guides", action: #selector(toggleDebug), to: development)
-        activitiesMenu = NSMenu(title: "Test an Activity"); activitiesMenu.autoenablesItems = false; activitiesMenu.delegate = self
-        let actions = NSMenuItem(title: "Test an Activity", action: nil, keyEquivalent: ""); actions.submenu = activitiesMenu; development.addItem(actions)
-        #if DEBUG
-        development.addItem(.separator())
-        _ = add("Animation Playground…", action: #selector(openPlayground), to: development)
-        #endif
-        let developmentItem = NSMenuItem(title: "Developer Tools", action: nil, keyEquivalent: ""); developmentItem.submenu = development; menu.addItem(developmentItem)
+        developerMenu = NSMenu(title: "Developer Tools"); developerMenu.autoenablesItems = false; developerMenu.delegate = self
+        let developmentItem = NSMenuItem(title: "Developer Tools", action: nil, keyEquivalent: ""); developmentItem.submenu = developerMenu; menu.addItem(developmentItem)
+        menuNeedsUpdate(developerMenu)
         menu.addItem(.separator())
         _ = add("Quit The Other Sock", action: #selector(quit), to: menu)
         item.menu = menu; statusItem = item
@@ -160,8 +153,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     func menuNeedsUpdate(_ menu: NSMenu) {
         updateMenu()
-        guard menu === activitiesMenu else { return }
+        guard menu === developerMenu else { return }
         menu.removeAllItems()
+        debugItem = add("Show Terrain Guides", action: #selector(toggleDebug), to: menu)
+        #if DEBUG
+        _ = add("Animation Playground…", action: #selector(openPlayground), to: menu)
+        #endif
+        menu.addItem(.separator())
+        let heading = NSMenuItem(title: "Test an Activity", action: nil, keyEquivalent: "")
+        heading.isEnabled = false; menu.addItem(heading)
         let state = overlay?.keyboardControlEnabled == true ? "You're in control" : (idleExploration ? "Exploring when idle" : "Idle exploration is off")
         let status = NSMenuItem(title: state, action: nil, keyEquivalent: "")
         status.isEnabled = false; menu.addItem(status); menu.addItem(.separator())
@@ -171,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let item = add(actionTitle(activity) + (available.contains(activity) ? "" : unavailable), action: #selector(triggerActivity(_:)), to: menu)
             item.tag = index; item.isEnabled = available.contains(activity)
         }
+        updateMenu()
     }
     @objc private func triggerActivity(_ sender: NSMenuItem) {
         guard ExplorerActivity.allCases.indices.contains(sender.tag) else { return }
@@ -319,20 +320,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let previousIdle { UserDefaults.standard.set(previousIdle, forKey: "idleExploration") }
             else { UserDefaults.standard.removeObject(forKey: "idleExploration") }
         }
-        menuNeedsUpdate(activitiesMenu)
+        menuNeedsUpdate(developerMenu)
         var passed = true
         func check(_ result: Bool, _ name: String) { print("NATIVE \(result ? "PASS" : "FAIL") \(name)"); passed = passed && result }
         let developer = statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.submenu
         check(developer?.items.contains { $0.title == "Show Terrain Guides" && $0.action == #selector(toggleDebug) } == true && statusItem?.menu?.items.contains { $0.action == #selector(toggleDebug) } == false, "terrain guides are available inside Developer Tools")
-        check(activitiesMenu.supermenu === developer && statusItem?.menu?.items.contains { $0.title == "Actions" } == false, "activity tests are grouped inside Developer Tools")
+        check(developerMenu === developer && developer?.items.contains { $0.action == #selector(triggerActivity(_:)) } == true, "activity tests are directly inside Developer Tools")
+        check(statusItem?.menu?.items.allSatisfy { $0.submenu?.items.allSatisfy { $0.submenu == nil } ?? true } == true, "status menu has at most two levels")
         check(askItem.keyEquivalent == "\r" && askItem.keyEquivalentModifierMask == [.control, .option], "Ask Explorer advertises Control Option Return")
         check(interiorItem?.title == "Explore Inside Windows…", "window pixel exploration has an explicit opt-in setting")
-        let commands = activitiesMenu.items.filter { $0.action != nil }
+        let commands = developerMenu.items.filter { $0.action == #selector(triggerActivity(_:)) }
         check(commands.count == ExplorerActivity.allCases.count - 1, "Actions contains explicit activities without duplicate automatic mode")
         let rope = commands.first { $0.tag == ExplorerActivity.allCases.firstIndex(of: .abseil) }
         check(rope?.isEnabled == overlay?.availableActivities.contains(.abseil), "Actions reflects reachable abseil routes")
         if let walk = commands.first(where: { $0.tag == ExplorerActivity.allCases.firstIndex(of: .walk) }) {
-            activitiesMenu.performActionForItem(at: activitiesMenu.index(of: walk))
+            developerMenu.performActionForItem(at: developerMenu.index(of: walk))
             check(overlay?.activityStatus.hasPrefix("Walk:") == true, "Walk action reaches desktop simulation")
         } else { check(false, "Walk action reaches desktop simulation") }
         idleExploration = true; toggleIdle()

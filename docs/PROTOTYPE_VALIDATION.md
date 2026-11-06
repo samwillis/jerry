@@ -237,3 +237,10 @@ The task bubble now draws its rounded background directly into a transparent pan
 The journal is now a borderless, resizable field notebook: warm paper, subtle fibres, stitched brown spine, red margin, ink serif writing and compact controls. Its custom close action hides the journal without discarding history. Expandable tool details, selectable text, following and log export are retained. Both floating panels can become key for input and text selection.
 
 Debug and packaged Release builds pass; 63 native and 11 agent checks pass. Live review verified the clean rounded input and larger send symbol, the rendered notebook without a system title bar, menu reopening and the follow-latest control. The final Debug app is running with the journal open. No live model request or external computer action was needed for this visual change.
+
+
+## Two-level menu limit — 6 November 2026
+
+Movement preferences now sit directly in Settings. Activity commands sit directly in Developer Tools below a section heading, alongside terrain guides and the Debug animation playground. Neither submenu contains another submenu. Dynamic activity availability and checkbox states still refresh on opening.
+
+64 native checks pass, including the two-level depth limit, direct developer activity commands, reachable-route availability and dispatch to the simulation. Debug and packaged Release builds pass; the updated Debug app is running.
