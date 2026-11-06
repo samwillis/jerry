@@ -18,30 +18,92 @@ public struct ExplorerInteraction {
         }
     }
 
-    public enum State: String { case idle, held, settling, recovering, walking, climbing, abseiling }
+    public enum State: String { case idle, held, settling, recovering, walking, climbing, abseiling, traversingEdge }
     public private(set) var position: Point
     public private(set) var state: State = .idle
     public private(set) var attachment: TerrainAttachment?
     public var autonomous = false
     public var runsMission = false
     public private(set) var mission = BananaMission()
+    public private(set) var requestedActivity: ExplorerActivity?
+    public private(set) var pendingActivity: ExplorerActivity?
+    public private(set) var activityIssue: String?
+    public var activityStatus: String {
+        if let pendingActivity { return "Queued: \(pendingActivity.title)" }
+        if let activityIssue { return activityIssue }
+        guard let requestedActivity else { return "Automatic adventures" }
+        return "\(requestedActivity.title): \(hasPendingTravel ? state.rawValue : "finished")"
+    }
+    public var availableActivities: Set<ExplorerActivity> {
+        var result: Set<ExplorerActivity> = [.automatic, .bananaAdventure]
+        if state == .recovering || state == .traversingEdge { return Set(ExplorerActivity.allCases) }
+        guard let source = currentSupport, let graph else { return result }
+        for activity in ExplorerActivity.allCases where activity.travelKind != nil {
+            if graph.activityRoute(activity, from: source) != nil { result.insert(activity) }
+        }
+        return result
+    }
+    private var currentSupport: TerrainAttachment? {
+        if let step = route.first, step.from.owner == step.to.owner, step.from.edge == step.to.edge {
+            return .init(owner: step.from.owner, edge: step.from.edge, offset: step.from.offset + (step.to.offset - step.from.offset) * travelFraction)
+        }
+        return attachment
+    }
+
+    @discardableResult public mutating func requestActivity(_ activity: ExplorerActivity) -> Bool {
+        mission.cancel()
+        activityIssue = nil
+        if state == .recovering || state == .traversingEdge || state == .held {
+            pendingActivity = activity
+            requestedActivity = activity
+            runsMission = false
+            flightContinuation.removeAll()
+            afterLanding.removeAll()
+            return true
+        }
+        if activity == .automatic || activity == .bananaAdventure {
+            if let source = currentSupport { attachment = source }
+            route.removeAll(); afterLanding.removeAll()
+            requestedActivity = nil; pendingActivity = nil
+            runsMission = true
+            state = .settling; settlingRemaining = 0.3
+            return true
+        }
+        guard let source = currentSupport, let graph, let plan = graph.activityRoute(activity, from: source) else {
+            activityIssue = "\(activity.title): no reachable route"
+            pendingActivity = nil
+            return false
+        }
+        attachment = source
+        requestedActivity = activity; pendingActivity = nil; runsMission = false
+        return follow(plan)
+    }
     public private(set) var facing: Double = 1
     public private(set) var simulationSteps = 0
     public var recoveryElapsed: Double { recoveryTime }
+    public private(set) var walkingTime: Double = 0
+    public private(set) var climbingTime: Double = 0
+    public var walkingTuning = AnimationTuning()
+    public var edgeProgress: Double { travelFraction }
+    public var edgeMotion: ExplorerMotion? {
+        guard state == .traversingEdge, let step = route.first else { return nil }
+        switch step.kind { case .mantling: return .mantling; case .lowering: return .lowering; case .parachuting: return .launching; default: return nil }
+    }
     public var heightAlongWall: Double {
-        guard let terrain, let owner = route.first?.from.owner,
+        guard let terrain, let owner = route.first?.from.owner ?? attachment?.owner,
               let window = terrain.windows.first(where: { .window($0.id) == owner }) else { return position.y }
         return position.y - window.frame.minY
     }
     public var activeTravel: TravelStep? { route.first }
     public var hasPendingTravel: Bool { !route.isEmpty || !afterLanding.isEmpty || flightGoal != nil }
-    public var ropeAnchor: Point? {
-        guard state == .abseiling, let step = route.first, let terrain,
-              TerrainSupport.resolve(step.from, in: terrain) != nil,
-              case .window(let id) = step.from.owner,
-              let window = terrain.windows.first(where: { $0.id == id }) else { return nil }
-        return .init(x: step.from.edge == .left ? window.frame.minX : window.frame.maxX, y: window.frame.maxY)
+    public var ropeGuide: AbseilRope? {
+        guard state == .abseiling || edgeMotion == .lowering,
+              let step = route.first, let terrain,
+              let window = terrain.windows.first(where: { .window($0.id) == step.from.owner }) else { return nil }
+        return AbseilRope(window: window.frame, edge: step.kind == .lowering ? step.to.edge : step.from.edge)
     }
+    public var ropeAnchor: Point? { ropeGuide?.anchor }
+
     private var graph: NavigationGraph?
     private var route: [TravelStep] = []
     private var travelFraction: Double = 0
@@ -68,6 +130,8 @@ public struct ExplorerInteraction {
 
     public mutating func beginDrag(at pointer: Point, time: Double? = nil) {
         mission.cancel()
+        pendingActivity = nil
+        if requestedActivity != nil { activityIssue = "Activity interrupted by dragging" }
         route.removeAll()
         afterLanding.removeAll()
         flightContinuation.removeAll()
@@ -129,11 +193,14 @@ public struct ExplorerInteraction {
         while accumulator + 0.0000001 >= dt {
             accumulator -= dt
             simulationSteps += 1
-            if state == .walking || state == .climbing || state == .abseiling {
+            if state == .walking || state == .climbing || state == .abseiling || state == .traversingEdge {
                 advanceTravel(by: dt)
             } else {
                 advancePhysics(by: dt)
-                if state == .idle && !runsMission { advanceAutonomy(by: dt) }
+                if state == .idle && !runsMission {
+                    if let pendingActivity { _ = requestActivity(pendingActivity) }
+                    else if requestedActivity == nil { advanceAutonomy(by: dt) }
+                }
             }
             if runsMission, let terrain {
                 var nextMission = mission
@@ -231,7 +298,7 @@ public struct ExplorerInteraction {
             if graph?.isValid(step) == true,
                let from = TerrainSupport.resolve(step.from, in: terrain),
                let to = TerrainSupport.resolve(step.to, in: terrain) {
-                position = .init(x: from.x + (to.x - from.x) * travelFraction, y: from.y + (to.y - from.y) * travelFraction)
+                position = travelPosition(step, from: from, to: to)
                 return
             }
             recover()
@@ -290,18 +357,21 @@ public struct ExplorerInteraction {
               let from = TerrainSupport.resolve(step.from, in: terrain),
               let to = TerrainSupport.resolve(step.to, in: terrain) else { recover(); return }
         switch step.kind {
-        case .walking: state = .walking; facing = to.x >= from.x ? 1 : -1
-        case .climbing: state = .climbing; facing = step.from.edge == .left ? 1 : -1
+        case .walking:
+            let direction: Double = to.x >= from.x ? 1 : -1
+            if state != .walking || facing != direction { walkingTime = 0 }
+            state = .walking; facing = direction
+        case .climbing:
+            if state != .climbing { climbingTime = ClimbingGait.time(atHeight: heightAlongWall) }
+            state = .climbing; facing = step.from.edge == .left ? 1 : -1
         case .abseiling: state = .abseiling; facing = step.from.edge == .left ? 1 : -1
+        case .mantling:
+            state = .traversingEdge; facing = step.from.edge == .left ? 1 : -1
+        case .lowering:
+            state = .traversingEdge; facing = step.to.edge == .left ? 1 : -1
         case .parachuting:
-            flightGoal = step.to
-            flightContinuation = Array(route.dropFirst())
-            route.removeAll()
-            attachment = nil
-            recoveryTime = 0
-            flightVelocity = .zero
-            facing = to.x >= from.x ? 1 : -1
-            state = .recovering
+            state = .traversingEdge
+            facing = (graph?.launchPoint(from: step.from)?.x ?? from.x) >= from.x ? 1 : -1
         }
     }
 
@@ -309,17 +379,47 @@ public struct ExplorerInteraction {
         guard let step = route.first, let terrain,
               let from = TerrainSupport.resolve(step.from, in: terrain),
               let to = TerrainSupport.resolve(step.to, in: terrain) else { recover(); return }
-        let speed: Double = step.kind == .walking ? 20 : (step.kind == .climbing ? 24 : 48)
         let distance = hypot(to.x - from.x, to.y - from.y)
-        travelFraction = min(1, travelFraction + speed * dt / max(0.01, distance))
-        position = .init(x: from.x + (to.x - from.x) * travelFraction, y: from.y + (to.y - from.y) * travelFraction)
+        if let motion = edgeMotion {
+            travelFraction = min(1, travelFraction + dt / EdgeTraversal.duration(motion))
+        } else if step.kind == .walking {
+            let travelled = WalkingGait.distance(from: walkingTime, to: walkingTime + dt, tuning: walkingTuning)
+            walkingTime += dt
+            travelFraction = min(1, travelFraction + travelled / max(0.01, distance))
+        } else if step.kind == .climbing {
+            let lifted = ClimbingGait.distance(from: climbingTime, to: climbingTime + dt)
+            climbingTime += dt
+            travelFraction = min(1, travelFraction + lifted / max(0.01, distance))
+        } else {
+            travelFraction = min(1, travelFraction + 48 * dt / max(0.01, distance))
+        }
+        position = travelPosition(step, from: from, to: to)
         clampPosition()
         if travelFraction >= 1 {
-            attachment = step.to
-            route.removeFirst()
-            travelFraction = 0
-            if route.isEmpty { settle() } else { startTravel() }
+            if step.kind == .parachuting {
+                flightGoal = step.to
+                flightContinuation = Array(route.dropFirst())
+                route.removeAll()
+                attachment = nil
+                recoveryTime = 0
+                flightVelocity = .zero
+                state = .recovering
+            } else {
+                attachment = step.to
+                route.removeFirst()
+                if pendingActivity != nil { route.removeAll() }
+                travelFraction = 0
+                if route.isEmpty { settle() } else { startTravel() }
+            }
         }
+    }
+
+    private func travelPosition(_ step: TravelStep, from: Point, to: Point) -> Point {
+        if let motion = edgeMotion {
+            let end = motion == .launching ? (graph?.launchPoint(from: step.from) ?? from) : to
+            return EdgeTraversal.position(motion, progress: travelFraction, from: from, to: end)
+        }
+        return .init(x: from.x + (to.x - from.x) * travelFraction, y: from.y + (to.y - from.y) * travelFraction)
     }
 
     private mutating func clampPosition() {

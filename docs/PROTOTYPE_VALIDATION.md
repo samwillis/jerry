@@ -80,3 +80,11 @@ build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock \
 ```
 
 Omit `--exercise` for a stable layout. Add `--start-low --rope-demo` to begin a reproducible rope descent from the lower window; `--freeze-rope` pauses it partway for visual review. Add `--movement-only` to the explorer to isolate traversal from mission selection. Quit the fixture after testing. These switches are development tools, not requirements for normal use.
+
+
+## Movement and activity refinement — 6 November 2026
+
+- 78 core tests pass. New coverage checks walking stance-foot cancellation in both directions, climbing pull distance/inverse phase, fixed contacts during stance, lower climbing boots and consistent knee branches, corner path endpoints/continuity, planted-boot weight transfer, all four manual travel activities, safe queuing, manual completion/rest, grabs/support loss during transitions, rounded-rope mirroring/clearance, and tangent directions at both curve joins over a range of hand positions.
+- 19 native checks pass, including submenu construction, reachable-route enablement, dispatching Walk into the desktop actor, and returning to automatic adventures. The native menu test restores the saved pause preference after checking dispatch.
+- Native playground review covered a lip pull, mirrored weight transfer, jump clearance and the tangent rounded-corner rope preview, all with zero clamped contacts. macOS status-item automation timed out, so menu dispatch was verified through the real NSMenu action mechanism in the native check harness.
+- Debug and Release packages were rebuilt for these changes. Earlier performance measurements remain historical; this refinement did not rerun the hardware benchmark.

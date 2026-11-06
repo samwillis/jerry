@@ -151,6 +151,8 @@ Acceptance: walk to an edge, climb, abseil, parachute, and land on real windows.
 
 Implementation status (5 November 2026): fixed 120 Hz stepping with bounded catch-up, seeded surface routing, real top walking, side climbing, window-anchored abseiling, steered parachuting, swept landing, and route continuation after landing are implemented. Current and upcoming transitions are revalidated against fresh terrain. Grabbing cancels navigation immediately, including while paused. The shared rig receives facing and world-stable climbing contacts; recovery retains release momentum. Reset Expedition provides an escape hatch. The `recovering` movement state contains the initial falling/deployment and open-canopy subphases; investigation is controlled by the mission stage rather than a second movement controller. See the focused movement tests and native evidence in [prototype validation](docs/PROTOTYPE_VALIDATION.md).
 
+Refinement (6 November 2026): added phase-synchronised walking and climbing, a stable knee branch with lower climbing contacts, explicit mantle/lower/launch beats, a top-pinned rope that follows rounded corners with tangent joins, and a menu for requesting specific real-terrain activities. Manual requests queue through unsafe interruptions and rest when complete; automatic adventures can be restored from the same submenu.
+
 ## 6. Assemble the banana adventure
 
 1. Implement mission stages: select destination, spot suspected sock, approach launch point, cross, investigate, reveal banana, update map, rest.

@@ -134,10 +134,10 @@ extension NavigationTests {
         for _ in 0..<30000 { subject.advance(by: 1.0 / 60); if subject.state == .abseiling { break } }
         XCTAssertEqual(subject.state, .abseiling)
         let anchor = subject.ropeAnchor
-        XCTAssertEqual(anchor?.y, 370)
-        XCTAssertTrue([300.0, 600.0].contains(anchor?.x ?? -1))
+        XCTAssertEqual(anchor?.y, 371)
+        XCTAssertTrue([328.0, 572.0].contains(anchor?.x ?? -1))
         subject.updateTerrain(terrain([window(x: 320, y: 30)]))
-        XCTAssertEqual(subject.ropeAnchor?.y, 380)
+        XCTAssertEqual(subject.ropeAnchor?.y, 381)
         XCTAssertEqual(subject.ropeAnchor?.x, (anchor?.x ?? 0) + 20)
         subject.updateTerrain(terrain())
         XCTAssertNil(subject.ropeAnchor)

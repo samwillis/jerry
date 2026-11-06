@@ -137,6 +137,10 @@ final class OverlayController {
         if paused { applyPolicy() } else { checkDesktop() }
     }
 
+    var activityStatus: String { scene.activityStatus }
+    var availableActivities: Set<ExplorerActivity> { scene.availableActivities }
+    func requestActivity(_ activity: ExplorerActivity) { refreshTerrain(); scene.requestActivity(activity) }
+
     func setGentlePace(_ gentle: Bool) { scene.playbackRate = gentle ? 0.65 : 1 }
 
     func setSleeping(_ sleeping: Bool) {

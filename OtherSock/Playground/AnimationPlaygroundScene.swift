@@ -17,7 +17,7 @@ final class AnimationPlaygroundScene: SKScene {
     private var activeHandle: String?
     private var rigDragOffset = CGPoint.zero
     private var handholds = [CGPoint(x: 20, y: 55), CGPoint(x: 20, y: 65)]
-    private var ropeAnchor = CGPoint(x: 5, y: 125)
+    private var ropeAnchor = CGPoint(x: 52, y: 91)
     private var grabPoint = CGPoint(x: 0, y: 64)
     private var hasCustomOrigin = false
     private var stageOrigin = CGPoint.zero
@@ -85,7 +85,7 @@ final class AnimationPlaygroundScene: SKScene {
         actualSizeRig.select(motion, restart: restart)
         if restart {
             handholds = [CGPoint(x: 20, y: 55), CGPoint(x: 20, y: 65)]
-            ropeAnchor = CGPoint(x: 5, y: 125)
+            ropeAnchor = CGPoint(x: 52, y: 91)
             grabPoint = CGPoint(x: 0, y: 64)
             hasCustomOrigin = false
             layoutStage()
@@ -130,14 +130,22 @@ final class AnimationPlaygroundScene: SKScene {
         scaleCaption.text = "ACTUAL DESKTOP SIZE · 74 pt"
         let platformY = stageOrigin.y - (selected == .held ? 30 * zoom : 0)
         let vertical = selected == .climbing || selected == .abseiling
-        let wallX = stageOrigin.x + (selected == .climbing ? 20 : 22) * zoom * facing
+        let wallX = stageOrigin.x + (selected == .climbing ? 20 : 24) * zoom * facing
         var frame = vertical
             ? CGRect(x: facing > 0 ? wallX : wallX - 200, y: platformY - 100, width: 200, height: 100 + 90 * zoom)
             : CGRect(x: stageOrigin.x - 200, y: platformY - 120, width: 400, height: 120)
+        if selected == .mantling || selected == .lowering {
+            let cornerX = stageOrigin.x + 24 * zoom * facing
+            frame = CGRect(x: facing > 0 ? cornerX : cornerX - 300, y: stageOrigin.y + 52 * zoom - 120, width: 300, height: 120)
+        } else if selected == .launching {
+            let cornerX = stageOrigin.x + 24 * zoom * facing
+            frame = CGRect(x: facing > 0 ? cornerX - 400 : cornerX, y: stageOrigin.y - 120, width: 400, height: 120)
+        }
         if selected == .comic {
             frame = CGRect(x: stageOrigin.x + (facing > 0 ? -200 : -20), y: platformY - 120, width: 220, height: 120)
         }
-        let window = SKShapeNode(rect: frame, cornerRadius: 8)
+        let radius = [ExplorerMotion.abseiling, .mantling, .lowering, .launching].contains(selected) ? AbseilRope.cornerRadius * zoom : 8
+        let window = SKShapeNode(rect: frame, cornerRadius: radius)
         window.fillColor = darkBackground ? NSColor(calibratedWhite: 0.17, alpha: 1) : .white
         window.strokeColor = .systemTeal
         window.lineWidth = 2
@@ -160,8 +168,12 @@ final class AnimationPlaygroundScene: SKScene {
         rope.isHidden = selected != .abseiling
         guard selected == .abseiling else { return }
         let path = CGMutablePath()
-        path.move(to: rig.convert(ropeAnchor, to: self))
         let gripX = min(max(ropeAnchor.x, -10), 10)
+        let guide = AbseilRope(window: .init(x: 24, y: -100, width: 100, height: 190), edge: .left, grip: .init(x: gripX, y: 61.5))
+        func point(_ value: WorldPoint) -> CGPoint { rig.convert(.init(x: value.x, y: value.y), to: self) }
+        path.move(to: rig.convert(ropeAnchor, to: self))
+        path.addLine(to: point(guide.topTangent))
+        path.addCurve(to: point(guide.sideTangent), control1: point(guide.control1), control2: point(guide.control2))
         path.addLine(to: rig.convert(CGPoint(x: gripX, y: 61.5), to: self))
         path.addLine(to: rig.convert(CGPoint(x: gripX, y: -30), to: self))
         rope.path = path
@@ -185,10 +197,25 @@ final class AnimationPlaygroundScene: SKScene {
         }
         for character in [rig, actualSizeRig] {
             character.handTargets = targets
+            if liveMotion == .climbing {
+                let contacts = ClimbingContacts(heightAlongWall: ClimbingGait.height(at: character.animationTime))
+                character.footTargets = (contacts.leftFoot, contacts.rightFoot)
+            } else { character.footTargets = nil }
             character.grabPoint = grabPoint
             character.render(delta: delta)
         }
+        if [.mantling, .lowering, .launching].contains(selected), !hasCustomOrigin {
+            let duration = EdgeTraversal.duration(selected)
+            let progress = min(rig.animationTime.truncatingRemainder(dividingBy: duration + 1) / duration, 1)
+            let from = WorldPoint(x: 0, y: 0), inside = WorldPoint(x: 48, y: selected == .launching ? 0 : 52)
+            let offset = EdgeTraversal.position(selected, progress: progress, from: selected == .lowering ? inside : from, to: selected == .lowering ? from : inside)
+            rig.position = CGPoint(x: stageOrigin.x + offset.x * zoom * facing, y: stageOrigin.y + offset.y * zoom)
+            actualSizeRig.position = CGPoint(x: 90 + offset.x * facing, y: 80 + offset.y)
+        }
         var beat = "Drag the body to interrupt any pose"
+        if selected == .mantling { beat = "Grip the lip → pull up → plant a boot → stand" }
+        if selected == .lowering { beat = "Crouch → back over the lip → take the rope" }
+        if selected == .launching { beat = "Look down → crouch → push clear → deploy" }
         if selected == .comic {
             let t = rig.animationTime.truncatingRemainder(dividingBy: 9)
             beat = t < 2 ? "Approach the edge" : (t < 3.5 ? "Look down. Reconsider." : (t < 5 ? "Back away with dignity" : "Picked up by the mysterious giant"))

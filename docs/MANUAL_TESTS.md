@@ -122,3 +122,8 @@ Follow-up feedback reduced arm/leg gradients and replaced individually outlined 
 ## Phases five to seven — 5 November 2026
 
 The latest requirement-by-requirement evidence, native lifecycle checks, real-window fixture observations, simulated soak tests, package details and remaining OS limits are in [prototype validation](PROTOTYPE_VALIDATION.md). Earlier unchecked OS cases above remain historical open coverage, not claims that this increment tested every macOS configuration. No overnight user testing was requested.
+
+
+## Movement feedback — 6 November 2026
+
+Updated walking and climbing to follow stance/pull clocks, fixed climbing knee branch changes, added lip/rope/jump transitions and manual Activities controls, and routed the rope over rounded corners with tangent joins. See [the latest validation](PROTOTYPE_VALIDATION.md#movement-and-activity-refinement--6-november-2026) and [animation workflow](ANIMATION_WORKFLOW.md) for coverage and the preview controls.

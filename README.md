@@ -4,7 +4,7 @@ A tiny, deeply unqualified desktop expedition searching for the other sock.
 
 ## Current prototype: phases one to seven
 
-The native macOS shell draws one articulated, approximately 74-point shape explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle, sways when held, and displays a parachute during controlled recovery. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Reset Expedition**, **Gentle Pace**, **Show Debug Guides**, **Animation Playground…** (Debug builds), and **Quit The Other Sock**. Pause, pace, and guide preferences survive relaunch.
+The native macOS shell draws one articulated, approximately 74-point shape explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle, sways when held, and displays a parachute during controlled recovery. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Reset Expedition**, **Activities**, **Gentle Pace**, **Show Debug Guides**, **Animation Playground…** (Debug builds), and **Quit The Other Sock**. Pause, pace, and guide preferences survive relaunch.
 
 The rendering overlay ignores mouse events and cannot become the key or main window. A separate 48 × 76 point, non-activating panel over the explorer accepts dragging. Grab anywhere inside that small character area, drag it aside, and release. The grab offset is preserved, and the explorer remains inside the primary display's usable area. All other overlay space passes mouse events through. There are no global keyboard shortcuts, input monitors, screen capture, or permission prompts.
 
@@ -12,11 +12,17 @@ While held, idle movement stops. Release carries recent drag momentum, so quick 
 
 On landing, the explorer briefly crouches with planted feet and then rises. A settling interval prevents immediate autonomous movement. Occasional blinks have a tiny timing offset between the eyes. Dragging is still available when paused; pausing freezes visual clocks, settling, recovery, and automatic terrain polling. Resume refreshes geometry immediately. Releasing a dragged explorer refreshes geometry even while paused.
 
+## Trigger an activity
+
+Use the hiking menu → **Activities** → **Walk**, **Climb a window**, **Abseil**, **Parachute**, or **Find the sock**. The explorer approaches suitable real terrain first, then performs the activity and rests. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Automatic adventures** restores normal mission selection. Choosing an activity resumes a paused expedition.
+
+Climbs now pull over the lip into a planted-foot standing pose; rope descents crouch and back over the lip; parachute trips crouch and jump clear before deploying. The rope pins on the top edge, follows an estimated 10-point rounded window corner, and leaves along the mathematical tangent towards the hands. Both straight-to-curve joins remain tangent as the explorer descends.
+
 ## The banana adventure
 
 The explorer spots a supposed sock through binoculars, approaches a launch point, crosses to a reachable discovery, investigates, discovers a banana, plants a flag, marks its map, and rests before trying again. It prefers a valid parachute crossing; climbing and shorter walks provide alternatives. The prop follows its supporting window. Grabbing the explorer, losing support, or removing the destination cancels or replans the expedition. A sparse desktop permits short floor expeditions; no reachable route means a safe rest.
 
-Movement uses a fixed 120 Hz simulation with at most 0.25 seconds of catch-up after a stall, presented at 30 fps. Walking is 20 points/second, climbing 24, and abseiling 48; Gentle Pace runs the expedition at 65% speed. Climb/abseil transitions are limited to 1,200 points and need exposed wall contacts. Planned flights have a 65 points/second steering cap and land farther inside tops than ordinary dropped-character recovery. Windows are platforms, rather than solid boxes: rear windows can form the visual background behind a foreground climb, and the screen floor remains rescue terrain.
+Movement uses a fixed 120 Hz simulation with at most 0.25 seconds of catch-up after a stall, presented at 30 fps. Walking follows the unchanged foot cycle (40 points/second on average at the default stride/cadence). Climbing follows alternating 12-point arm pulls (24 points/second on average), and abseiling descends at 48 points/second; Gentle Pace runs the expedition at 65% speed. Climb/abseil transitions are limited to 1,200 points and need exposed wall contacts. Planned flights have a 65 points/second steering cap and land farther inside tops than ordinary dropped-character recovery. Windows are platforms, rather than solid boxes: rear windows can form the visual background behind a foreground climb, and the screen floor remains rescue terrain.
 
 ## Animation playground
 

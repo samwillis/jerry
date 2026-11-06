@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ExplorerMotion: String, CaseIterable, Sendable {
-    case idle, walking, climbing, abseiling, parachuting, held, investigating, landing, comic
+    case idle, walking, climbing, abseiling, parachuting, mantling, lowering, launching, held, investigating, landing, comic
 }
 
 public enum RecoveryAnimation {
@@ -202,6 +202,10 @@ public enum AnimationClips {
             pose.leftFoot.y += 1.5 + sin(phase * 0.45) * 1.5
             pose.rightFoot.y += 1.5 - sin(phase * 0.45) * 1.5
             pose.sway = sin(phase * 0.3) * 0.06
+        case .mantling, .lowering, .launching:
+            let duration = EdgeTraversal.duration(motion)
+            let progress = min(t.truncatingRemainder(dividingBy: duration + 1) / duration, 1)
+            pose = EdgeTraversal.pose(motion, progress: progress)
         case .held:
             pose.leftHand = .init(x: -16, y: 29.5 + sin(phase * 0.8))
             pose.rightHand = .init(x: 16, y: 29.5 - sin(phase * 0.8))
@@ -275,9 +279,9 @@ public struct RigAnimator {
         blendTime = 0
     }
 
-    @discardableResult public mutating func advance(by elapsed: Double) -> ExplorerPose {
+    @discardableResult public mutating func advance(by elapsed: Double, synchronizedTime: Double? = nil) -> ExplorerPose {
         let dt = elapsed.isFinite ? min(max(elapsed, 0), 0.1) : 0
-        time += dt
+        time = synchronizedTime ?? (time + dt)
         blendTime += dt
         let fraction = tuning.blendDuration > 0 ? min(blendTime / tuning.blendDuration, 1) : 1
         let smooth = fraction * fraction * (3 - 2 * fraction)
@@ -294,16 +298,89 @@ public struct ClimbingContacts {
     public let leftFoot: WorldPoint
     public let rightFoot: WorldPoint
     public init(heightAlongWall: Double) {
-        func contact(height: Double, offset: Double) -> WorldPoint {
+        func contact(height: Double, offset: Double, x: Double = 20) -> WorldPoint {
             let cycle = (heightAlongWall + offset) / 24
             let phase = cycle - floor(cycle)
             let swing = max(0, (phase - 0.65) / 0.35)
             let lift = swing * swing * (3 - 2 * swing) * 24
-            return .init(x: 20 - sin(swing * .pi) * 5, y: height - phase * 24 + lift)
+            return .init(x: x - sin(swing * .pi) * 5, y: height - phase * 24 + lift)
         }
         leftHand = contact(height: 55, offset: 0)
         rightHand = contact(height: 65, offset: 12)
-        leftFoot = contact(height: 24, offset: 12)
-        rightFoot = contact(height: 24, offset: 0)
+        leftFoot = contact(height: 18, offset: 12, x: 14)
+        rightFoot = contact(height: 18, offset: 0, x: 14)
     }
+}
+
+/// Integral of the backward travel of whichever foot is in stance. The existing
+/// cosine gait travels 2×stride in each half-cycle: 40 pt/s at stride 10, cadence 1.
+public enum WalkingGait {
+    public static func distance(from start: Double, to end: Double, tuning: AnimationTuning = .init()) -> Double {
+        func travelled(_ time: Double) -> Double {
+            let stride = min(max(tuning.stride, 0), 12)
+            let cycle = max(0, time) * max(0.1, tuning.cadence)
+            let turns = floor(cycle), angle = (cycle - turns) * 2 * Double.pi
+            return turns * 4 * stride + stride * (angle <= .pi ? 1 - cos(angle) : 3 + cos(angle))
+        }
+        return max(0, travelled(end) - travelled(start))
+    }
+}
+
+/// Named, interruptible corner beats shared by desktop movement and the playground.
+public enum EdgeTraversal {
+    public static let lipHeight = 52.0
+    public static func duration(_ motion: ExplorerMotion) -> Double { motion == .launching ? 1.0 : 1.35 }
+    private static func smooth(_ x: Double) -> Double { let t = min(max(x, 0), 1); return t * t * (3 - 2 * t) }
+
+    public static func position(_ motion: ExplorerMotion, progress: Double, from: WorldPoint, to: WorldPoint) -> WorldPoint {
+        let p = min(max(progress, 0), 1)
+        if motion == .lowering { return position(.mantling, progress: 1 - p, from: to, to: from) }
+        if motion == .launching {
+            let u = smooth((p - 0.3) / 0.7)
+            return .init(x: from.x + (to.x - from.x) * u, y: from.y + sin(.pi * u) * 12)
+        }
+        let keys = [0.0, 0.4, 0.7, 1.0], xs = [0.0, 0, 28.0 / 48, 1], ys = [0.0, 28.0 / 52, 45.0 / 52, 1]
+        let i = min(keys.count - 2, keys.firstIndex(where: { $0 > p }).map { max(0, $0 - 1) } ?? keys.count - 2)
+        let f = smooth((p - keys[i]) / (keys[i + 1] - keys[i]))
+        return .init(x: from.x + (to.x - from.x) * (xs[i] + (xs[i + 1] - xs[i]) * f), y: from.y + (to.y - from.y) * (ys[i] + (ys[i + 1] - ys[i]) * f))
+    }
+
+    public static func pose(_ motion: ExplorerMotion, progress: Double) -> ExplorerPose {
+        let p = min(max(progress, 0), 1)
+        if motion == .lowering { return pose(.mantling, progress: 1 - p) }
+        let idle = ExplorerPose()
+        var a = idle, b = idle, c = idle
+        let keys: [Double], poses: [ExplorerPose]
+        if motion == .launching {
+            a.hips.y = 25.5; a.leftHand = .init(x: -19, y: 35); a.rightHand = .init(x: 14, y: 36); a.headTilt = -0.12
+            b.hips.y = 31; b.leftFoot.y = 3; b.rightFoot.y = 2; b.leftHand = .init(x: -8, y: 55); b.rightHand = .init(x: 18, y: 56)
+            c = AnimationClips.sample(.parachuting, time: 0, tuning: .init())
+            keys = [0, 0.3, 0.55, 1]; poses = [idle, a, b, c]
+        } else {
+            a.hips = .init(x: 10, y: 28); a.leftHand = .init(x: 22, y: 52); a.rightHand = .init(x: 23, y: 55)
+            a.leftFoot = .init(x: 14, y: 18); a.rightFoot = .init(x: 14, y: 6); a.headTilt = -0.15
+            b.hips = .init(x: 12, y: 14); b.leftHand = .init(x: 22, y: 24); b.rightHand = .init(x: 23, y: 26)
+            b.leftFoot = .init(x: 16, y: 0); b.rightFoot = .init(x: 18, y: -4); b.headTilt = -0.3; b.backpackTilt = 0.12
+            c.hips = .init(x: 0, y: 24); c.leftHand = .init(x: -12, y: 38); c.rightHand = .init(x: 18, y: 45)
+            c.leftFoot = .init(x: 12, y: 7); c.rightFoot = .init(x: 14, y: 13); c.headTilt = -0.15
+            keys = [0, 0.4, 0.7, 1]; poses = [a, b, c, idle]
+        }
+        let i = min(keys.count - 2, keys.firstIndex(where: { $0 > p }).map { max(0, $0 - 1) } ?? keys.count - 2)
+        return poses[i + 1].blended(from: poses[i], fraction: smooth((p - keys[i]) / (keys[i + 1] - keys[i])))
+    }
+}
+
+/// Each alternating hand pull lifts 12 points. The body slows at hand exchanges
+/// and rises fastest during the loaded part of the pull (24 points per full cycle).
+public enum ClimbingGait {
+    public static func height(at time: Double) -> Double {
+        let turns = floor(time), angle = (time - turns) * 2 * Double.pi
+        return turns * 24 + 6 * (angle <= .pi ? 1 - cos(angle) : 3 + cos(angle))
+    }
+    public static func time(atHeight height: Double) -> Double {
+        let turns = floor(height / 24), part = height - turns * 24
+        let angle = part <= 12 ? acos(min(1, max(-1, 1 - part / 6))) : 2 * Double.pi - acos(min(1, max(-1, part / 6 - 3)))
+        return turns + angle / (2 * .pi)
+    }
+    public static func distance(from start: Double, to end: Double) -> Double { max(0, height(at: end) - height(at: start)) }
 }

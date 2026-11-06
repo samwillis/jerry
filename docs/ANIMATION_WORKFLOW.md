@@ -82,3 +82,14 @@ Numerical tests cover segment lengths, unreachable targets, finite poses, fixed 
 The desktop now consumes fixed-step walking, climbing, abseiling and recovery states from ExpeditionCore. Facing follows travel or the contacted wall. Climbing contacts stay fixed relative to their supporting window during stance and lift during the next stroke. Near/far hand heights and foot stroke heights are checked against limb reach throughout body bobbing. Abseiling rope anchors stay attached to the supporting window top; props, cords, flags and speech never enlarge the body input panel. Falling/deployment/open-canopy timing remains shared between presentation and recovery distance.
 
 `BananaMission` drives spotting/binoculars, investigation, banana reveal, map marking and rest through fixed-clock stages. A grab cancels the mission immediately even while paused. Animation uses numeric blending and stage/state changes rather than delayed completion callbacks. Use the real-window fixture and `--movement-only` to reproduce traversal separately from the adventure; see [validation](PROTOTYPE_VALIDATION.md).
+
+
+## Movement feedback — 6 November 2026
+
+Walking's sideways displacement is the integral of the stance foot's existing cosine sweep: 20 points per half-cycle, 40 points per cycle at cadence 1. The actor and rig share this clock, so stance feet remain planted without speeding up the leg animation. Climbing similarly lifts 12 points per alternating hand pull, slowing at grip exchanges. Its contact phase is window-relative and its body bob shares the pull clock.
+
+Climbing boots stay below their hip joints; legs use a consistent canonical knee branch instead of a pole that could change sides as a high boot crossed the hip. Arms retain their separate anatomical poles.
+
+**Mantling**, **Lowering** and **Launching** are available in the playground and share the actual desktop root paths. Mantling pulls up with hands on the lip, brings a boot over, transfers weight over that planted boot, then stands. Lowering reverses that choreography. Launching anticipates, pushes clear, then enters recovery/chute deployment. These states are interruptible and revalidate their supporting geometry.
+
+Rope geometry uses a top pin, a circular corner guide with one point of clearance, and a tangent free lead to the current grip. Cubic arc handles align with both straight leads; the contact angle changes as the hands descend. The playground's scaled window corner matches the guide's estimated radius.

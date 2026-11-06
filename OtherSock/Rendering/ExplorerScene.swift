@@ -65,6 +65,13 @@ final class ExplorerScene: SKScene {
         if let previousTerrain { updateTerrain(previousTerrain) }
     }
 
+    var activityStatus: String { interaction?.activityStatus ?? "Preparing terrain…" }
+    var availableActivities: Set<ExplorerActivity> { interaction?.availableActivities ?? [] }
+    func requestActivity(_ activity: ExplorerActivity) {
+        interaction?.requestActivity(activity)
+        applyPlacement()
+    }
+
     func setExpeditionPaused(_ paused: Bool) {
         expeditionPaused = paused
         previousUpdateTime = nil
@@ -185,15 +192,20 @@ final class ExplorerScene: SKScene {
         case .walking: motion = .walking
         case .climbing: motion = .climbing
         case .abseiling: motion = .abseiling
+        case .traversingEdge: motion = interaction.edgeMotion ?? .idle
         default: motion = .idle
         }
         let stage = interaction.mission.stage
         let stationary = interaction.state == .idle || interaction.state == .settling
+        if stationary, let edge = interaction.attachment?.edge, edge == .left || edge == .right { motion = .climbing }
         if stationary, [.spotting, .investigating, .revealing, .updatingMap].contains(stage) { motion = .investigating }
         let target = interaction.mission.target.flatMap { anchor in terrain.flatMap { TerrainSupport.resolve(anchor, in: $0) } }
         var facing = interaction.facing
         if stationary, let target { facing = target.x >= interaction.position.x ? 1 : -1 }
         explorer.xScale = facing
+        explorer.tuning = interaction.walkingTuning
+        explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
+            ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         explorer.handTargets = nil
         explorer.footTargets = nil
         if motion == .climbing {
@@ -206,16 +218,31 @@ final class ExplorerScene: SKScene {
         } else if stationary, stage == .updatingMap {
             explorer.handTargets = (.init(x: -1, y: 43), .init(x: 16, y: 44))
         }
+        let ropeGripHeight = interaction.ropeAnchor.map { min(61, max(0, $0.y - 16 - interaction.position.y)) } ?? 61
+        if motion == .abseiling {
+            explorer.handTargets = (.init(x: 0, y: ropeGripHeight), .init(x: 8, y: ropeGripHeight + 1))
+        }
         props.update(mission: interaction.mission, explorer: interaction.position, target: target, facing: facing, viewport: usableFrame, held: interaction.state == .held)
         explorer.select(motion)
         rope.isHidden = interaction.ropeAnchor == nil
-        if let anchor = interaction.ropeAnchor {
+        if let supportGuide = interaction.ropeGuide {
+            let grip = WorldPoint(x: interaction.position.x, y: interaction.position.y + ropeGripHeight)
+            let guide = interaction.edgeMotion == .lowering ? supportGuide : supportGuide.taut(toward: grip)
+            func cg(_ point: WorldPoint) -> CGPoint { .init(x: point.x, y: point.y) }
             let path = CGMutablePath()
-            path.move(to: CGPoint(x: anchor.x, y: anchor.y))
-            path.addLine(to: CGPoint(x: interaction.position.x, y: interaction.position.y + 61))
-            path.addLine(to: CGPoint(x: interaction.position.x, y: max(usableFrame.minY, interaction.position.y - 30)))
+            path.addEllipse(in: .init(x: guide.anchor.x - 2, y: guide.anchor.y - 1, width: 4, height: 2))
+            path.move(to: cg(guide.anchor))
+            path.addLine(to: cg(guide.topTangent))
+            path.addCurve(to: cg(guide.sideTangent), control1: cg(guide.control1), control2: cg(guide.control2))
+            if interaction.edgeMotion == .lowering {
+                path.addLine(to: .init(x: guide.sideTangent.x, y: guide.sideTangent.y - 50))
+            } else {
+                path.addLine(to: .init(x: interaction.position.x, y: interaction.position.y + ropeGripHeight))
+                path.addLine(to: .init(x: interaction.position.x, y: max(usableFrame.minY, interaction.position.y - 30)))
+            }
             rope.path = path
         }
+
         explorer.render(delta: 0)
         let hitFrame = CGRect(x: explorer.position.x - 24, y: explorer.position.y - 1, width: 48, height: 76)
         if hitFrame != lastInputFrame || interaction.state.rawValue != lastInputState {

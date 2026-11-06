@@ -92,6 +92,7 @@ final class ExplorerRig: SKNode {
     private var expressionTime: Double = 0
     private var landingTime: Double?
     private var landingStrength: Double = 1
+    var synchronizedTime: Double?
     var handTargets: (WorldPoint, WorldPoint)?
     var footTargets: (WorldPoint, WorldPoint)?
     var grabPoint = CGPoint(x: 0, y: 64)
@@ -199,7 +200,7 @@ final class ExplorerRig: SKNode {
 
     func select(_ motion: ExplorerMotion, restart: Bool = false) {
         if restart { expressionTime = 0 }
-        if restart || motion == .held || motion == .parachuting { landingTime = nil }
+        if restart || ![ExplorerMotion.idle, .investigating, .landing].contains(motion) { landingTime = nil }
         animator.select(motion, restart: restart)
     }
 
@@ -216,7 +217,7 @@ final class ExplorerRig: SKNode {
     }
 
     func render(delta: Double) {
-        var pose = animator.advance(by: delta)
+        var pose = animator.advance(by: delta, synchronizedTime: synchronizedTime)
         let elapsed = delta.isFinite ? min(max(delta, 0), 0.1) : 0
         expressionTime += elapsed
         for (index, eye) in [leftEye, rightEye].enumerated() {
@@ -256,7 +257,7 @@ final class ExplorerRig: SKNode {
         let pole = WorldPoint(x: root.x + (knee ? 24 : elbowPole.x), y: root.y + (knee ? -6 : elbowPole.y))
         // Foot targets mark the sole; the shin ends at an ankle three points inside the boot.
         let jointTarget = WorldPoint(x: target.x, y: target.y + (knee ? ExpeditionConfiguration.ankleHeight : 0))
-        let solution = TwoBoneIK.solve(root: root, target: jointTarget, upper: limb.upperLength, lower: limb.lowerLength, pole: pole)
+        let solution = TwoBoneIK.solve(root: root, target: jointTarget, upper: limb.upperLength, lower: limb.lowerLength, pole: knee ? nil : pole)
         limb.place(root: root, solution: solution)
         if solution.isClamped { clampedContacts += 1 }
         guard showsJoints else { return }

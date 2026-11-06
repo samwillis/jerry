@@ -20,7 +20,8 @@ enum OtherSockApp {
             application.setActivationPolicy(.accessory)
             let overlay = OverlayController()
             let passed = overlay.runNativeChecks()
-            exit(passed ? 0 : 1)
+            let menusPassed = AppDelegate().runActivityMenuChecks()
+            exit(passed && menusPassed ? 0 : 1)
         }
         #endif
         if let bundleID = Bundle.main.bundleIdentifier,
