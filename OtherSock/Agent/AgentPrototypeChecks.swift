@@ -45,6 +45,18 @@ enum AgentPrototypeChecks {
             }
             check(scene.agentAtTarget, "the rendered hand reaches the Dock reveal edge after visible-frame changes")
             scene.setAgentMode(false)
+            let spottingScene = ExplorerScene(size: .init(width: 1000, height: 800))
+            spottingScene.layout(in: .init(x: 0, y: 0, width: 1000, height: 800))
+            spottingScene.updateTerrain(.init(windows: [], viewport: viewport)); spottingScene.setIdleExploration(true)
+            let spottingRig = spottingScene.children.compactMap { $0 as? ExplorerRig }.first!
+            var tick = 0
+            while tick < 900 && !spottingRig.usingBinoculars { spottingScene.update(Double(tick) / 60); tick += 1 }
+            let sharedBinoculars = spottingRig.childNode(withName: "//binoculars")
+            check(spottingRig.usingBinoculars && sharedBinoculars?.isHidden == false, "idle sock spotting uses the explorer's head-mounted binoculars")
+            spottingScene.setAgentMode(true); spottingScene.agentReading = true; spottingScene.update(Double(tick + 1) / 60)
+            check(spottingRig.childNode(withName: "//binoculars") === sharedBinoculars && sharedBinoculars?.isHidden == false && spottingRig.clampedContacts == 0, "AI reading uses the same binoculars and reachable two-hand grip")
+            spottingScene.agentReading = false; spottingScene.update(Double(tick + 2) / 60)
+            check(sharedBinoculars?.isHidden == true, "finishing screen reading puts the binoculars away")
             let keyboardFrame = CGRect(x: 100, y: 400, width: 600, height: 200)
             let keyboard = ExplorerComputer.VisibleWindow(pid: 101, frame: keyboardFrame, alpha: 1)
             check(ExplorerComputer.visibleWindow(keyboardFrame, pid: 101, in: [keyboard]), "a visible keyboard window matches its AX geometry")

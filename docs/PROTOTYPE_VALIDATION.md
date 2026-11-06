@@ -315,3 +315,10 @@ The welcome illustration has a larger canvas and a small floor edge. Its drop sh
 Reviewed and shortened all five Settings sections. General contains preferences and a save-status note. AI combines connection/account state into one card and removes sign-in instructions after connection. Privacy uses concise permission rows and distinct local-terrain/AI-sharing copy. Controls presents every documented key in three compact, always-visible groups: From any app, Movement, and Tools & tasks. Advanced keeps only diagnostics and short explanations. Text wrapping uses each card’s actual inner width so descriptions cannot lose their final line.
 
 78 native and 25 agent checks pass, including a new regression that every documented control is visible without expanding a section. Debug and packaged Release builds pass. Live review covered the styled welcome, floor/shadow, all five Settings pages, close/reopen controls, sidebar padding, model loading and the complete controls reference. The final app is left running on Controls with the single top heading.
+
+
+## Unified binoculars — 6 November 2026
+
+Removed the separate scene-level binocular prop from idle sock spotting. Both idle spotting and AI screen reading now use the same head-mounted rig component, mirrored with the explorer and following head movement. The design uses shaded dark-green barrels, muted brass rims, blue-green glass and small reflections. Both modes share a two-hand grip with downward elbow poles; pointer attention eases away during reading so it does not turn the optics away from the task. Held explorers put them away.
+
+78 native and 28 agent checks pass. Three mode regressions exercise idle spotting, reuse of the exact same binocular node for AI reading with no clamped contacts, and hiding it when reading ends. A native SpriteKit preview was rendered and reviewed at enlarged size in both directions. Debug and packaged Release builds pass; the updated app is running.

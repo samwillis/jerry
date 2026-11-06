@@ -8,7 +8,6 @@ final class ExpeditionProps: SKNode {
     private let discovery = SKNode()
     private let sock = SKNode()
     private var sockStyle = -1
-    private let binoculars = SKNode()
     private let map = SKNode()
     private let speech = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
     private let speechBacking = SKShapeNode(rectOf: CGSize(width: 106, height: 24), cornerRadius: 8)
@@ -18,12 +17,6 @@ final class ExpeditionProps: SKNode {
         addChild(discovery)
         discovery.addChild(sock)
         styleSock(0)
-        for x: CGFloat in [-4, 4] {
-            let tube = SKShapeNode(rect: .init(x: x - 3, y: -3, width: 6, height: 9), cornerRadius: 2)
-            tube.fillColor = .init(calibratedWhite: 0.17, alpha: 1); tube.strokeColor = .black; tube.lineWidth = 0.7
-            binoculars.addChild(tube)
-        }
-        addChild(binoculars)
         let paper = SKShapeNode(rectOf: .init(width: 22, height: 16), cornerRadius: 1)
         paper.fillColor = .init(calibratedRed: 0.94, green: 0.87, blue: 0.68, alpha: 1)
         paper.strokeColor = .brown; paper.lineWidth = 0.7
@@ -97,8 +90,6 @@ final class ExpeditionProps: SKNode {
         let revealed = stage == .revealing || stage == .updatingMap || stage == .resting
         styleSock(mission.pattern.rawValue)
         sock.zRotation = revealed ? sin(min(mission.elapsed, 0.4) / 0.4 * .pi) * 0.12 : 0
-        binoculars.isHidden = stage != .spotting || held
-        binoculars.position = .init(x: explorer.x + 10 * facing, y: explorer.y + 59)
         map.isHidden = stage != .updatingMap || held
         map.position = .init(x: explorer.x + 8 * facing, y: explorer.y + 45)
         map.zRotation = -0.2 * facing

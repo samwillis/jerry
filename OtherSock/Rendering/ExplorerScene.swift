@@ -356,7 +356,7 @@ final class ExplorerScene: SKScene {
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         if motion == .running { explorer.synchronizedTime = interaction.runningTime }
-        explorer.usingBinoculars = agentReading
+        explorer.usingBinoculars = interaction.state != .held && (agentReading || (stationary && stage == .spotting))
         explorer.crouchAmount = interaction.canCrouch ? interaction.crouchBlend : 0
         explorer.jumpPose = interaction.dropPose ?? interaction.keyboardJumpPose
         explorer.crackPose = interaction.internalClimbingPose
@@ -387,9 +387,7 @@ final class ExplorerScene: SKScene {
             explorer.handTargets = (contacts.leftHand, contacts.rightHand)
             explorer.footTargets = (contacts.leftFoot, contacts.rightFoot)
         }
-        if stationary, stage == .spotting {
-            explorer.handTargets = (.init(x: 6, y: 59), .init(x: 14, y: 59))
-        } else if stationary, stage == .updatingMap {
+        if stationary, stage == .updatingMap {
             explorer.handTargets = (.init(x: -1, y: 43), .init(x: 16, y: 44))
         }
         let ropeGripHeight = interaction.ropeAnchor.map { min(61, max(0, $0.y - 16 - interaction.position.y)) } ?? 61

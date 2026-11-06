@@ -182,13 +182,9 @@ final class ExplorerRig: SKNode {
         body.addChild(leftArm)
         body.addChild(grappleGun)
         buildGrappleGun()
-        body.addChild(binoculars); binoculars.zPosition = 6
-        for x in [-2.0, 6.0] {
-            let lens = SKShapeNode(circleOfRadius: 3.5)
-            lens.fillColor = .darkGray; lens.strokeColor = .black; lens.lineWidth = 0.7; lens.position.x = x
-            let glass = SKShapeNode(circleOfRadius: 2)
-            glass.fillColor = .systemTeal; glass.strokeColor = .clear; lens.addChild(glass); binoculars.addChild(lens)
-        }
+        head.addChild(binoculars); binoculars.name = "binoculars"; binoculars.zPosition = 6
+        binoculars.position = .init(x: 0, y: 2)
+        buildBinoculars()
         body.addChild(canopy)
         canopy.zPosition = -4
         body.addChild(joints)
@@ -228,6 +224,25 @@ final class ExplorerRig: SKNode {
             eye.strokeColor = eye.fillColor
             eye.lineWidth = painted ? 0.4 : 1
         }
+    }
+
+    /// One head-mounted pair for both sock spotting and AI screen reading.
+    private func buildBinoculars() {
+        let casing = NSColor(calibratedRed: 0.19, green: 0.25, blue: 0.24, alpha: 1)
+        let brass = NSColor(calibratedRed: 0.64, green: 0.53, blue: 0.32, alpha: 1)
+        let glass = NSColor(calibratedRed: 0.12, green: 0.35, blue: 0.39, alpha: 1)
+        rectangle(.init(x: -1, y: -1.8, width: 7, height: 3), color: casing, parent: binoculars, radius: 1, material: .leather)
+        for x: CGFloat in [-1, 6] {
+            rectangle(.init(x: x - 3.7, y: -3.6, width: 7.4, height: 7.2), color: casing, parent: binoculars, radius: 2.4, material: .leather)
+            let rim = SKShapeNode(ellipseIn: .init(x: x - 2.9, y: -3, width: 5.8, height: 6))
+            rim.fillColor = brass; rim.strokeColor = NSColor(calibratedWhite: 0.1, alpha: 1); rim.lineWidth = 0.5; binoculars.addChild(rim)
+            let lens = CGPath(ellipseIn: .init(x: x - 2.15, y: -2.3, width: 4.3, height: 4.6), transform: nil)
+            binoculars.addChild(PaintedPart(path: lens, color: glass, material: .skin, tag: "binocular-glass"))
+            let reflection = CGMutablePath(); reflection.move(to: .init(x: x - 1.1, y: 0.2)); reflection.addQuadCurve(to: .init(x: x + 0.3, y: 1.4), control: .init(x: x - 1.1, y: 1.5))
+            let glint = SKShapeNode(path: reflection); glint.strokeColor = NSColor(calibratedRed: 0.75, green: 0.94, blue: 0.92, alpha: 0.8); glint.lineWidth = 0.65; glint.lineCap = .round; binoculars.addChild(glint)
+        }
+        let focusWheel = SKShapeNode(circleOfRadius: 0.85)
+        focusWheel.fillColor = brass; focusWheel.strokeColor = casing; focusWheel.lineWidth = 0.4; focusWheel.position = .init(x: 2.5, y: -1.2); binoculars.addChild(focusWheel)
     }
 
     private func buildGrappleGun() {
@@ -340,11 +355,6 @@ final class ExplorerRig: SKNode {
             pose.headTilt = min(0.15, max(-0.15, angle * 0.12))
         }
         binoculars.isHidden = !usingBinoculars
-        binoculars.position = .init(x: pose.hips.x, y: pose.hips.y + ExpeditionConfiguration.headOffset + 3.5)
-        if usingBinoculars {
-            pose.leftHand = .init(x: -7, y: pose.hips.y + 28)
-            pose.rightHand = .init(x: 11, y: pose.hips.y + 28)
-        }
         let elapsed = delta.isFinite ? min(max(delta, 0), 0.1) : 0
         expressionTime += elapsed
         if let time = landingTime {
@@ -354,6 +364,15 @@ final class ExplorerRig: SKNode {
         }
         if let handTargets { pose.leftHand = handTargets.0; pose.rightHand = handTargets.1 }
         if let footTargets { pose.leftFoot = footTargets.0; pose.rightFoot = footTargets.1 }
+        if usingBinoculars {
+            func grip(_ x: Double) -> WorldPoint {
+                let y = -2.0, angle = pose.headTilt
+                return .init(x: pose.hips.x + cos(angle) * x - sin(angle) * y,
+                             y: pose.hips.y + ExpeditionConfiguration.headOffset + sin(angle) * x + cos(angle) * y)
+            }
+            pose.leftHand = grip(-5.5); pose.rightHand = grip(10.5)
+            pose.elbowPole = .init(x: 0, y: -30); pose.leftElbowBend = nil; pose.rightElbowBend = nil
+        }
         let held = motion == .held || (motion == .comic && animationTime.truncatingRemainder(dividingBy: 9) >= 5)
         harnessWasUsed = usesHarnessPivot || (harnessWasUsed && abs(pose.sway) > 0.001 && !held)
         let origin = held ? grabPoint : CGPoint(x: 0, y: harnessWasUsed ? RopeSession.harnessHeight : 60)
@@ -456,7 +475,7 @@ final class ExplorerRig: SKNode {
             // Fully engaged close by, with a soft boundary instead of a sudden snap.
             let fade = min(1, max(0, (220 - distance) / 100))
             let attention = fade * fade * (3 - 2 * fade)
-            let taskWeight = motion == .grappling ? 0.3 : 1.0
+            let taskWeight = usingBinoculars ? 0.0 : (motion == .grappling ? 0.3 : 1.0)
             let weight = attention * taskWeight
             desiredEyes = .init(x: min(1, max(-1, dx / 55)) * 2.2 * weight,
                                 y: min(1, max(-1, dy / 55)) * 1.3 * weight)
