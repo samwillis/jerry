@@ -1,6 +1,6 @@
 # The Other Sock
 
-A tiny desktop expedition: three hopelessly committed explorers climb your windows, abseil down their sides, and parachute across your screen in search of a missing sock.
+A tiny desktop expedition: one hopelessly committed explorer climbs your windows, abseils down their sides, and parachutes across your screen in search of a missing sock.
 
 Build for macOS first, then bring it to Windows once the movement and comedy work.
 
@@ -12,10 +12,10 @@ Build a minimal Mac app with a transparent overlay, a menu bar control, and one 
 - Turn visible window tops and sides into platforms and climbing routes.
 - Let the explorer walk, climb, fall, and land.
 - Keep normal desktop clicks, typing, scrolling, and window dragging working. Pass mouse events through everywhere except directly on an explorer, and do not take keyboard focus.
-- Let the user grab and drag any explorer out of the way. Suspend its autonomous movement while held; on release, let it settle on a platform or parachute safely down, then resume exploring. Give it a short settling period so it does not immediately walk back into the way.
+- Let the user grab and drag the explorer out of the way. Suspend its autonomous movement while held; on release, let it settle on a platform or parachute safely down, then resume exploring. Give it a short settling period so it does not immediately walk back into the way.
 - Add pause and quit controls in the menu bar.
 
-Done when: the explorer can climb a real window, be dragged aside, and respond sensibly when you move, resize, or close a window, while you continue using the computer normally. Verify that dragging works without activating the app and that clicks outside characters reach the underlying windows. This is the main technical risk, so tackle it first.
+Done when: the explorer can climb a real window, be dragged aside, and respond sensibly when you move, resize, or close a window, while you continue using the computer normally. Verify that dragging works without activating the app and that clicks outside the character reach the underlying windows. This is the main technical risk, so tackle it first.
 
 ## 2. Build one complete adventure
 
@@ -32,40 +32,32 @@ Add abseiling as another way down, plus recovery behaviours for missed landings 
 
 Done when: this sequence is entertaining to watch and survives ordinary desktop use.
 
-## 3. Introduce the expedition team
+## 3. Refine the explorer’s personality
 
-Add three characters with distinct behaviour:
+Keep one character: fearless, confidently wrong, and prone to misreading maps. Vary his moods, hesitations, equipment mishaps and moments of competence. Refine his shared rig and animation until the personality reads clearly at desktop size.
 
-| Explorer | Personality | Visual comedy |
-| --- | --- | --- |
-| The leader | Fearless, confidently wrong | Plants flags, misreads maps, jumps too early |
-| The rope expert | Capable, increasingly exasperated | Builds crossings, rescues colleagues, untangles equipment |
-| The holidaymaker | Unprepared, snack motivated | Packs too much, hesitates at edges, stops for tea |
+Done when: his movement and reactions feel expressive without needing dialogue or extra characters.
 
-Use a shared set of movement rules, with different timings and decisions. Add hand-drawn or pixel sprites once characters, ropes, and equipment have been checked for readability at desktop size.
-
-Done when: you can tell who is who by watching them move.
-
-## 4. Give them an ongoing mission
+## 4. Give him an ongoing mission
 
 Build a small collection of expedition scenes:
 
 - Investigating fluff and other false leads.
 - Hauling oversized equipment up a window.
 - Establishing a camp in an inconvenient place.
-- Rescuing someone who refuses to abandon the kettle.
+- Recovering his kettle from an inconvenient ledge.
 - Spotting the sock just before it escapes.
 
-A simple expedition director picks scenes according to the available terrain, avoids frequent repetition, and leaves quiet stretches between events. Save progress between launches so their journey feels continuous.
+A simple expedition director picks scenes according to the available terrain, avoids frequent repetition, and leaves quiet stretches between events. Save progress between launches so his journey feels continuous.
 
-Done when: they can entertain you over several sessions without constantly demanding attention.
+Done when: he can entertain you over several sessions without constantly demanding attention.
 
 ## 5. Make it comfortable to live with
 
 - Support multiple displays and changing display arrangements.
 - Handle sleep, wake, full-screen apps, and desktop switching.
 - Keep CPU and battery use low.
-- Offer a few controls: expedition size, activity level, sound, pause, and launch at login.
+- Offer a few controls: activity level, sound, pause, and launch at login.
 - Package a signed Mac app for testing and distribution.
 
 Done when: you can leave it running during a normal working day without it getting in your way.
@@ -92,10 +84,10 @@ One draggable explorer, one display, real window climbing, one parachute jump, a
 
 Optional ideas to explore after the core expedition works, outside the first milestone:
 
-- **The user is their mysterious benefactor.** Dragging an explorer across a gap earns an awestruck salute. The leader records it as excellent leadership.
+- **The user is his mysterious benefactor.** Dragging an explorer across a gap earns an awestruck salute. He records it as excellent leadership.
 - **Equipment has consequences.** A parachute occasionally opens into a picnic blanket. They land safely, then reluctantly have lunch.
 - **Monitors become continents.** They establish a departure camp at the boundary between displays. The first crossing gets an unnecessarily elaborate ceremony.
 - **The sock is nesting.** It steals flags, ropes, and unattended sandwiches to furnish its hiding place.
 - **Their map remembers the desktop.** Landmarks acquire names based on actual expedition events: "The Great Browser Cliffs" and "The Valley Where Brian Fell." Generate these from geometry and expedition history without reading window contents.
-- **Rare moments of competence.** After dozens of mishaps, the team executes a perfect coordinated crossing, exchanges tiny high fives, and immediately walks the wrong way.
+- **Rare moments of competence.** After dozens of mishaps, he executes a perfect crossing, gives himself a tiny salute, and immediately walks the wrong way.
 - **An expedition journal.** Open a little journal from the menu bar, with entries inspired by events: "Day 12. The giant moved the mountain again. Morale adequate. Biscuits low."

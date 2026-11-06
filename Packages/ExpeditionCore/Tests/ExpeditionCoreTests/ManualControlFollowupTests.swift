@@ -123,17 +123,31 @@ final class ManualControlFollowupTests: XCTestCase {
         XCTAssertNotEqual(value.position.y, point.y)
         XCTAssertEqual(value.ropeSession?.mode, .firing)
     }
-    func testRefiringFromRopeKeepsMomentumAndUsesNewAnchor() {
+    func testRefiringKeepsOldRopeUntilNewHookIsSecure() {
         var value = actor(); value.setKeyboardControl(true)
         XCTAssertTrue(value.fireGrapple(toward: .init(x: 450, y: 370))); advance(&value, 2)
         value.setControlDirection(horizontal: 1, vertical: 0); advance(&value, 0.2)
         let velocity = value.ropeSession!.releaseVelocity
         XCTAssertTrue(value.fireGrapple(toward: .init(x: 780, y: 600)))
-        XCTAssertEqual(value.ropeSession?.anchor.windowID, 2)
+        XCTAssertEqual(value.ropeSession?.anchor.windowID, 1)
+        XCTAssertTrue(value.hasPendingGrapple)
         XCTAssertEqual(value.ropeSession?.body.velocity, velocity)
+        advance(&value, 0.1)
+        XCTAssertEqual(value.ropeSession?.anchor.windowID, 1)
         advance(&value, 1)
+        XCTAssertEqual(value.ropeSession?.anchor.windowID, 2)
+        XCTAssertFalse(value.hasPendingGrapple)
         XCTAssertNotNil(value.ropeSession)
         XCTAssertTrue(value.keyboardControlEnabled)
+    }
+    func testMissingNewAnchorDoesNotRemoveTheOldRope() {
+        var value = actor(); value.setKeyboardControl(true)
+        XCTAssertTrue(value.fireGrapple(toward: .init(x: 450, y: 370))); advance(&value, 2)
+        XCTAssertTrue(value.fireGrapple(toward: .init(x: 780, y: 600)))
+        let surviving = TerrainSnapshot(windows: layout.windows.filter { $0.id != 2 }, viewport: layout.viewport)
+        value.updateTerrain(surviving)
+        XCTAssertFalse(value.hasPendingGrapple)
+        XCTAssertEqual(value.ropeSession?.anchor.windowID, 1)
     }
     func testLeftAndRightPumpAndBrakeAlongTangentWithoutChangingLineLength() {
         let anchor = RopeAnchor(windowID: 1, edge: .front, offset: 150)

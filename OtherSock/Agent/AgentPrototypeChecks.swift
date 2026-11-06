@@ -11,38 +11,46 @@ enum AgentPrototypeChecks {
         var passed = true
         func check(_ condition: Bool, _ label: String) { print("AGENT \(condition ? "PASS" : "FAIL") \(label)"); fflush(stdout); passed = passed && condition }
         let viewport = WorldRect(x: 0, y: 0, width: 1000, height: 800)
-        let team = MissionTeamNode()
-        team.updateTerrain(.init(windows: [], viewport: viewport), usable: .init(x: 0, y: -2, width: 1000, height: 802))
-        let parallel = SurveyPlan(jobs: ["blue", "amber", "purple"].map { .init(marker: $0, instruction: "Inspect") })
         do {
-            try team.start(.init(jobs: [.init(marker: "blue", instruction: "Inspect")]))
-            check(team.debugVisibleMembers == 1, "a single job keeps only the original explorer")
-            try team.start(parallel)
-            check(team.debugVisibleMembers == 3, "independent jobs invite two rendered companions")
-            var minimumMembers = 3
-            for _ in 0..<250 { team.advance(by: 0.1, leader: .init(x: 500, y: 0), leaderReady: true); minimumMembers = min(minimumMembers, team.debugVisibleMembers) }
-            check(team.debugMissionComplete && team.debugVisibleMembers == 1 && minimumMembers >= 1, "helpers arrive, inspect with binoculars and leave; leader remains")
-            try team.start(.init(jobs: [.init(marker: "blue", instruction: "First"), .init(marker: "amber", instruction: "Next", dependsOn: ["blue"])]))
-            var remainedSolo = true
-            for _ in 0..<50 { team.advance(by: 0.1, leader: .init(x: 500, y: 0), leaderReady: true); remainedSolo = remainedSolo && team.debugVisibleMembers == 1 }
-            check(remainedSolo && team.debugMissionComplete, "dependent jobs never invite spare helpers")
-            try team.start(parallel); team.stop()
-            for _ in 0..<100 { team.advance(by: 0.1, leader: .init(x: 500, y: 0), leaderReady: true) }
-            check(team.debugVisibleMembers == 1, "stop retires helpers without removing the leader")
             if #available(macOS 27.0, *) {
-                var accepted: SurveyPlan?
-                let model = ExplorerLanguageModel(executorConfiguration: .init(model: "scripted", bearer: "", scriptedPlan: String(data: try JSONEncoder().encode(parallel), encoding: .utf8), sessionID: UUID()))
-                let tool = AssignSurveyJobsTool { accepted = $0 }
-                let session = LanguageModelSession(model: model, tools: [tool], instructions: "Inspect the synthetic image and queue survey jobs.")
-                var response = ""
-                for try await partial in session.streamResponse(to: Prompt { "Inspect all three flags."; Attachment(AgentTaskController.surveyImage()) }) { response = partial.content }
-                check(accepted == parallel && response.contains("queued"), "Foundation Models image, custom provider, tool call, result and streamed final response round trip")
+                var calls = 0
+                let scripted = #"{"action":"inspect","targetID":"","text":"","x":0,"y":0,"amount":0}"#
+                let model = ExplorerLanguageModel(executorConfiguration: .init(model: "scripted", bearer: "", scriptedPlan: scripted, sessionID: UUID()))
+                let tool = ExplorerComputerTool { args in calls += 1; return Prompt("Computer tool received \(args.action). No input is injected by this test.") }
+                let session = LanguageModelSession(model: model, tools: [tool], instructions: "Test the native computer tool loop.")
+                var response = "", hasSnapshotResponse = false
+                for try await partial in session.streamResponse(to: "Inspect the active app.") {
+                    response = partial.content
+                    hasSnapshotResponse = hasSnapshotResponse || partial.transcriptEntries.contains { if case .response = $0 { return true }; return false }
+                }
+                check(hasSnapshotResponse, "stream snapshots expose response entries for the full journal")
+                check(calls == 1 && response.contains("Offline"), "Foundation Models invokes the computer tool and streams its final response")
                 let outputCount = session.transcript.filter { if case .toolOutput = $0 { return true }; return false }.count
-                check(outputCount == 1, "native tool output is included exactly once")
+                check(outputCount == 1, "native computer tool output is included exactly once")
                 let definition = Transcript.ToolDefinition(tool: tool)
                 let schema = try JSONSerialization.jsonObject(with: JSONEncoder().encode(definition.parameters)) as? [String: Any]
-                check(schema?["type"] as? String == "object", "native tool schemas encode to JSON Schema for Responses")
+                check(schema?["type"] as? String == "object", "computer tool schemas encode to JSON Schema")
             } else { check(false, "macOS 27 Foundation Models provider availability") }
+            let scene = ExplorerScene(size: .init(width: 1000, height: 800))
+            check(scene.children.filter { $0 is ExplorerRig }.count == 1, "the scene contains one explorer and no recruitment system")
+            scene.layout(in: .init(x: 0, y: 90, width: 1000, height: 710))
+            scene.updateTerrain(.init(windows: [], viewport: viewport))
+            scene.setAgentMode(true); scene.agentTarget = .init(x: 500, y: 1)
+            for frame in 0..<900 {
+                if frame == 600 {
+                    scene.layout(in: .init(x: 0, y: 110, width: 1000, height: 690))
+                    scene.updateTerrain(.init(windows: [], viewport: viewport))
+                }
+                scene.update(Double(frame) / 30)
+            }
+            check(scene.agentAtTarget, "the rendered hand reaches the Dock reveal edge after visible-frame changes")
+            scene.setAgentMode(false)
+            let journal = AgentTaskController()
+            let journalChecks = journal.debugCheckJournal()
+            check(journalChecks.0, "streaming Unicode response updates preserve subsequent tool log entries")
+            check(journalChecks.1, "the journal preserves requests across tasks")
+            check(journalChecks.2, "human journal entries keep tool output and metadata inside details")
+            journal.closeAll()
             let verifier = try AgentCredentials.randomToken()
             let otherVerifier = try AgentCredentials.randomToken()
             check(verifier.count == 43 && verifier != otherVerifier, "OAuth attempts use independent random PKCE values")

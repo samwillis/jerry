@@ -18,10 +18,11 @@ final class OverlayController {
     private let inputView: ExplorerInputView
     private var displayOrigin = CGPoint.zero
     private let windowProvider = WindowProvider()
-    private var teamPanels: [String: (ExplorerInputPanel, ExplorerInputView)] = [:]
-    var onTeamStatus: ((String) -> Void)?
     var onPromptRequested: (() -> Void)?
     var onExplorerMoved: (() -> Void)?
+    var onAgentHandMoved: ((CGPoint) -> Void)?
+    private var agentInputSuppressed = false
+    private var parkedAgentPointer: CGPoint?
     var onTaskInterrupted: (() -> Void)?
     private var terrainTimer: Timer?
     private var featureTimer: Timer?
@@ -48,8 +49,8 @@ final class OverlayController {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.ignoresMouseEvents = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
+        panel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
         panel.isReleasedWhenClosed = false
         panel.isRestorable = false
         panel.animationBehavior = .none
@@ -64,8 +65,8 @@ final class OverlayController {
         inputPanel.isOpaque = false
         inputPanel.backgroundColor = .clear
         inputPanel.hasShadow = false
-        inputPanel.level = .floating
-        inputPanel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
+        inputPanel.level = panel.level
+        inputPanel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
         inputPanel.isReleasedWhenClosed = false
         inputPanel.isRestorable = false
         inputPanel.animationBehavior = .none
@@ -80,12 +81,14 @@ final class OverlayController {
         view.preferredFramesPerSecond = ExpeditionConfiguration.framesPerSecond
         panel.contentView = view
         view.presentScene(scene)
-        scene.missionTeam.onStatus = { [weak self] in self?.onTeamStatus?($0) }
-        scene.missionTeam.onHitAreas = { [weak self] in self?.updateTeamPanels($0) }
+        scene.onFrame = { [weak self] in self?.updateAgentHitAreas() }
         scene.onPlacementChanged = { [weak self] frame, state in
             guard let self else { return }
             self.inputPanel.setFrame(frame.offsetBy(dx: self.displayOrigin.x, dy: self.displayOrigin.y), display: true)
             self.onExplorerMoved?()
+            if self.scene.agentMode, let point = self.scene.agentHandPoint, let primary = NSScreen.screens.first {
+                self.onAgentHandMoved?(.init(x: point.x + self.displayOrigin.x, y: primary.frame.maxY - point.y - self.displayOrigin.y))
+            }
             self.inputView.setAccessibilityValue("\(state) at \(Int(frame.midX)), \(Int(frame.minY))")
             let wasHeld = self.characterHeld
             self.characterHeld = state == "held"
@@ -107,6 +110,7 @@ final class OverlayController {
         }
         keyboard.onPrompt = { [weak self] in self?.onPromptRequested?() }
         keyboard.onDirection = { [weak self] x, y in self?.scene.setControlDirection(x, y) }
+        keyboard.onLowPointer = { [weak self] in self?.scene.setControlPointerLowered($0) }
         keyboard.onCrouch = { [weak self] held in self?.scene.setControlCrouch(held) }
         keyboard.onFastPace = { [weak self] fast in self?.scene.setControlFastPace(fast) }
         keyboard.onJump = { [weak self] in self?.scene.controlJump() }
@@ -151,7 +155,8 @@ final class OverlayController {
     func show() {
         guard policy.shouldShow, !clickPending else { return }
         panel.orderFrontRegardless()
-        inputPanel.order(.above, relativeTo: panel.windowNumber)
+        if !scene.agentMode { inputPanel.order(.above, relativeTo: panel.windowNumber) }
+        else { updateAgentHitAreas() }
     }
 
     func updateDisplay() {
@@ -195,39 +200,54 @@ final class OverlayController {
     }
     var windowExplorationStatus: String { featureCapture.status }
 
-    func startSurvey(_ plan: SurveyPlan) {
-        setKeyboardControl(false); setPaused(false)
-        try? scene.missionTeam.start(plan)
+    func beginAgent() { setKeyboardControl(false); scene.setAgentMode(true); setAgentLayer(true); setPaused(false); checkDesktop() }
+    func stopAgent() { parkedAgentPointer = nil; agentInputSuppressed = false; setAgentLayer(false); scene.setAgentMode(false); checkDesktop() }
+    private func setAgentLayer(_ active: Bool) {
+        panel.level = .init(rawValue: active ? NSWindow.Level.popUpMenu.rawValue + 1 : NSWindow.Level.statusBar.rawValue + 1)
+        inputPanel.level = panel.level
     }
-    func stopSurvey() { scene.missionTeam.stop() }
-    private func updateTeamPanels(_ frames: [String: CGRect]) {
-        for id in Array(teamPanels.keys) where frames[id] == nil {
-            if let (child, _) = teamPanels.removeValue(forKey: id) { panel.removeChildWindow(child); child.close() }
+    func setAgentReading(_ reading: Bool) { scene.agentReading = reading }
+    func agentInputVisible(_ visible: Bool) {
+        agentInputSuppressed = !visible
+        if visible && scene.agentMode { parkedAgentPointer = NSEvent.mouseLocation }
+        updateAgentHitAreas()
+    }
+    private func updateAgentHitAreas() {
+        let mouse = NSEvent.mouseLocation
+        if let parked = parkedAgentPointer, hypot(parked.x - mouse.x, parked.y - mouse.y) > 2 { parkedAgentPointer = nil }
+        func update(_ hit: NSPanel) {
+            let parkedUnderCharacter = scene.agentMode && parkedAgentPointer != nil && hit.frame.contains(mouse)
+            let visible = policy.shouldShow && !agentInputSuppressed && !parkedUnderCharacter
+            if visible { if !hit.isVisible { hit.order(.above, relativeTo: panel.windowNumber) } }
+            else if hit.isVisible { hit.orderOut(nil) }
         }
-        for (id, frame) in frames {
-            if teamPanels[id] == nil {
-                let child = ExplorerInputPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-                child.isOpaque = false; child.backgroundColor = .clear; child.hasShadow = false; child.level = .floating; child.hidesOnDeactivate = false
-                child.isReleasedWhenClosed = false; child.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
-                let input = ExplorerInputView(frame: .zero); input.autoresizingMask = [.width, .height]; child.contentView = input
-                input.onBegin = { [weak self] point in guard let self else { return }; self.scene.missionTeam.beginDrag(id, at: self.scenePoint(point)) }
-                input.onDrag = { [weak self] point in guard let self else { return }; self.scene.missionTeam.drag(id, to: self.scenePoint(point)) }
-                input.onEnd = { [weak self] in self?.scene.missionTeam.endDrag(id) }
-                panel.addChildWindow(child, ordered: .above); teamPanels[id] = (child, input)
+        update(inputPanel)
+    }
+    func reachForAgent(_ quartz: CGPoint) async throws {
+        guard let primary = NSScreen.screens.first, scene.agentMode else { throw CancellationError() }
+        let point = CGPoint(x: quartz.x - displayOrigin.x, y: primary.frame.maxY - quartz.y - displayOrigin.y)
+        scene.agentTarget = point
+        let deadline = ProcessInfo.processInfo.systemUptime + 100
+        var stable = 0
+        var lastTrace = 0.0
+        while stable < 4 {
+            try Task.checkCancellation(); guard scene.agentMode else { throw CancellationError() }
+            if ProcessInfo.processInfo.systemUptime > deadline { throw AgentConnectionError(message: "The explorer could not reach that control in time. Choose a nearer route or move its window.") }
+            #if DEBUG
+            let now = ProcessInfo.processInfo.systemUptime
+            if ProcessInfo.processInfo.arguments.contains("--trace-agent"), now - lastTrace > 1 {
+                print("AGENT REACH", scene.agentDiagnostic, "target", point, "paused", view.isPaused); fflush(stdout); lastTrace = now
             }
-            if let (child, _) = teamPanels[id] {
-                child.setFrame(frame.offsetBy(dx: displayOrigin.x, dy: displayOrigin.y), display: true)
-                if policy.shouldShow { child.order(.above, relativeTo: panel.windowNumber) }
-            }
+            #endif
+            stable = scene.agentAtTarget ? stable + 1 : 0
+            try await Task.sleep(for: .milliseconds(50))
         }
     }
-
     func setPaused(_ paused: Bool) {
         if paused { setKeyboardControl(false) }
         policy.manuallyPaused = paused
         if paused { applyPolicy() } else { checkDesktop() }
     }
-
     func recordFrontApp() { keyboard.recordFrontApp() }
     func restoreExternalFocus() { keyboard.restoreExternalFocus() }
     var explorerScreenFrame: CGRect { inputPanel.frame }
@@ -299,7 +319,7 @@ final class OverlayController {
     func checkDesktop() {
         guard !policy.manuallyPaused, !policy.sleeping else { applyPolicy(); return }
         guard let screen = NSScreen.screens.first else { return }
-        policy.desktopSupported = windowProvider.isSupportedDesktop(on: screen)
+        policy.desktopSupported = scene.agentMode || windowProvider.isSupportedDesktop(on: screen)
         applyPolicy()
     }
 
@@ -310,7 +330,6 @@ final class OverlayController {
         if policy.shouldShow { show() }
         else {
             inputView.cancelDrag()
-            for (child, input) in teamPanels.values { input.cancelDrag(); child.orderOut(nil) }
             panel.orderOut(nil)
             inputPanel.orderOut(nil)
         }
@@ -339,9 +358,6 @@ final class OverlayController {
     func setDebugVisible(_ visible: Bool) { scene.setDebugVisible(visible) }
 
     func close() {
-        scene.missionTeam.stop()
-        for (child, _) in teamPanels.values { panel.removeChildWindow(child); child.close() }
-        teamPanels.removeAll()
         keyboard.close()
         desktopCheck?.cancel()
         renderPauseWork?.cancel()
@@ -369,6 +385,7 @@ final class OverlayController {
         }
         let focus = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let hatPart = PaintedPart(rect: .init(x: -12, y: 7, width: 24, height: 8), radius: 2, color: ExplorerPalette.hat, material: .felt)
+        check(panel.level.rawValue > Int(CGWindowLevelForKey(.dockWindow)), "explorer is layered above the system Dock")
         check(hatPart.silhouettePath.boundingBoxOfPath == .init(x: -12, y: -4, width: 24, height: 8), "shadow silhouettes use sprite-local coordinates")
         let shadowRig = ExplorerRig(), shadowSpace = SKNode()
         shadowSpace.addChild(shadowRig); shadowRig.position = .init(x: 200, y: 200)

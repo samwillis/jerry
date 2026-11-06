@@ -18,9 +18,11 @@ Bring the pointer near him and he notices it: his eyes follow first, with a smal
 
 On first launch, a welcome guide introduces the explorer, idle exploration, keyboard controls and optional click access. Open it again from **Controls & Tips…**. It closes when you choose **Take Control**; instructions stay out of the way while you play.
 
-## AI survey and helper prototype
+## AI tasks
 
-Set up ChatGPT sign-in or an API key in **Settings → AI Connection…**. While controlling the explorer, press **Return** for a small input bubble beside him, type a task and press Return to send. **Escape** cancels and restores manual control. You can also use **Ask Explorer…** in the hiking menu. AI text streams into the **Expedition journal** on the right, alongside live progress and Stop/New Task controls; hiding it leaves the task running, and **Show Expedition Journal** brings it back. The current task prototype inspects illustrated flags and invites up to two helpers for independent ready jobs. See [the prototype guide](docs/AGENT_PROTOTYPE.md) for scope and next increments.
+Set up ChatGPT sign-in or an API key in **Settings → AI Connection…**. While controlling the explorer, press **Return** for a small input bubble beside him; Return sends and Escape cancels. **Ask Explorer…** also opens it. The **Expedition journal** keeps readable entries and model replies across tasks, with expandable details for tool calls and metadata, plus Save Log, Stop/New Task and Hide controls. **Show Expedition Journal** brings it back.
+
+The agent can now inspect the active app and physically reach controls to click, scroll or drag. It opens apps through their UI and types by pressing an onscreen keyboard, which must also be opened physically. The explorer can grapple to the display rim, hang and traverse there, then lower on a rope into menus. He renders above the Dock and, during AI work, above menus. Survey flags and demo inspections are removed. There is one explorer in every mode. See [the computer-task guide](docs/AGENT_PROTOTYPE.md) for permissions and current limits.
 
 ## Play with the keyboard
 
@@ -39,6 +41,8 @@ Press **Control–Option–Space** from any app while The Other Sock is open, or
 | Return | Open a task input beside the explorer; Return sends, Escape cancels |
 | Esc | End control and return focus to the previous app |
 
+Hold **Option while crouching** to lower the pointer by a further 16 points without changing the crouch pose. A small extension shows the click point. AI uses this for very low controls such as the Dock.
+
 Hold **Shift** for a distinct running gait at about twice manual walking speed, or for 1.8× wall/rope climbing and abseiling. Release it to return to normal pace. **Settings → Run When Exploring** enables running on longer idle journeys, and **Faster Rope Work** makes the faster work rate the default. Both settings start off, persist across relaunch, and do not turn idle exploration on. Gravity, jump height, hook flight and swing timing remain unchanged.
 
 Releasing Up/Down holds the current rope length, allowing a natural swing. Walking uses twice the normal cadence and matches its foot motion. A ground jump has a short, planted crouch and leg push before take-off, then tucks and reaches for landing. Air steering accelerates smoothly and retains sideways momentum on release. Landings compress the knees before moving on. There are no mid-air double jumps. Changing apps, pausing, dragging, resetting, sleeping, or leaving the desktop stops keyboard capture and clears held directions. Movement needs no Accessibility or Input Monitoring permission.
@@ -51,7 +55,7 @@ Use hiking menu → **Actions** for walking, climbing, grappling, rope actions, 
 
 Climbs now pull over the lip into a planted-foot standing pose; rope descents crouch and back over the lip; parachute trips crouch and jump clear before deploying. The rope pins on the top edge, follows an estimated 10-point rounded window corner, and leaves along the mathematical tangent towards the hands. Both straight-to-curve joins remain tangent as the explorer descends.
 
-Aiming shows a green snapped rim when it is reachable, or an orange marker when no valid anchor is selected. Starting aim suggests a nearby rim; holding G redirects the arrows from movement/swinging to aiming. Release G to fire and return the arrows to movement. The mouse does not steer the aim. Refiring from a rope releases the old anchor and preserves momentum while the new hook flies. Left/right applies force along the rope tangent, with a 260 pt/s drive cap; opposite input brakes the swing.
+Aiming shows a green snapped rim when it is reachable, or an orange marker when no valid anchor is selected. Starting aim suggests a nearby rim; holding G redirects the arrows from movement/swinging to aiming. Release G to fire and return the arrows to movement. The mouse does not steer the aim. Refiring while hanging keeps the old rope attached while the new hook flies. The explorer transfers to the new line only after it latches; a failed shot leaves the old line intact. Left/right applies force along the rope tangent, with a 260 pt/s drive cap; opposite input brakes the swing.
 
 ## Connected rope activities
 
@@ -61,7 +65,7 @@ While attached, **Swing on rope**, **Climb rope**, and **Abseil** change the mot
 
 The physical rope has gravity, tension, slack, damping, a controlled reel/payout rate, corner contact and window/floor contact. Swinging is simulated rather than played as a looping animation. Rendering keeps the rounded corner's tangent joins and shows slack in the free line. The body hangs from its harness and hands follow the line. Rope climbing lifts in time with the hand pulls.
 
-The prototype models one massless line with either a straight front-rim attachment or one rounded corner guide on its supporting window. It does not yet wrap rope around arbitrary intervening windows, collide ropes with each other, or simulate rope elasticity. A missing/covered anchor releases into recovery. The 2,400-point spool covers supported descent routes; reaching its end also releases safely.
+The prototype models one load-bearing massless line, plus a pending second line during hook transfer. The load-bearing line has either a straight front-rim attachment or one rounded corner guide on its supporting window. It does not yet wrap rope around arbitrary intervening windows, collide ropes with each other, or simulate rope elasticity. A missing/covered anchor releases into recovery. The 2,400-point spool covers supported descent routes; reaching its end also releases safely.
 
 ## The banana adventure
 

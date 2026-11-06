@@ -76,6 +76,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installMenu() {
+        if NSApp.mainMenu == nil {
+            let bar = NSMenu()
+            let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu
+            appMenu.addItem(withTitle: "Quit The Other Sock", action: #selector(quit), keyEquivalent: "q").target = self
+            bar.addItem(appItem)
+            let edit = NSMenu(title: "Edit"); let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: ""); editItem.submenu = edit; bar.addItem(editItem)
+            for (title, selector, key) in [("Undo", "undo:", "z"), ("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+                edit.addItem(withTitle: title, action: NSSelectorFromString(selector), keyEquivalent: key)
+            }
+            NSApp.mainMenu = bar
+        }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let image = NSImage(systemSymbolName: "figure.hiking", accessibilityDescription: "The Other Sock") {
             image.isTemplate = true; item.button?.image = image
@@ -210,18 +221,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func prepareTasks() {
         if taskController == nil {
             let controller = AgentTaskController()
-            controller.onPlan = { [weak self] in self?.overlay?.startSurvey($0) }
-            controller.onStop = { [weak self] in self?.overlay?.stopSurvey() }
+            controller.onStop = { [weak self] in
+                guard let self else { return }
+                self.overlay?.stopAgent(); self.overlay?.setIdleExploration(self.idleExploration)
+            }
+            controller.computer.reach = { [weak self] point in guard let self else { throw CancellationError() }; try await self.overlay?.reachForAgent(point) }
+            controller.computer.reading = { [weak self] in self?.overlay?.setAgentReading($0) }
+            overlay?.onAgentHandMoved = { [weak controller] in controller?.computer.moveHand($0) }
+            controller.onBeforeInput = { [weak self] in self?.overlay?.agentInputVisible(false) }
+            controller.onAfterInput = { [weak self] in self?.overlay?.agentInputVisible(true) }
             controller.onPromptCancelled = { [weak self] in self?.overlay?.setKeyboardControl(true) }
             controller.onPromptOpened = { [weak self] in self?.overlay?.setIdleExploration(false) }
             controller.onPromptDismissed = { [weak self] in guard let self else { return }; self.overlay?.setIdleExploration(self.idleExploration) }
             controller.onSubmitted = { [weak self] in
                 guard let self else { return }
-                self.overlay?.setIdleExploration(self.idleExploration); self.overlay?.restoreExternalFocus()
+                self.overlay?.beginAgent(); self.overlay?.restoreExternalFocus()
             }
             controller.explorerFrame = { [weak self] in self?.overlay?.explorerScreenFrame ?? .zero }
             overlay?.onExplorerMoved = { [weak controller] in controller?.updatePromptPosition() }
-            overlay?.onTeamStatus = { [weak controller] in controller?.updateTeamStatus($0) }
             taskController = controller
         }
     }

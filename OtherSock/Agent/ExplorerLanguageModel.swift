@@ -21,13 +21,13 @@ struct ExplorerLanguageModel: LanguageModel {
 private actor ExplorerReasoningCache {
     var turns = 0
     var reasoning: [String: Data] = [:]
-    func nextTurn() throws -> Int { turns += 1; guard turns <= 6 else { throw AgentConnectionError(message: "The prototype stopped at its six-turn limit.") }; return turns }
+    func nextTurn() throws -> Int { turns += 1; guard turns <= 160 else { throw AgentConnectionError(message: "The prototype stopped at its 160-turn limit.") }; return turns }
     func save(_ data: Data, for id: String) { reasoning[id] = data }
     func read(_ id: String) -> Data? { reasoning[id] }
 }
 
 /// Native Foundation Models provider. The executor runs model networking only;
-/// only the app's single survey tool can change the expedition's team plan.
+/// only validated physical computer tools can operate the desktop.
 @available(macOS 27.0, *)
 struct ExplorerModelExecutor: LanguageModelExecutor {
     typealias Model = ExplorerLanguageModel
@@ -40,20 +40,15 @@ struct ExplorerModelExecutor: LanguageModelExecutor {
         try Task.checkCancellation()
         let turn = try await cache.nextTurn()
         if let scripted = configuration.scriptedPlan {
-            // Uses the real Foundation Models tool loop, with deterministic model
-            // output. It never pretends that an online model was consulted.
+            // Deterministic transport check, with no external model or task planning.
             if turn == 1 {
-                let observations = request.transcript.compactMap { entry -> [Transcript.Segment]? in if case .prompt(let prompt) = entry { return prompt.segments }; return nil }.flatMap { $0 }
-                guard observations.contains(where: { if case .attachment = $0 { return true }; return false }) else { throw AgentConnectionError(message: "The offline test did not receive its image attachment.") }
-                _ = try contents(observations)
-                guard request.enabledToolDefinitions.contains(where: { $0.name == "assign_survey_jobs" }) else { throw AgentConnectionError(message: "The survey tool is missing from the native session.") }
-                await channel.send(.toolCalls(action: .toolCall(id: "scripted-survey", name: "assign_survey_jobs", action: .appendArguments(scripted, tokenCount: 0))))
+                await channel.send(.toolCalls(action: .toolCall(id: "offline-inspect", name: "computer_action", action: .appendArguments(scripted, tokenCount: 0))))
             } else {
-                await channel.send(.response(action: .appendText("The survey jobs are queued. Helpers are invited only for independent work; the explorers must still arrive and inspect their flags.", tokenCount: 0)))
+                await channel.send(.response(action: .appendText("Offline connection test complete. Choose ChatGPT or an API key in Settings to plan computer tasks.", tokenCount: 0)))
             }
             return
         }
-        guard request.schema == nil else { throw AgentConnectionError(message: "This prototype supports text and survey tools, not guided final-response schemas.") }
+        guard request.schema == nil else { throw AgentConnectionError(message: "This prototype supports text and computer tools, not guided final-response schemas.") }
         var input: [[String: Any]] = []
         for entry in request.transcript {
             switch entry {
@@ -66,10 +61,10 @@ struct ExplorerModelExecutor: LanguageModelExecutor {
             case .toolCalls(let calls):
                 if let first = calls.first, let data = await cache.read(first.id), let reasoning = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] { input += reasoning }
                 for call in calls {
-                    input.append(["type": "function_call", "call_id": call.id, "name": call.toolName, "namespace": "explorers", "arguments": call.arguments.jsonString])
+                    input.append(["type": "function_call", "call_id": call.id, "name": call.toolName, "namespace": "explorer", "arguments": call.arguments.jsonString])
                 }
             case .toolOutput(let output):
-                input.append(["type": "function_call_output", "call_id": output.id, "output": text(output.segments)])
+                input.append(["type": "function_call_output", "call_id": output.id, "output": try contents(output.segments)])
             case .reasoning: break // Opaque provider reasoning is preserved with its calls.
             default: throw AgentConnectionError(message: "The transcript contains an unsupported attachment or entry.")
             }
@@ -79,7 +74,7 @@ struct ExplorerModelExecutor: LanguageModelExecutor {
         }
         let body: [String: Any] = ["model": configuration.model, "store": false, "stream": true,
                                   "input": input, "include": ["reasoning.encrypted_content"],
-                                  "tools": [["type": "namespace", "name": "explorers", "description": "Physically embodied explorer survey tools", "tools": tools]]]
+                                  "tools": [["type": "namespace", "name": "explorer", "description": "Physically embodied explorer computer tools", "tools": tools]]]
         var http = URLRequest(url: URL(string: "https://api.openai.com/v1/responses")!)
         http.httpMethod = "POST"; http.timeoutInterval = 90
         http.setValue("Bearer \(configuration.bearer)", forHTTPHeaderField: "Authorization")
@@ -108,11 +103,11 @@ struct ExplorerModelExecutor: LanguageModelExecutor {
                     // Preserve the completed items delivered earlier in the stream.
                     let output = finalOutput.isEmpty ? streamedItems : finalOutput
                     let calls = output.filter { $0["type"] as? String == "function_call" }
-                    guard calls.count <= 1 else { throw AgentConnectionError(message: "The prototype accepts one survey-plan tool call per turn.") }
+                    guard calls.count <= 1 else { throw AgentConnectionError(message: "The prototype accepts one computer tool call per turn; input actions must be sequential.") }
                     let reasoning = output.filter { $0["type"] as? String == "reasoning" }
                     for call in calls {
                         guard let id = call["call_id"] as? String, let name = call["name"] as? String,
-                              name == "assign_survey_jobs", let arguments = call["arguments"] as? String else { throw AgentConnectionError(message: "The model requested a tool outside the prototype's scope.") }
+                              request.enabledToolDefinitions.contains(where: { $0.name == name }), let arguments = call["arguments"] as? String else { throw AgentConnectionError(message: "The model requested a tool outside the prototype's scope.") }
                         await cache.save(try JSONSerialization.data(withJSONObject: reasoning), for: id)
                         await channel.send(.toolCalls(action: .toolCall(id: id, name: name, action: .appendArguments(arguments, tokenCount: 0))))
                     }
@@ -137,32 +132,12 @@ struct ExplorerModelExecutor: LanguageModelExecutor {
             case .attachment(let attachment):
                 guard case .image(let image) = attachment.content, image.orientation == .up else { throw AgentConnectionError(message: "Only upright image observations are supported in this prototype.") }
                 let data = NSMutableData()
-                guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { throw AgentConnectionError(message: "Could not encode the survey observation.") }
+                guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { throw AgentConnectionError(message: "Could not encode the screen observation.") }
                 CGImageDestinationAddImage(destination, image.cgImage, nil)
-                guard CGImageDestinationFinalize(destination) else { throw AgentConnectionError(message: "Could not encode the survey observation.") }
+                guard CGImageDestinationFinalize(destination) else { throw AgentConnectionError(message: "Could not encode the screen observation.") }
                 return ["type": "input_image", "image_url": "data:image/png;base64," + (data as Data).base64EncodedString()]
             @unknown default: throw AgentConnectionError(message: "Unsupported observation content.")
             }
         }
-    }
-}
-
-@available(macOS 27.0, *)
-@Generable
-struct SurveyToolJob {
-    @Guide(description: "One visible survey flag: blue, amber or purple") var marker: String
-    @Guide(description: "Short instruction for the explorer") var instruction: String
-    @Guide(description: "Flag IDs that must be completed first. Empty for independent work.") var dependsOn: [String]
-}
-@available(macOS 27.0, *)
-struct AssignSurveyJobsTool: Tool {
-    let name = "assign_survey_jobs"
-    let description = "Assign 1–3 survey jobs for the visible coloured flags. Independent jobs invite helpers, dependencies stay sequential. Returns queued, never physical completion."
-    @Generable struct Arguments { var jobs: [SurveyToolJob] }
-    let apply: @MainActor @Sendable (SurveyPlan) throws -> Void
-    func call(arguments: Arguments) async throws -> String {
-        let plan = SurveyPlan(jobs: arguments.jobs.map { SurveyJob(marker: $0.marker, instruction: $0.instruction, dependsOn: $0.dependsOn) })
-        try plan.validate(); try await apply(plan)
-        return "Survey plan accepted and queued. The explorers must still travel and inspect the flags; do not claim the work is complete."
     }
 }

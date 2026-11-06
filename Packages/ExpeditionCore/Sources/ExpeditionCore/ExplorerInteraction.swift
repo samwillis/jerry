@@ -36,6 +36,11 @@ public struct ExplorerInteraction {
     public mutating func setFasterRopeWork(_ enabled: Bool) { fasterRopeWork = enabled }
     public private(set) var runningTime = 0.0
     private var crouchHeld = false
+    private var pointerLowered = false
+    public var controlPointerDrop: Double { pointerLowered && canCrouch ? crouchBlend * 16 : 0 }
+    public mutating func setControlPointerLowered(_ held: Bool) { pointerLowered = keyboardControlEnabled && held }
+    private var agentSteering = false
+    public private(set) var agentCeilingHanging = false
     public private(set) var crouchAmount = 0.0
     public var crouchBlend: Double { crouchAmount * crouchAmount * (3 - 2 * crouchAmount) }
     public var canCrouch: Bool {
@@ -49,7 +54,7 @@ public struct ExplorerInteraction {
         let target = crouchHeld ? 1.0 : 0
         crouchAmount += min(dt / 0.16, max(-dt / 0.16, target - crouchAmount))
     }
-    public var controlClickPoint: Point { .init(x: position.x + facing * 32, y: position.y + 44 - (canCrouch ? crouchBlend * 28 : 0)) }
+    public var controlClickPoint: Point { .init(x: position.x + facing * 32, y: position.y + 44 - (canCrouch ? crouchBlend * 28 : 0) - controlPointerDrop) }
     public var manualTravelSpeed: Double { isCrouching ? 80 - 40 * crouchBlend : (controlFastPace ? RunningGait.speed : 80) }
     public mutating func setControlFastPace(_ fast: Bool) { controlFastPace = keyboardControlEnabled && fast }
     private var controlVelocity = Point.zero
@@ -101,6 +106,9 @@ public struct ExplorerInteraction {
     public private(set) var pendingActivity: ExplorerActivity?
     public private(set) var activityIssue: String?
     public private(set) var ropeSession: RopeSession?
+    private var pendingGrapple: RopeSession?
+    private var pendingContinuation: [TravelStep] = []
+    public var hasPendingGrapple: Bool { pendingGrapple != nil }
     private var ropeContinuation: [TravelStep] = []
     private var physicalRelease = false
     public var activityStatus: String {
@@ -141,6 +149,7 @@ public struct ExplorerInteraction {
             requestedActivity = activity; pendingActivity = nil; runsMission = false
             ropeContinuation.removeAll(); route.removeAll(); afterLanding.removeAll()
             if activity == .releaseRope {
+                pendingGrapple = nil; pendingContinuation = []
                 let velocity = ropeSession?.releaseVelocity ?? .zero
                 let grounded = ropeSession?.mode == .supported || ropeSession?.mode == .firing
                 ropeSession = nil
@@ -220,12 +229,12 @@ public struct ExplorerInteraction {
     }
     public var ropeAnchor: Point? { ropeGuide?.anchor }
     public var grappleTarget: Point? {
-        guard let ropeSession, ropeSession.mode == .firing, let terrain else { return nil }
-        return ropeSession.anchor.resolve(in: terrain)?.anchor
+        guard let shot = pendingGrapple ?? ropeSession, shot.mode == .firing, let terrain else { return nil }
+        return shot.anchor.resolve(in: terrain)?.anchor
     }
     public var hookPosition: Point? {
-        guard let ropeSession, ropeSession.mode == .firing, let terrain, let guide = ropeSession.anchor.resolve(in: terrain) else { return nil }
-        return ropeSession.hookPosition(guide: guide)
+        guard let shot = pendingGrapple ?? ropeSession, shot.mode == .firing, let terrain, let guide = shot.anchor.resolve(in: terrain) else { return nil }
+        return shot.hookPosition(guide: guide)
     }
 
     private var graph: NavigationGraph?
@@ -255,7 +264,7 @@ public struct ExplorerInteraction {
     public mutating func beginDrag(at pointer: Point, time: Double? = nil) {
         mission.cancel()
         pendingActivity = nil
-        ropeSession = nil; ropeContinuation.removeAll(); physicalRelease = false
+        ropeSession = nil; pendingGrapple = nil; pendingContinuation = []; ropeContinuation.removeAll(); physicalRelease = false
         if requestedActivity != nil { activityIssue = "Activity interrupted by dragging" }
         route.removeAll()
         afterLanding.removeAll()
@@ -318,6 +327,7 @@ public struct ExplorerInteraction {
         while accumulator + 0.0000001 >= dt {
             accumulator -= dt
             simulationSteps += 1
+            advancePendingGrapple(by: dt)
             if state == .dropping { advanceDrop(by: dt); continue }
             if state == .transferringHold { advanceHoldTransfer(by: dt); continue }
             if keyboardControlEnabled {
@@ -416,8 +426,9 @@ public struct ExplorerInteraction {
     }
 
     public mutating func updateBounds(_ bounds: Bounds) {
+        agentCeilingHanging = false
         self.bounds = bounds
-        ropeSession = nil; ropeContinuation.removeAll(); physicalRelease = false
+        ropeSession = nil; pendingGrapple = nil; pendingContinuation = []; ropeContinuation.removeAll(); physicalRelease = false
         mission.cancel()
         route.removeAll()
         afterLanding.removeAll()
@@ -437,6 +448,7 @@ public struct ExplorerInteraction {
 
     public mutating func updateTerrain(_ terrain: TerrainSnapshot, sampleElapsed: Double = 0.1) {
         self.terrain = terrain
+        if let pendingGrapple, pendingGrapple.anchor.resolve(in: terrain) == nil { self.pendingGrapple = nil; pendingContinuation = [] }
         if autonomous { graph = NavigationGraph(terrain: terrain) }
         guard state != .held && state != .dropping && state != .transferringHold else { return }
         if var session = ropeSession {
@@ -513,7 +525,7 @@ public struct ExplorerInteraction {
     }
 
     private mutating func recover() {
-        ropeSession = nil; ropeContinuation.removeAll(); physicalRelease = false
+        ropeSession = nil; pendingGrapple = nil; pendingContinuation = []; ropeContinuation.removeAll(); physicalRelease = false
         route.removeAll()
         afterLanding.removeAll()
         flightContinuation.removeAll()
@@ -811,7 +823,7 @@ public struct ExplorerInteraction {
         return anchor.resolve(in: terrain)?.anchor
     }
     @discardableResult public mutating func fireGrapple(toward point: Point) -> Bool {
-        guard keyboardControlEnabled, state != .held, state != .traversingEdge,
+        guard keyboardControlEnabled, pendingGrapple == nil, state != .held, state != .traversingEdge,
               let terrain, let graph, let anchor = graph.aimedGrapple(from: position, toward: point),
               let guide = anchor.resolve(in: terrain), let offset = anchor.offset else { return false }
         let velocity = ropeSession?.releaseVelocity ?? (state == .jumping ? controlVelocity : .zero)
@@ -820,12 +832,30 @@ public struct ExplorerInteraction {
         session.freeFlightWhileFiring = airborne
         session.climbsAfterSwing = false
         let lip = TerrainAttachment(owner: .window(anchor.windowID), edge: .front, offset: offset)
-        ropeContinuation = graph.frontMantle(from: lip).map { [$0] } ?? []
-        route.removeAll(); afterLanding.removeAll(); flightContinuation.removeAll()
-        flightGoal = nil; ropeSession = session
+        let continuation = graph.frontMantle(from: lip).map { [$0] } ?? []
+        route.removeAll(); afterLanding.removeAll(); flightContinuation.removeAll(); flightGoal = nil
+        if let old = ropeSession, old.mode != .firing {
+            // Stay supported by the old line throughout the new hook's flight.
+            session.freeFlightWhileFiring = false
+            pendingGrapple = session; pendingContinuation = continuation
+        } else {
+            ropeContinuation = continuation; ropeSession = session
+            applyRopeState()
+        }
         facing = guide.anchor.x >= position.x ? 1 : -1
-        applyRopeState()
         return true
+    }
+
+    private mutating func advancePendingGrapple(by dt: Double) {
+        guard var shot = pendingGrapple, let terrain, let guide = shot.anchor.resolve(in: terrain) else { pendingGrapple = nil; pendingContinuation = []; return }
+        shot.advance(by: dt, guide: guide, minimumLength: 1)
+        guard shot.mode != .firing else { pendingGrapple = shot; return }
+        let velocity = ropeSession?.releaseVelocity ?? controlVelocity
+        var secured = RopeSession(anchor: shot.anchor, guide: guide, feet: position, mode: .swinging, velocity: velocity)
+        secured.climbsAfterSwing = false
+        ropeSession = secured; attachment = nil; ropeContinuation = pendingContinuation
+        pendingGrapple = nil; pendingContinuation = []
+        applyRopeState()
     }
 
     /// Local keyboard input belongs to an explicit play session, never a global hook.
@@ -842,6 +872,9 @@ public struct ExplorerInteraction {
         crouchHeld = false; crouchAmount = 0
         manualDrop = false; downConsumed = false
         keyboardControlEnabled = enabled
+        agentSteering = false
+        pointerLowered = false
+        agentCeilingHanging = false
         controlHorizontal = 0; controlVertical = 0; controlFastPace = false
         mission.cancel(); runsMission = !enabled && idleExplorationEnabled
         requestedActivity = nil; pendingActivity = nil
@@ -868,7 +901,61 @@ public struct ExplorerInteraction {
         if controlVertical >= 0 { downConsumed = false }
     }
 
+    /// Physical autopilot: walking and the existing hook, reel and swing motor.
+    /// The caller may click only once the rig's hand can reach the target.
+    public mutating func steerAgent(towardHand target: Point) {
+        guard keyboardControlEnabled, let terrain, target.x.isFinite, target.y.isFinite else { return }
+        agentSteering = true
+        guard ![State.dropping, .preparingJump, .transferringHold, .traversingEdge].contains(state) else { return }
+        let wantsRim = target.y >= terrain.viewport.maxY - 40
+        if wantsRim, abs(position.y - (terrain.viewport.maxY - 76)) < 5,
+           ropeSession?.anchor.windowID == UInt32.max {
+            agentCeilingHanging = true; ropeSession = nil
+            attachment = .init(owner: .screen, edge: .top, offset: position.x - terrain.viewport.minX)
+            position.y = terrain.viewport.maxY - 76
+        }
+        if agentCeilingHanging {
+            if wantsRim {
+                let destination = min(max(target.x - 20, bounds.minimum.x), bounds.maximum.x)
+                setControlDirection(horizontal: abs(destination - position.x) > 3 ? (destination > position.x ? 1 : -1) : 0, vertical: 0)
+                if controlHorizontal == 0 { facing = target.x >= position.x ? 1 : -1 }
+                setControlFastPace(true)
+                return
+            }
+            // Lower from the planted top-edge grip onto the same rope system.
+            let anchor = RopeAnchor(windowID: UInt32.max, edge: .front, offset: position.x - terrain.viewport.minX)
+            if let guide = anchor.resolve(in: terrain) {
+                ropeSession = RopeSession(anchor: anchor, guide: guide, feet: position, mode: .descending)
+                ropeSession?.climbsAfterSwing = false; attachment = nil; state = .abseiling
+            }
+            agentCeilingHanging = false
+        }
+        let feet = Point(x: min(max(target.x - 20, bounds.minimum.x), bounds.maximum.x), y: min(max(target.y - 45, bounds.minimum.y), bounds.maximum.y))
+        let dx = feet.x - position.x, dy = feet.y - position.y
+        facing = target.x >= position.x ? 1 : -1
+        if ropeSession?.mode == .supported, attachment?.edge.isStandable == true { ropeSession = nil }
+        setControlFastPace(true)
+        setControlCrouch(target.y < position.y + 30 && canCrouch)
+        setControlPointerLowered(target.y < position.y + 14 && canCrouch)
+        if let support = attachment, support.edge.isStandable, ropeSession == nil, abs(dy) < 8 || (abs(dx) > 36 && support.edge == .floor) {
+            setControlDirection(horizontal: abs(dx) > 3 ? (dx > 0 ? 1 : -1) : 0, vertical: 0)
+            if abs(dx) <= 3 { facing = target.x >= position.x ? 1 : -1 }
+            return
+        }
+        let anchorX = min(max(feet.x, 24), terrain.viewport.maxX - 24)
+        if ropeSession == nil || abs((ropeSession?.anchor.resolve(in: terrain)?.anchor.x ?? 0) - anchorX) > 90 {
+            // Prefer an actual window roof above the destination. The display
+            // rim is the fallback for global menus and otherwise empty desktop.
+            let roofs = terrain.surfaces.filter { $0.id.edge == .top && anchorX >= $0.start.x + 24 && anchorX <= $0.end.x - 24 && ($0.id.owner == .window(UInt32.max) || $0.start.y > target.y + 60) && $0.start.y > position.y + 65 }.sorted { $0.start.y < $1.start.y }
+            if let roof = roofs.first { _ = fireGrapple(toward: .init(x: anchorX, y: roof.start.y)) }
+        }
+        let velocity = ropeSession?.body.velocity.x ?? 0
+        let steer = min(1, max(-1, dx * 0.06 - velocity * 0.08))
+        setControlDirection(horizontal: abs(dx) < 3 && abs(velocity) < 6 ? 0 : steer, vertical: abs(dy) > 3 ? (dy > 0 ? 1 : -1) : 0)
+    }
+
     public mutating func controlJump() {
+        pendingGrapple = nil; pendingContinuation = []
         guard keyboardControlEnabled, state != .held, state != .traversingEdge, state != .preparingJump, state != .dropping, state != .transferringHold else { return }
         if let session = ropeSession, session.mode != .supported && session.mode != .firing {
             controlVelocity = session.releaseVelocity
@@ -981,6 +1068,18 @@ public struct ExplorerInteraction {
 
     private mutating func advanceKeyboardControl(by dt: Double) {
         guard state != .held, let terrain else { return }
+        if agentCeilingHanging, let support = attachment, support.owner == .screen, support.edge == .top {
+            let work = dt * ropeWorkRate
+            if controlHorizontal != 0 {
+                facing = controlHorizontal
+                position.x += controlHorizontal * 30 * work
+                climbingTime += work; state = .climbing
+            } else { state = .idle }
+            position.x = min(max(position.x, bounds.minimum.x), bounds.maximum.x)
+            position.y = terrain.viewport.maxY - 76
+            attachment = .init(owner: .screen, edge: .top, offset: position.x - terrain.viewport.minX)
+            return
+        }
         dropThroughRemaining = max(0, dropThroughRemaining - dt)
         if manualDrop, state == .recovering {
             flightVelocity.x += controlHorizontal * 90 * dt
@@ -992,11 +1091,11 @@ public struct ExplorerInteraction {
            (support.edge.isStandable && support.edge != .floor) || support.edge == .horizontalCrack {
             startDrop(); return
         }
-        if ropeSession != nil, controlVertical > 0, transferToWindowHold() { return }
+        if !agentSteering, ropeSession != nil, controlVertical > 0, transferToWindowHold() { return }
         if ropeSession == nil, let support = attachment, support.edge.isInternal && !support.edge.isStandable {
             advanceInternalClimbing(by: dt, anchor: support, terrain: terrain); return
         }
-        if controlVertical > 0, transferToWindowHold() { return }
+        if !agentSteering, controlVertical > 0, transferToWindowHold() { return }
         if state == .traversingEdge { advanceTravel(by: dt); return }
         if state == .preparingJump {
             guard let attachment, let point = TerrainSupport.resolve(attachment, in: terrain) else {

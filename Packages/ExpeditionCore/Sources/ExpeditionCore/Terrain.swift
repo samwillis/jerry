@@ -214,6 +214,9 @@ public enum TerrainSupport {
     }
 
     public static func resolve(_ anchor: TerrainAttachment, in terrain: TerrainSnapshot) -> WorldPoint? {
+        if anchor.owner == .screen, anchor.edge == .top {
+            return .init(x: min(max(terrain.viewport.minX + anchor.offset, terrain.viewport.minX + 24), terrain.viewport.maxX - 24), y: terrain.viewport.maxY - 76)
+        }
         if anchor.owner == .screen, anchor.edge == .floor {
             let point = WorldPoint(x: min(max(terrain.viewport.minX + anchor.offset, terrain.viewport.minX + 24), terrain.viewport.maxX - 24), y: terrain.viewport.minY)
             return point

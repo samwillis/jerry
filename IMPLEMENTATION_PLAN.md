@@ -15,7 +15,7 @@ Phases 1–7 are implemented for the local, single-display macOS prototype. The 
 - Use Swift, AppKit for desktop integration, and SpriteKit for animation.
 - Create a native macOS app target and a small, platform-independent Swift package for geometry, simulation, and mission rules. Select the minimum macOS version after checking the available SDK and test machines.
 - Use a menu bar app with explicit pause, resume, reset expedition, and quit actions.
-- Render the world in a transparent, mouse-ignoring overlay. Prototype small non-activating input panels around explorers for direct dragging. Do not assume returning nil from a view hit test forwards clicks to another app.
+- Render the world in a transparent, mouse-ignoring overlay. Use one small non-activating input panel around the explorer for direct dragging. Do not assume returning nil from a view hit test forwards clicks to another app.
 - Start with one display and placeholder shapes. Use desktop coordinates in logical points, with one explicit conversion boundary between Core Graphics, AppKit, and scene coordinates.
 - Use a deterministic simulation with a seeded random source. SpriteKit presents simulation state rather than independently deciding character movement.
 - Read window geometry and order, not window titles or captured images. Verify which metadata is available without permissions on supported macOS versions before committing to a permission model.
@@ -114,7 +114,7 @@ Implement in small, reviewable tasks. Each task should produce a runnable previe
 3. **Character design task:** use an image-generation agent/tool to draw a reference character with a clear silhouette, oversized equipment, and a consistent style. Review at actual desktop size before producing all the parts.
 4. **Body-part artwork task:** generate artwork and prepare separate transparent parts using the reference and a documented neutral pose. Record each asset's dimensions, pivot, attachment points, overlap, and layer order in a rig manifest. Inspect and clean up alignment, transparent edges, missing areas behind joints, and consistency of clothing and proportions; generation alone does not guarantee rig-ready assets.
 5. **Artwork integration task:** replace placeholder shapes with the prepared parts without changing the movement system. Check every preview pose in both directions and on light and dark backgrounds. Keep the shape rig available for debugging.
-6. **Personality task:** add facial expressions and bespoke poses for binoculars, the upside-down map, the kettle, and the banana reveal. Add the leader's forward lean, the rope expert's careful contact checks, and the holidaymaker's heavy backpack when those characters enter scope.
+6. **Personality task:** add facial expressions and bespoke poses for binoculars, the upside-down map, the kettle, and the banana reveal. Keep these expressions and equipment poses on the single explorer; vary his confidence, caution and fatigue.
 
 Prefer one consistent articulated rig over independently generated full-frame sprite sheets. Use occasional hand-authored or generated-and-cleaned special frames where articulation cannot express a comic pose well. Finished art and the other two characters remain subsequent increments; this stage establishes the workflow with one explorer.
 
@@ -197,7 +197,7 @@ Use the animation playground for actual-size visual review, contact accuracy, fa
 ## Subsequent increments
 
 1. Complete the character drawing and integration workflow from stage 4, replacing temporary art and refining readable character scale and animation timing.
-2. Add the other two explorers, shared traversal coordination, rescue scenes, and personality-specific decisions.
+2. Refine the single explorer’s personality, equipment interactions and solo adventures.
 3. Add multiple displays, mixed scaling, and verified Spaces/full-screen behaviour.
 4. Add the scene director, persistent expedition progress, and selected later ideas from PLAN.md.
 5. Complete distribution signing/notarisation, packaging, and release testing.
@@ -223,7 +223,7 @@ E targets a visible hand crosshair. Accessibility access gates an AXPress attemp
 
 The user-facing idle setting now controls wandering/mission selection without suspending gravity, recovery, pointer attention or dragging. It persists and is respected after manual control. The hiking menu is organized into idle exploration, Take/Release Control, Actions, Settings and Controls & Tips, with developer options confined to Debug builds. Control–Option–Space is registered as a system hotkey without a global keyboard monitor.
 
-Holding G aims a visible rim marker; release fires from standing, in flight or from another rope. Refiring carries momentum and continues free flight until latch. Left/right pumps/brakes the rope tangent. E preserves the manual session and attached line across AXPress or fallback click; the key window is restored after the action and held movement is reconciled. Native/custom disposable controls were exercised on the floor and while hanging. Cross-app physical shortcut use remains an explicit manual check because targeted computer-use key injection did not traverse the OS hotkey path.
+Holding G aims a visible rim marker; release fires from standing, in flight or from another rope. Refiring now keeps the old supported line until the new hook latches, then transfers with preserved momentum. Left/right pumps/brakes the rope tangent. E preserves the manual session and attached line across AXPress or fallback click; the key window is restored after the action and held movement is reconciled. Native/custom disposable controls were exercised on the floor and while hanging. Cross-app physical shortcut use remains an explicit manual check because targeted computer-use key injection did not traverse the OS hotkey path.
 
 
 ## Welcome and unobstructed manual control — 6 November 2026
@@ -250,13 +250,24 @@ Validation includes synthetic classification/scrolling/occlusion/physics tests, 
 Added hold-C crouching, a 160 ms planted-foot transition, a lower hand/click marker, and half-speed crouched walking with matched gait timing. E keeps both manual control and the held crouch. Physical held-key reconciliation after a desktop click includes C; focus/shortcut/stop cleanup releases it. Down retains its ledge-drop role. Crouch is grounded and does not replace jump or rope poses. The shared Crouching clip is available in the animation playground and the welcome guide documents the key.
 
 
-## Swift AI and on-demand helpers — 6 November 2026
+## Swift AI connection — 6 November 2026
 
-Prototyped native Foundation Models custom providers, image prompts and validated survey tools, with ChatGPT browser sign-in and an optional app-owned API key. The permanent leader schedules ready jobs and invites up to two helpers only for independent work. Friends walk in, inspect synthetic flags with binoculars, and leave. Serial dependencies retain only the leader. Cancellation invalidates stale work and retires helpers.
-
-This establishes planning and team lifecycle with a bounded illustrated survey. General desktop observation, physical input ownership, window manipulation, scrolling, onscreen keyboard discovery and typing remain subsequent increments, detailed in [the agent prototype plan](docs/AGENT_PROTOTYPE.md).
-
+Established Foundation Models custom providers, native image/tool sessions, ChatGPT browser sign-in and app-owned Keychain credentials. The initial transport test has been replaced by real physical computer actions below. The app uses one explorer throughout.
 
 ## Task UI first version — 6 November 2026
 
-Moved provider selection, ChatGPT sign-in, secure API-key entry, model loading and offline presets into AI Connection settings. Return in manual control now opens a single-line input bubble beside the explorer, clamped to the usable display and following his position. Escape restores manual control; typing pauses idle wandering without suspending gravity. Submitting starts AI mode and streams response text into a non-activating side journal with physical team progress, Stop, New Task and Hide. Menu commands expose the prompt and restore the journal. Taking manual control or dragging the leader cancels AI work and invalidates late tool callbacks. This increment preserves the illustrated survey scope; broader computer tasks remain next.
+Moved provider selection, ChatGPT sign-in, secure API-key entry, model loading and offline presets into AI Connection settings. Return in manual control now opens a single-line input bubble beside the explorer, clamped to the usable display and following his position. Escape restores manual control; typing pauses idle wandering without suspending gravity. Submitting starts AI mode and streams response text into a non-activating side journal with physical movement progress, Stop, New Task and Hide. Menu commands expose the prompt and restore the journal. Taking manual control or dragging the explorer cancels AI work and invalidates late tool callbacks. This increment preserves the illustrated survey scope; broader computer tasks remain next.
+
+
+## Real computer tools and screen-rim traversal — 6 November 2026
+
+Replaced the illustrated flag survey and forced survey tool with active-app observation and physical computer actions: hover, click/double-click, scrolling, dragging and onscreen-keyboard key presses. An input lease serializes actions, target IDs are refreshed through observation, and arrival/focus/geometry are rechecked before a press. Optional active-window image sharing is separate from local terrain capture and defaults off. The native model adapter supports image tool results and a bounded multi-action loop. The app is now explicitly single-explorer; recruitment and survey jobs are removed.
+
+Added a display-rim fallback to the shared grapple/rope model for global controls. The explorer can plant a top-edge grip, traverse with hanging contacts, then lower onto a line from that grip into an open menu. Actual window roofs are preferred where suitable. Rendering sits above the Dock and above popup menus during AI operation. Full-screen AI tasks remain visible. Regression scenarios cover corner/menu targets, traversing the rim, connected menu descent, and crossing real window roofs to interior controls. Real TextEdit/onscreen-keyboard acceptance is tracked in the validation log.
+
+AI travel now walks along ground/supports before an ascent, coils a grounded line so crouching works, and preserves full-display movement bounds when the Dock changes the visible frame. A pending grapple has a separate visual line while the old rope continues simulating; the load transfers only at latch, and an invalid replacement anchor leaves the old line intact.
+
+
+## Single explorer, readable journal and verified key presses — 6 November 2026
+
+Removed the companion renderer, recruitment tool and role/job scheduling entirely. The journal presents a written sequence of requests, actions and model replies; tool arguments, results and setup metadata are expandable details. Session history survives new tasks and can be exported. Streaming updates preserve earlier entries. Restored the original crouch pose and added Option as a lower-pointer modifier. Native keyboard presses now hold briefly, compare the destination’s value and retry only a confirmed missed character, never text changed by a user or autocorrection.

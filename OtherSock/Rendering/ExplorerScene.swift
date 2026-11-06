@@ -5,12 +5,13 @@ import ExpeditionCore
 @MainActor
 final class ExplorerScene: SKScene {
     private let explorer = ExplorerRig()
-    let missionTeam = MissionTeamNode()
     private let debug = SKNode()
     private let rope = SKShapeNode()
+    private let shotRope = SKShapeNode()
     private let hook = SKShapeNode()
     private let props = ExpeditionProps()
     private let controlMarker = SKShapeNode()
+    private let pointerExtension = SKShapeNode()
     private let aimGuide = SKShapeNode()
     private var grappleAiming = false
     private var aimPoint: CGPoint?
@@ -33,20 +34,50 @@ final class ExplorerScene: SKScene {
     private var usableFrame = CGRect.zero
     private var expeditionPaused = false
     private var interaction: ExplorerInteraction?
+    private var rawTerrain: TerrainSnapshot?
+    private(set) var agentMode = false
+    var agentReading = false
+    var agentTarget: CGPoint?
+    #if DEBUG
+    var agentDiagnostic: String { "\(interaction?.position ?? .zero) \(interaction?.state.rawValue ?? "none") ceiling=\(interaction?.agentCeilingHanging ?? false)" }
+    #endif
+    var agentHandPoint: CGPoint? {
+        guard let interaction else { return nil }
+        if let target = agentTarget, agentAtTarget { return target }
+        return .init(x: interaction.controlClickPoint.x, y: interaction.controlClickPoint.y)
+    }
+    var agentAtTarget: Bool {
+        guard let interaction, let target = agentTarget else { return false }
+        let localX = (target.x - interaction.position.x) * interaction.facing
+        let localY = target.y - interaction.position.y + interaction.controlPointerDrop
+        let shoulderY = explorer.shoulderHeight
+        return localX >= -8 && localX <= 36 && hypot(localX - 10, localY - shoulderY) < 29
+            && (interaction.ropeSession.map { hypot($0.body.velocity.x, $0.body.velocity.y) < 24 } ?? true)
+    }
+    func setAgentMode(_ enabled: Bool) {
+        guard agentMode != enabled else { return }
+        agentMode = enabled; agentTarget = nil; agentReading = false
+        interaction?.setKeyboardControl(enabled)
+        interaction?.setIdleExploration(false)
+        if enabled { interaction?.updateBounds(.init(minimum: .init(x: 24, y: 0), maximum: .init(x: size.width - 24, y: size.height - 76))) }
+        else { interaction?.updateBounds(.init(minimum: .init(x: usableFrame.minX + 24, y: usableFrame.minY + 2), maximum: .init(x: usableFrame.maxX - 24, y: usableFrame.maxY - 76))) }
+        let snapshot = rawTerrain; terrain = nil; updateTerrain(snapshot)
+    }
     private var previousUpdateTime: TimeInterval?
     private var lastTerrainReadTime: TimeInterval?
+    var onFrame: (() -> Void)?
     var onPlacementChanged: ((CGRect, String) -> Void)?
 
     override init(size: CGSize) {
         super.init(size: size)
         backgroundColor = .clear
         scaleMode = .resizeFill
-        addChild(rope)
+        addChild(rope); addChild(shotRope)
+        shotRope.strokeColor = .init(calibratedRed: 0.72, green: 0.57, blue: 0.32, alpha: 1); shotRope.lineWidth = 1.2; shotRope.zPosition = 1
         rope.strokeColor = .init(calibratedRed: 0.72, green: 0.57, blue: 0.32, alpha: 1)
         rope.lineWidth = 1.2
         rope.zPosition = 1 // Over the jacket, beneath the foreground rope grips.
         addChild(explorer)
-        addChild(missionTeam)
         let hookPath = CGMutablePath()
         hookPath.move(to: .init(x: -5, y: 0)); hookPath.addLine(to: .init(x: 4, y: 0))
         hookPath.move(to: .init(x: 0, y: 0)); hookPath.addQuadCurve(to: .init(x: 1, y: 5), control: .init(x: 7, y: 5))
@@ -65,6 +96,7 @@ final class ExplorerScene: SKScene {
         controlMarker.strokeColor = .systemPink; controlMarker.lineWidth = 1.5
         controlMarker.zPosition = 100; controlMarker.isHidden = true
         addChild(controlMarker)
+        pointerExtension.strokeColor = .systemPink; pointerExtension.lineWidth = 1.2; pointerExtension.zPosition = 99; addChild(pointerExtension)
         aimGuide.lineWidth = 1; aimGuide.zPosition = 90; aimGuide.isHidden = true
         addChild(aimGuide)
         addChild(debug)
@@ -77,8 +109,8 @@ final class ExplorerScene: SKScene {
         self.usableFrame = usableFrame
         terrain = nil
         let safeOrigins = ExplorerInteraction.Bounds(
-            minimum: .init(x: usableFrame.minX + 24, y: usableFrame.minY + 2),
-            maximum: .init(x: usableFrame.maxX - 24, y: usableFrame.maxY - 76)
+            minimum: .init(x: agentMode ? 24 : usableFrame.minX + 24, y: agentMode ? 0 : usableFrame.minY + 2),
+            maximum: .init(x: agentMode ? size.width - 24 : usableFrame.maxX - 24, y: agentMode ? size.height - 76 : usableFrame.maxY - 76)
         )
         if interaction == nil {
             interaction = ExplorerInteraction(position: .init(x: usableFrame.midX, y: usableFrame.minY + 12), bounds: safeOrigins)
@@ -107,7 +139,6 @@ final class ExplorerScene: SKScene {
         return .init(x: point.x, y: point.y)
     }
     func setKeyboardControl(_ enabled: Bool) {
-        if enabled { missionTeam.stop() }
         interaction?.setKeyboardControl(enabled)
         if !enabled { setGrappleAiming(false) }
         applyPlacement()
@@ -141,6 +172,7 @@ final class ExplorerScene: SKScene {
     }
     func setRunWhenExploring(_ enabled: Bool) { runWhenExploring = enabled; interaction?.setRunWhenExploring(enabled) }
     func setFasterRopeWork(_ enabled: Bool) { fasterRopeWork = enabled; interaction?.setFasterRopeWork(enabled) }
+    func setControlPointerLowered(_ held: Bool) { interaction?.setControlPointerLowered(held) }
     func setControlCrouch(_ held: Bool) { interaction?.setControlCrouch(held) }
     func setControlFastPace(_ fast: Bool) { interaction?.setControlFastPace(fast) }
     func setControlDirection(_ x: Double, _ y: Double) { interaction?.setControlDirection(horizontal: x, vertical: y) }
@@ -162,7 +194,6 @@ final class ExplorerScene: SKScene {
     }
 
     func beginDrag(at point: CGPoint) {
-        missionTeam.stop()
         if let position = interaction?.position {
             explorer.grabPoint = CGPoint(x: point.x - position.x, y: point.y - position.y)
         }
@@ -187,7 +218,14 @@ final class ExplorerScene: SKScene {
         lastTerrainReadTime = now
         let unavailable = snapshot == nil
         // If window-server metadata fails, retain only the guaranteed rescue boundaries.
-        let next = snapshot ?? TerrainSnapshot(windows: [], viewport: WorldRect(x: usableFrame.minX, y: usableFrame.minY + 2, width: usableFrame.width, height: max(0, usableFrame.height - 2)))
+        rawTerrain = snapshot
+        var next = snapshot ?? TerrainSnapshot(windows: [], viewport: WorldRect(x: usableFrame.minX, y: usableFrame.minY + 2, width: usableFrame.width, height: max(0, usableFrame.height - 2)))
+        if agentMode {
+            // The physical display rim supplies a fallback line when no window is
+            // above a menu/Dock control. It uses the same grappling/rope solver.
+            let rim = DesktopWindow(id: UInt32.max, frame: .init(x: 0, y: size.height - 1, width: size.width, height: 1))
+            next = TerrainSnapshot(windows: [rim] + next.windows, viewport: .init(x: 0, y: 0, width: size.width, height: size.height), features: next.features)
+        }
         guard terrain != next || geometryUnavailable != unavailable else { return }
         terrain = next
         geometryUnavailable = unavailable
@@ -206,7 +244,6 @@ final class ExplorerScene: SKScene {
             }
         }
         #endif
-        missionTeam.updateTerrain(next, usable: usableFrame)
         interaction?.updateTerrain(next, sampleElapsed: sampleElapsed)
         #if DEBUG
         if !startedActivityDemo, let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--activity=") }),
@@ -237,17 +274,16 @@ final class ExplorerScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
+        onFrame?()
         let rawElapsed = previousUpdateTime.map { max(currentTime - $0, 0) } ?? 0
         let elapsed = min(rawElapsed, 0.25)
         previousUpdateTime = currentTime
         guard !expeditionPaused else { return }
-        if let interaction {
-            missionTeam.advance(by: elapsed, leader: interaction.position, leaderReady: interaction.attachment != nil && [.idle, .settling].contains(interaction.state))
-        }
+        if agentMode, let target = agentTarget { interaction?.steerAgent(towardHand: .init(x: target.x, y: target.y)) }
         updateGrappleAim(by: elapsed)
         let previousState = interaction?.state
         let previousLandingCount = interaction?.landingCount
-        if !missionTeam.leaderUsesBinoculars { interaction?.advance(by: elapsed * playbackRate) }
+        interaction?.advance(by: elapsed * playbackRate)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--freeze-grapple"), interaction?.state == .grappling, (interaction?.ropeSession?.age ?? 0) > 0.15 { setExpeditionPaused(true) }
         if ProcessInfo.processInfo.arguments.contains("--freeze-swing"), interaction?.state == .swinging, interaction?.ropeSession?.isTakingUp == false, (interaction?.ropeSession?.age ?? 0) > 0.5 { setExpeditionPaused(true) }
@@ -320,7 +356,7 @@ final class ExplorerScene: SKScene {
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         if motion == .running { explorer.synchronizedTime = interaction.runningTime }
-        explorer.usingBinoculars = missionTeam.leaderUsesBinoculars
+        explorer.usingBinoculars = agentReading
         explorer.crouchAmount = interaction.canCrouch ? interaction.crouchBlend : 0
         explorer.jumpPose = interaction.dropPose ?? interaction.keyboardJumpPose
         explorer.crackPose = interaction.internalClimbingPose
@@ -360,20 +396,38 @@ final class ExplorerScene: SKScene {
         if motion == .abseiling && interaction.ropeSession == nil {
             explorer.handTargets = (.init(x: 0, y: ropeGripHeight), .init(x: 8, y: ropeGripHeight + 1))
         }
-        if missionTeam.isInviting { explorer.handTargets = (.init(x: -8, y: 58), .init(x: 18, y: 62)) }
+        if interaction.agentCeilingHanging {
+            var pose = CrackAnimation.pose(horizontal: true, time: interaction.climbingTime, offset: interaction.position.x * facing)
+            pose.hips.y += 12; pose.leftHand.y += 18; pose.rightHand.y += 18
+            explorer.crackPose = pose; explorer.ropePose = nil; explorer.handTargets = nil; explorer.footTargets = nil
+        }
+        if agentMode, let target = agentTarget, agentAtTarget {
+            let hand = WorldPoint(x: (target.x - interaction.position.x) * facing, y: target.y - interaction.position.y + interaction.controlPointerDrop)
+            explorer.handTargets = (.init(x: -8, y: interaction.agentCeilingHanging ? 76 : (interaction.ropeSession == nil ? 44 : 61)), hand)
+        }
+        if interaction.hasPendingGrapple { explorer.handTargets = (.init(x: -4, y: 61), .init(x: 20, y: 46)) }
+        pointerExtension.isHidden = interaction.controlPointerDrop < 1
+        if !pointerExtension.isHidden {
+            let tip = agentMode && agentAtTarget ? agentTarget! : CGPoint(x: interaction.controlClickPoint.x, y: interaction.controlClickPoint.y)
+            controlMarker.position = tip
+            let extensionPath = CGMutablePath(); extensionPath.move(to: .init(x: tip.x, y: tip.y + interaction.controlPointerDrop)); extensionPath.addLine(to: tip)
+            pointerExtension.path = extensionPath
+        }
         props.update(mission: interaction.mission, explorer: interaction.position, target: target, facing: facing, viewport: usableFrame, held: interaction.state == .held)
         explorer.select(motion)
         explorer.render(delta: 0)
         rope.isHidden = interaction.ropeAnchor == nil && interaction.hookPosition == nil
         hook.isHidden = interaction.ropeSession == nil
         let path = CGMutablePath()
+        let flyingPath = CGMutablePath()
         if let flying = interaction.hookPosition, let target = interaction.grappleTarget {
             let muzzle = explorer.grappleMuzzle(in: self)
-            path.move(to: muzzle)
-            path.addQuadCurve(to: .init(x: flying.x, y: flying.y), control: .init(x: (muzzle.x + flying.x) / 2, y: (muzzle.y + flying.y) / 2 - 8))
+            flyingPath.move(to: muzzle)
+            flyingPath.addQuadCurve(to: .init(x: flying.x, y: flying.y), control: .init(x: (muzzle.x + flying.x) / 2, y: (muzzle.y + flying.y) / 2 - 8))
             hook.position = .init(x: flying.x, y: flying.y)
             hook.zRotation = atan2(target.y - flying.y, target.x - flying.x)
-        } else if let support = interaction.ropeGuide {
+        }
+        if let support = interaction.ropeGuide {
             let grip = interaction.ropeSession?.body.position ?? WorldPoint(x: interaction.position.x, y: interaction.position.y + ropeGripHeight)
             let guide = interaction.edgeMotion == .lowering ? support : support.taut(toward: grip)
             func cg(_ point: WorldPoint) -> CGPoint { .init(x: point.x, y: point.y) }
@@ -390,11 +444,11 @@ final class ExplorerScene: SKScene {
                     path.addCurve(to: cg(grip), control1: .init(x: guide.sideTangent.x + dx / 3, y: guide.sideTangent.y + dy / 3), control2: .init(x: guide.sideTangent.x + dx * 2 / 3, y: guide.sideTangent.y + dy * 2 / 3 - min(60, slack)))
                 } else { path.addLine(to: cg(grip)) }
                 path.addEllipse(in: .init(x: grip.x - 1.5, y: grip.y - 1.5, width: 3, height: 3))
-                path.move(to: cg(grip)); path.addLine(to: .init(x: grip.x, y: max(usableFrame.minY, interaction.position.y - 16)))
+                path.move(to: cg(grip)); path.addLine(to: .init(x: grip.x, y: max(agentMode ? 0 : usableFrame.minY, interaction.position.y - 16)))
             }
-            hook.position = cg(guide.anchor); hook.zRotation = -.pi / 2
+            if interaction.hookPosition == nil { hook.position = cg(guide.anchor); hook.zRotation = -.pi / 2 }
         }
-        rope.path = path
+        rope.path = path; shotRope.path = flyingPath; shotRope.isHidden = interaction.hookPosition == nil
 
         let hitFrame = CGRect(x: explorer.position.x - 24, y: explorer.position.y - 1, width: 48, height: 76)
         if hitFrame != lastInputFrame || interaction.state.rawValue != lastInputState {

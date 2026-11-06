@@ -84,6 +84,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     private var aiming = false
     var onDirection: ((Double, Double) -> Void)?
     var onCrouch: ((Bool) -> Void)?
+    var onLowPointer: ((Bool) -> Void)?
     var onFastPace: ((Bool) -> Void)?
     var onJump: (() -> Void)?
     var onAimChanged: ((Bool) -> Void)?
@@ -143,15 +144,16 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     }
     func routeKey(_ event: NSEvent) -> NSEvent? {
         guard isControlling else { return event }
+        onLowPointer?(event.modifierFlags.contains(.option) && event.modifierFlags.intersection([.command, .control]).isEmpty)
         onFastPace?(event.modifierFlags.contains(.shift) && event.modifierFlags.intersection([.command, .option, .control]).isEmpty)
         if event.type == .flagsChanged {
-            if !event.modifierFlags.intersection([.command, .option, .control]).isEmpty { clearDirections() }
+            if !event.modifierFlags.intersection([.command, .control]).isEmpty { clearDirections() }
             return event
         }
         if event.keyCode == 53, event.type == .keyDown { stop(restoreFocus: true); return nil }
-        guard event.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return event }
+        guard event.modifierFlags.intersection([.command, .control]).isEmpty else { return event }
         if [UInt16(36), 76].contains(event.keyCode) {
-            if event.type == .keyDown, !event.isARepeat { clearDirections(); onFastPace?(false); onPrompt?() }
+            if event.type == .keyDown, !event.isARepeat { clearDirections(); onFastPace?(false); onLowPointer?(false); onPrompt?() }
             return nil
         }
         let moves: Set<UInt16> = [0, 1, 2, 8, 13, 123, 124, 125, 126]
@@ -185,7 +187,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
         isControlling = false
         clickRestore?.cancel(); clickRestore = nil; isPerformingClick = false
         aiming = false; onAimChanged?(false)
-        clearDirections(); onFastPace?(false)
+        clearDirections(); onFastPace?(false); onLowPointer?(false)
         if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
         panel.orderOut(nil)
         onStop?()
@@ -206,6 +208,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
                     CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0))
                 })
                 self.updateDirection()
+                self.onLowPointer?(CGEventSource.keyState(.combinedSessionState, key: 58) || CGEventSource.keyState(.combinedSessionState, key: 61))
                 self.onFastPace?(CGEventSource.keyState(.combinedSessionState, key: 56) || CGEventSource.keyState(.combinedSessionState, key: 60))
                 if self.aiming && !CGEventSource.keyState(.combinedSessionState, key: 5) {
                     self.aiming = false; self.onAimChanged?(false)

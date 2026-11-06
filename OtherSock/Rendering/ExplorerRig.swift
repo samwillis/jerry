@@ -113,6 +113,7 @@ final class ExplorerRig: SKNode {
     private let grappleGun = SKNode()
     private let binoculars = SKNode()
     var usingBinoculars = false
+    var shoulderHeight: Double { presentedPose.hips.y + 20 }
     private let canopyFabric = SKNode()
     private var cords: [(SKShapeNode, CGFloat)] = []
     private let leftEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))

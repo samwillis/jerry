@@ -156,6 +156,8 @@ A post-blur crop subtracts rounded window frames below the feet, including a sma
 
 `CrouchAnimation` lowers the hips by 12 points, inclines the head, and brings the forward hand down while retaining the source pose’s foot contacts. The core supplies an eased 160 ms blend shared by the rendered pose and the click target (44 points above the feet standing, 16 crouched). Crouched movement slows the existing walking gait clock rather than sliding the same clip at a different world speed. Shift-running is suppressed during the crouch. Foreground arm layering keeps the reaching hand visible. The standalone Crouching playground clip was visually inspected with both feet on the fake window and zero clamped contacts.
 
-## Survey companions and binoculars
+## Computer-task poses
 
-The task prototype reuses `ExplorerRig` for the permanent leader and temporary Scout/Rigger helpers. `usingBinoculars` adds a foreground lens prop and two visible hand contacts; inspection lasts 1.8 seconds after arrival. Helper entry/exit uses the same walking physics and rig gait. `--agent-checks` exercises rendered recruitment, travel, inspection, retirement and cancellation without invoking an online model.
+The single explorer uses binoculars while inspecting the active app. Screen-rim traversal reuses the horizontal crack contacts, with raised grips and a hanging body. Lowering from a planted rim grip creates a connected abseil. A pending replacement grapple draws a second line while the old rope continues supporting the rig.
+
+The existing Crouching clip is retained. Option changes the click-pointer offset by 16 points and draws a short extension; it does not compress or replace the pose. `--agent-checks` includes a rendered reach check for the Dock edge after a usable-frame change.
