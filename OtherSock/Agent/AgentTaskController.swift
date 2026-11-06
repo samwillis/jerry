@@ -70,7 +70,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     required init?(coder: NSCoder) { fatalError("Use init()") }
     func open() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
     func openPrompt(resumeControl: Bool = false) {
-        resumeControlOnCancel = resumeControl
+        resumeControlOnCancel = promptWindow.isVisible ? (resumeControlOnCancel || resumeControl) : resumeControl
         updatePromptHint(); onPromptOpened?(); updatePromptPosition(force: true)
         promptWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true); promptWindow.makeFirstResponder(requestField)

@@ -221,3 +221,10 @@ This supersedes the earlier synthetic survey/helper prototype. Recruitment, comp
 - Live journal: reviewed its date heading, readable serif entries and collapsed Details. Expanded the typing entry and observed the complete tool request plus the five-key verification result; collapsed it again to restore the readable view. Opening Details disables automatic following. The trace remains exportable with Save Log.
 - Dock repair: the drag panel no longer steals hover from the pointer parked over a system control. Offscreen target centres are clipped/rejected before travel, and geometry/focus/pointer changes are checked before input. Explicit AI operation remains visible in full-screen apps. User activity can defer a step; there is still one shared system pointer.
 - Scope: primary display and English system keyboard are the initial acceptance target. Broader apps, custom layouts, uppercase via physical Shift and complicated window dragging need further live acceptance. No shell, clipboard text insertion, programmatic app launch or direct text injection is used by the computer tool.
+
+
+## Ask shortcut and menu organisation — 6 November 2026
+
+- 63 native checks pass. Both global shortcuts register together, route only their own event IDs, suppress held-key repeats, handle release and unregister cleanly. Menu checks confirm terrain guides and activity tests are inside Developer Tools and Ask advertises Control–Option–Return.
+- Live UI: Control–Option–Return opened the small Ask explorer input beside the character; Escape dismissed it. Global Carbon event routing was checked natively; the live UI check exercised the application key equivalent.
+- Debug and packaged Release builds pass. The updated Debug app remains running. Movement and computer-operation code are unchanged by this menu increment.

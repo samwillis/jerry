@@ -99,6 +99,7 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
         let controls = NSStackView(); controls.orientation = .vertical; controls.alignment = .leading; controls.spacing = 8
         controls.addArrangedSubview(text("TAKE THE LEAD", size: 11, weight: .semibold, color: .secondaryLabelColor))
         let rows = [
+            ["⌃ ⌥ Return", "Ask the explorer, from any app"],
             ["⌃ ⌥ Space", "Take or release control, from any app"],
             ["Arrows / WASD", "Walk, climb and swing; Up grabs a hold"],
             ["Shift / hold C", "Run or climb faster / crouch and click lower"],

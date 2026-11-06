@@ -271,3 +271,8 @@ AI travel now walks along ground/supports before an ascent, coils a grounded lin
 ## Single explorer, readable journal and verified key presses — 6 November 2026
 
 Removed the companion renderer, recruitment tool and role/job scheduling entirely. The journal presents a written sequence of requests, actions and model replies; tool arguments, results and setup metadata are expandable details. Session history survives new tasks and can be exported. Streaming updates preserve earlier entries. Restored the original crouch pose and added Option as a lower-pointer modifier. Native keyboard presses now hold briefly, compare the destination’s value and retry only a confirmed missed character, never text changed by a user or autocorrection.
+
+
+## Ask shortcut and menu organisation — 6 November 2026
+
+Added a registered Control–Option–Return system shortcut for Ask Explorer, independent of the Control–Option–Space manual-control shortcut. Both handlers filter their own Carbon event IDs, handle key release and suppress repeat presses. Reopening an existing prompt preserves its draft and return-to-control behaviour. The main menu groups task/journal actions and manual/idle modes; movement preferences are under Settings, while terrain guides, activity tests and the Debug animation playground are under Developer Tools.

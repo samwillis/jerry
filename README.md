@@ -4,7 +4,7 @@ A tiny, deeply unqualified desktop expedition searching for the other sock.
 
 ## Current prototype: phases one to seven
 
-The macOS app draws one articulated, approximately 74-point explorer above normal windows. The hiking menu provides **Enable Idle Exploration**, **Take Control**, **Actions**, **Settings**, **Controls & Tips…**, and **Quit The Other Sock**. **Show Terrain Guides** is available in both Debug and Release builds. Debug builds also add **Developer Tools** for the animation playground. Idle exploration and movement-speed preferences survive relaunch.
+The macOS app draws one articulated, approximately 74-point explorer above normal windows. The hiking menu groups **Ask Explorer…** and **Expedition Journal…** first, followed by **Take Control** and **Enable Idle Exploration**. **Settings** contains connection, exploration, movement and click-access options. **Developer Tools** contains terrain guides and activity tests in both builds; Debug builds also include the animation playground. Idle exploration and movement-speed preferences survive relaunch.
 
 With **Enable Idle Exploration** checked, he wanders, explores windows and looks for the sock. Uncheck it and he stays where he is, watches a nearby pointer, and remains draggable. Gravity, window-edge landing and parachute recovery keep working. This does not freeze the simulation. Leaving manual control respects the idle preference. A legacy paused preference starts with idle exploration disabled.
 
@@ -20,7 +20,7 @@ On first launch, a welcome guide introduces the explorer, idle exploration, keyb
 
 ## AI tasks
 
-Set up ChatGPT sign-in or an API key in **Settings → AI Connection…**. While controlling the explorer, press **Return** for a small input bubble beside him; Return sends and Escape cancels. **Ask Explorer…** also opens it. The **Expedition journal** keeps readable entries and model replies across tasks, with expandable details for tool calls and metadata, plus Save Log, Stop/New Task and Hide controls. **Show Expedition Journal** brings it back.
+Set up ChatGPT sign-in or an API key in **Settings → AI Connection…**. Press **Control–Option–Return** from any app, or **Return** while controlling the explorer, for a small input bubble beside him; Return sends and Escape cancels. **Ask Explorer…** also opens it. The **Expedition journal** keeps readable entries and model replies across tasks, with expandable details for tool calls and metadata, plus Save Log, Stop/New Task and Hide controls. **Expedition Journal…** brings it back.
 
 The agent can now inspect the active app and physically reach controls to click, scroll or drag. It opens apps through their UI and types by pressing an onscreen keyboard, which must also be opened physically. The explorer can grapple to the display rim, hang and traverse there, then lower on a rope into menus. He renders above the Dock and, during AI work, above menus. Survey flags and demo inspections are removed. There is one explorer in every mode. See [the computer-task guide](docs/AGENT_PROTOTYPE.md) for permissions and current limits.
 
@@ -51,7 +51,7 @@ Releasing Up/Down holds the current rope length, allowing a natural swing. Walki
 
 ## Trigger an activity
 
-Use hiking menu → **Actions** for walking, climbing, grappling, rope actions, parachuting or looking for the sock. The explorer approaches suitable real terrain first, then performs the activity and returns to the idle-exploration setting. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Enable Idle Exploration** controls automatic wandering after the action finishes.
+Use hiking menu → **Developer Tools → Test an Activity** for walking, climbing, grappling, rope actions, parachuting or looking for the sock. The explorer approaches suitable real terrain first, then performs the activity and returns to the idle-exploration setting. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Enable Idle Exploration** controls automatic wandering after the action finishes.
 
 Climbs now pull over the lip into a planted-foot standing pose; rope descents crouch and back over the lip; parachute trips crouch and jump clear before deploying. The rope pins on the top edge, follows an estimated 10-point rounded window corner, and leaves along the mathematical tangent towards the hands. Both straight-to-curve joins remain tangent as the explorer descends.
 

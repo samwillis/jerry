@@ -1,6 +1,6 @@
 # Native computer tasks
 
-Open **Ask Explorer…** from the hiking menu, or press **Return** in manual control. Type in the small bubble beside him; Return sends and Escape cancels. Idle wandering waits while you type. AI text and physical progress appear in the **Expedition journal** at the right of the screen. Stop or take manual control to interrupt; hiding the journal leaves the task running.
+Press **Control–Option–Return** from any app, open **Ask Explorer…** from the hiking menu, or press **Return** in manual control. Type in the small bubble beside him; Return sends and Escape cancels. Idle wandering waits while you type. AI text and physical progress appear in the **Expedition journal** at the right of the screen. Stop or take manual control to interrupt; hiding the journal leaves the task running.
 
 ## Connection and observation
 

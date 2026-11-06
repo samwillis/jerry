@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var needsWelcome: Bool { UserDefaults.standard.integer(forKey: "welcomeVersion") < 1 }
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
+    private var askItem: NSMenuItem!
     private var runningItem: NSMenuItem!
     private var ropePaceItem: NSMenuItem!
     private var runWhenExploring = UserDefaults.standard.bool(forKey: "runWhenExploring")
@@ -21,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var exploreInsideWindows = UserDefaults.standard.bool(forKey: "exploreInsideWindows")
     private var activitiesMenu: NSMenu!
     private let hotKey = ExplorerControlHotKey()
+    private let askHotKey = ExplorerControlHotKey(keyCode: 36, id: 2)
     private var isPaused = ProcessInfo.processInfo.arguments.contains("--paused")
     private var idleExploration = UserDefaults.standard.object(forKey: "idleExploration") as? Bool ?? !UserDefaults.standard.bool(forKey: "expeditionPaused")
     private var gentlePace = UserDefaults.standard.bool(forKey: "gentlePace")
@@ -51,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay?.show()
         hotKey.onTrigger = { [weak self] in self?.toggleKeyboard() }
         hotKey.register()
+        askHotKey.onTrigger = { [weak self] in self?.openTasks() }
+        askHotKey.register()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--trace-movement") { print("CONTROL global shortcut registered: \(hotKey.isRegistered)"); fflush(stdout) }
         #endif
@@ -79,6 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if NSApp.mainMenu == nil {
             let bar = NSMenu()
             let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu
+            let ask = appMenu.addItem(withTitle: "Ask Explorer…", action: #selector(openTasks), keyEquivalent: "\r")
+            ask.target = self; ask.keyEquivalentModifierMask = [.control, .option]
+            appMenu.addItem(withTitle: "Expedition Journal…", action: #selector(showAgentActivity), keyEquivalent: "").target = self
+            appMenu.addItem(.separator())
             appMenu.addItem(withTitle: "Quit The Other Sock", action: #selector(quit), keyEquivalent: "q").target = self
             bar.addItem(appItem)
             let edit = NSMenu(title: "Edit"); let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: ""); editItem.submenu = edit; bar.addItem(editItem)
@@ -95,36 +103,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.autoenablesItems = false; menu.delegate = self
         let heading = NSMenuItem(title: "The Other Sock", action: nil, keyEquivalent: "")
         heading.isEnabled = false; menu.addItem(heading); menu.addItem(.separator())
-        idleItem = add("Enable Idle Exploration", action: #selector(toggleIdle), to: menu)
+        askItem = add("Ask Explorer…", action: #selector(openTasks), to: menu)
+        askItem.keyEquivalent = "\r"; askItem.keyEquivalentModifierMask = [.control, .option]
+        _ = add("Expedition Journal…", action: #selector(showAgentActivity), to: menu)
+        menu.addItem(.separator())
         keyboardItem = add("Take Control", action: #selector(toggleKeyboard), to: menu)
         keyboardItem.keyEquivalent = " "; keyboardItem.keyEquivalentModifierMask = [.control, .option]
-        activitiesMenu = NSMenu(title: "Actions")
-        activitiesMenu.autoenablesItems = false; activitiesMenu.delegate = self
-        let actions = NSMenuItem(title: "Actions", action: nil, keyEquivalent: "")
-        actions.submenu = activitiesMenu; menu.addItem(actions)
+        idleItem = add("Enable Idle Exploration", action: #selector(toggleIdle), to: menu)
         menu.addItem(.separator())
+
         let settings = NSMenu(title: "Settings"); settings.autoenablesItems = false
         _ = add("AI Connection…", action: #selector(openAISettings), to: settings)
-        settings.addItem(.separator())
-        paceItem = add("Slow Movement", action: #selector(togglePace), to: settings)
-        runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: settings)
-        ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: settings)
         interiorItem = add("Explore Inside Windows…", action: #selector(toggleInterior), to: settings)
-        debugItem = add("Show Terrain Guides", action: #selector(toggleDebug), to: menu)
-        _ = add("Allow Clicks in Other Apps…", action: #selector(allowClicks), to: settings)
+        let movement = NSMenu(title: "Movement"); movement.autoenablesItems = false
+        runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: movement)
+        ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: movement)
+        paceItem = add("Slow Movement", action: #selector(togglePace), to: movement)
+        let movementItem = NSMenuItem(title: "Movement", action: nil, keyEquivalent: ""); movementItem.submenu = movement; settings.addItem(movementItem)
         settings.addItem(.separator())
+        _ = add("Desktop Click Access…", action: #selector(allowClicks), to: settings)
         _ = add("Bring Explorer Back to Desktop", action: #selector(resetExpedition), to: settings)
-        let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
-        settingsItem.submenu = settings; menu.addItem(settingsItem)
-        _ = add("Ask Explorer…", action: #selector(openTasks), to: menu)
-        _ = add("Show Expedition Journal", action: #selector(showAgentActivity), to: menu)
+        let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: ""); settingsItem.submenu = settings; menu.addItem(settingsItem)
         _ = add("Controls & Tips…", action: #selector(showTips), to: menu)
-        #if DEBUG
+
         let development = NSMenu(title: "Developer Tools"); development.autoenablesItems = false
+        debugItem = add("Show Terrain Guides", action: #selector(toggleDebug), to: development)
+        activitiesMenu = NSMenu(title: "Test an Activity"); activitiesMenu.autoenablesItems = false; activitiesMenu.delegate = self
+        let actions = NSMenuItem(title: "Test an Activity", action: nil, keyEquivalent: ""); actions.submenu = activitiesMenu; development.addItem(actions)
+        #if DEBUG
+        development.addItem(.separator())
         _ = add("Animation Playground…", action: #selector(openPlayground), to: development)
-        let developmentItem = NSMenuItem(title: "Developer Tools", action: nil, keyEquivalent: "")
-        developmentItem.submenu = development; menu.addItem(developmentItem)
         #endif
+        let developmentItem = NSMenuItem(title: "Developer Tools", action: nil, keyEquivalent: ""); developmentItem.submenu = development; menu.addItem(developmentItem)
         menu.addItem(.separator())
         _ = add("Quit The Other Sock", action: #selector(quit), to: menu)
         item.menu = menu; statusItem = item
@@ -289,6 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ropePaceItem?.state = fasterRopeWork ? .on : .off
         keyboardItem?.state = overlay?.keyboardControlEnabled == true ? .on : .off
         keyboardItem?.title = overlay?.keyboardControlEnabled == true ? "Release Control" : "Take Control"
+        askItem?.toolTip = askHotKey.isRegistered ? "Control–Option–Return opens a prompt from any app." : "The shortcut is unavailable; use this menu item."
         keyboardItem?.toolTip = hotKey.isRegistered ? "Control–Option–Space works from any app." : "The shortcut is unavailable; use this menu item."
         statusItem?.button?.toolTip = "The Other Sock — \(overlay?.keyboardControlEnabled == true ? "you're in control" : (idleExploration ? "exploring" : "resting"))"
     }
@@ -311,7 +322,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuNeedsUpdate(activitiesMenu)
         var passed = true
         func check(_ result: Bool, _ name: String) { print("NATIVE \(result ? "PASS" : "FAIL") \(name)"); passed = passed && result }
-        check(statusItem?.menu?.items.contains { $0.title == "Show Terrain Guides" && $0.action == #selector(toggleDebug) } == true, "terrain guide toggle is available in the main menu")
+        let developer = statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.submenu
+        check(developer?.items.contains { $0.title == "Show Terrain Guides" && $0.action == #selector(toggleDebug) } == true && statusItem?.menu?.items.contains { $0.action == #selector(toggleDebug) } == false, "terrain guides are available inside Developer Tools")
+        check(activitiesMenu.supermenu === developer && statusItem?.menu?.items.contains { $0.title == "Actions" } == false, "activity tests are grouped inside Developer Tools")
+        check(askItem.keyEquivalent == "\r" && askItem.keyEquivalentModifierMask == [.control, .option], "Ask Explorer advertises Control Option Return")
         check(interiorItem?.title == "Explore Inside Windows…", "window pixel exploration has an explicit opt-in setting")
         let commands = activitiesMenu.items.filter { $0.action != nil }
         check(commands.count == ExplorerActivity.allCases.count - 1, "Actions contains explicit activities without duplicate automatic mode")
@@ -336,8 +350,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var presses = 0; shortcut.onTrigger = { presses += 1 }; shortcut.register()
         check(shortcut.isRegistered, "global Control Option Space shortcut registers")
         check(shortcut.dispatchNativeCheck() == noErr && presses == 1, "registered hotkey event reaches the control callback")
+        let askShortcut = ExplorerControlHotKey(keyCode: 36, id: 2)
+        var asks = 0; askShortcut.onTrigger = { asks += 1 }; askShortcut.register()
+        check(askShortcut.isRegistered, "global Control Option Return shortcut registers")
+        check(askShortcut.dispatchNativeCheck() == noErr && asks == 1 && presses == 1, "Ask shortcut routes only to its own callback")
+        check(shortcut.dispatchNativeCheck() == noErr && presses == 2 && asks == 1, "control shortcut stays independent of Ask shortcut")
+        askShortcut.close()
         shortcut.close()
-        check(!shortcut.isRegistered, "global shortcut unregisters on cleanup")
+        check(!shortcut.isRegistered && !askShortcut.isRegistered, "global shortcut unregisters on cleanup")
         return passed
     }
     @objc private func openPlayground() {
@@ -345,7 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     #endif
     func applicationWillTerminate(_ notification: Notification) {
-        hotKey.close()
+        hotKey.close(); askHotKey.close()
         taskController?.closeAll(); taskController = nil
         welcome?.close(); welcome = nil
         NotificationCenter.default.removeObserver(self)
@@ -364,6 +384,9 @@ final class ExplorerControlHotKey {
     private var reference: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private var pressed = false
+    private let keyCode: UInt32
+    private let id: UInt32
+    init(keyCode: UInt32 = 49, id: UInt32 = 1) { self.keyCode = keyCode; self.id = id }
     var onTrigger: (() -> Void)?
     var isRegistered: Bool { reference != nil }
     func register() {
@@ -373,15 +396,18 @@ final class ExplorerControlHotKey {
         let pointer = Unmanaged.passUnretained(self).toOpaque()
         let installed = InstallEventHandler(GetApplicationEventTarget(), { _, event, pointer in
             guard let pointer, let event else { return OSStatus(eventNotHandledErr) }
-            MainActor.assumeIsolated {
+            return MainActor.assumeIsolated {
                 let owner = Unmanaged<ExplorerControlHotKey>.fromOpaque(pointer).takeUnretainedValue()
+                var identifier = EventHotKeyID()
+                guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &identifier) == noErr,
+                      identifier.signature == 0x536f636b, identifier.id == owner.id else { return OSStatus(eventNotHandledErr) }
                 if GetEventKind(event) == UInt32(kEventHotKeyReleased) { owner.pressed = false }
                 else if !owner.pressed { owner.pressed = true; owner.onTrigger?() }
+                return noErr
             }
-            return noErr
         }, 2, &specs, pointer, &handler)
         guard installed == noErr else { return }
-        let result = RegisterEventHotKey(49, UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x536f636b, id: 1), GetApplicationEventTarget(), 0, &reference)
+        let result = RegisterEventHotKey(keyCode, UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x536f636b, id: id), GetApplicationEventTarget(), 0, &reference)
         if result != noErr { close() }
     }
     #if DEBUG
@@ -390,8 +416,15 @@ final class ExplorerControlHotKey {
         let result = CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed), GetCurrentEventTime(), EventAttributes(kEventAttributeUserEvent), &event)
         guard result == noErr, let event else { return result }
         defer { ReleaseEvent(event) }
+        var identifier = EventHotKeyID(signature: 0x536f636b, id: id)
+        SetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size, &identifier)
         let first = SendEventToEventTarget(event, GetApplicationEventTarget())
         _ = SendEventToEventTarget(event, GetApplicationEventTarget()) // Holding must not toggle twice.
+        var released: EventRef?
+        if CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyReleased), GetCurrentEventTime(), EventAttributes(kEventAttributeUserEvent), &released) == noErr, let released {
+            SetEventParameter(released, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size, &identifier)
+            SendEventToEventTarget(released, GetApplicationEventTarget()); ReleaseEvent(released)
+        }
         return first
     }
     #endif
