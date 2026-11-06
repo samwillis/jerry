@@ -102,3 +102,8 @@ Rope geometry uses a top pin, a circular corner guide with one point of clearanc
 The solver integrates gravity at 240 Hz inside the fixed simulation step, projects only overstretched lines, and preserves tangential velocity. Slack lines fall freely. Reeling conserves angular momentum before friction/contact losses. The renderer hangs the body around its harness, puts the gloves along the free lead, and preserves the top/corner/free-lead tangents. A real push-off impulse starts a swing from rest against the wall.
 
 The shared rig includes a spool launcher and aiming hands for **Grappling**, plus **Ropeclimbing** and **Ropeswinging** pose previews. The flying hook and full movement use the desktop simulation. For repeatable real-window checks, launch the fixture with `--low-only`, then the Debug app with `--fixture-terrain --activity=grapple --trace-movement`. `--freeze-grapple` freezes the hook in flight; `--freeze-swing` freezes the latched hanging pose. Omit either freeze flag to run the complete journey.
+
+
+## Pointer awareness — 6 November 2026
+
+The shared rig samples the current pointer during rendering, converts it through the real scene/head transforms, and applies a small additive gaze and head turn. This respects facing, zoom and rope sway. Eyes respond over about 90 ms, the head over 220 ms; interest fades between 120 and 220 logical rig points. Eye displacement remains within the face, blink openness still controls both eyes independently, and the existing motion pose remains the base. Firing reduces the distraction. No pointer events are intercepted or permission requested. The same response is visible in the desktop and playground; pausing rendering also pauses expressions.

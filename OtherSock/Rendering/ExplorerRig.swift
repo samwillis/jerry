@@ -91,6 +91,8 @@ final class ExplorerRig: SKNode {
     private let rightLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: ExplorerPalette.trousers, foot: true)
     private var animator = RigAnimator()
     private var expressionTime: Double = 0
+    private var pointerEyeOffset = CGPoint.zero
+    private var pointerHeadTurn = 0.0
     private var landingTime: Double?
     private var landingStrength: Double = 1
     private var presentedPose = ExplorerPose()
@@ -264,11 +266,6 @@ final class ExplorerRig: SKNode {
         }
         let elapsed = delta.isFinite ? min(max(delta, 0), 0.1) : 0
         expressionTime += elapsed
-        for (index, eye) in [leftEye, rightEye].enumerated() {
-            let openness = BlinkAnimation.openness(time: expressionTime, eye: index)
-            eye.yScale = openness
-            eye.position.y = 2 + 1.5 * openness
-        }
         if let time = landingTime {
             let next = time + elapsed
             landingTime = next < LandingAnimation.duration ? next : nil
@@ -286,6 +283,7 @@ final class ExplorerRig: SKNode {
         torso.position = CGPoint(x: pose.hips.x, y: pose.hips.y)
         head.position = CGPoint(x: pose.hips.x, y: pose.hips.y + ExpeditionConfiguration.headOffset)
         head.zRotation = pose.headTilt
+        updatePointerAttention(elapsed: elapsed)
         backpack.position = CGPoint(x: pose.hips.x - 18, y: pose.hips.y + 10)
         backpack.zRotation = pose.backpackTilt
         renderParachute(pose: pose)
@@ -296,6 +294,46 @@ final class ExplorerRig: SKNode {
         place(rightArm, root: .init(x: pose.hips.x + 10, y: pose.hips.y + 20), target: pose.rightHand, knee: false, elbowPole: pose.elbowPole)
         place(leftLeg, root: .init(x: pose.hips.x - 7, y: pose.hips.y), target: pose.leftFoot, knee: true)
         place(rightLeg, root: .init(x: pose.hips.x + 7, y: pose.hips.y), target: pose.rightFoot, knee: true)
+    }
+
+    /// Sample the current pointer, without capturing mouse events or keyboard focus.
+    /// Convert through the actual node transforms so mirroring, rope sway, and the
+    /// playground's enlarged rig all keep the eyes aimed in the right direction.
+    private func updatePointerAttention(elapsed: Double) {
+        var desiredEyes = CGPoint.zero
+        var desiredTurn = 0.0
+        let pointer = NSEvent.mouseLocation
+        if let scene, let view = scene.view, let window = view.window,
+           window.isVisible, window.screen?.frame.contains(pointer) == true {
+            let inWindow = window.convertPoint(fromScreen: pointer)
+            let inView = view.convert(inWindow, from: nil)
+            let inScene = scene.convertPoint(fromView: inView)
+            let relative = head.convert(inScene, from: scene)
+            let dx = relative.x - 2.5, dy = relative.y - 3.5
+            let distance = hypot(dx, dy)
+            // Fully engaged close by, with a soft boundary instead of a sudden snap.
+            let fade = min(1, max(0, (220 - distance) / 100))
+            let attention = fade * fade * (3 - 2 * fade)
+            let taskWeight = motion == .grappling ? 0.3 : 1.0
+            let weight = attention * taskWeight
+            desiredEyes = .init(x: min(1, max(-1, dx / 55)) * 2.2 * weight,
+                                y: min(1, max(-1, dy / 55)) * 1.3 * weight)
+            desiredTurn = min(1, max(-1, dy / (abs(dx) + 30))) * (dx < 0 ? -1 : 1) * 0.12 * weight
+        }
+        // Eyes lead the head slightly; both ease back to their animated neutral pose.
+        let eyeResponse = 1 - exp(-elapsed / 0.09)
+        let headResponse = 1 - exp(-elapsed / 0.22)
+        pointerEyeOffset.x += (desiredEyes.x - pointerEyeOffset.x) * eyeResponse
+        pointerEyeOffset.y += (desiredEyes.y - pointerEyeOffset.y) * eyeResponse
+        pointerHeadTurn += (desiredTurn - pointerHeadTurn) * headResponse
+        head.zRotation += pointerHeadTurn
+        head.position.x += pointerEyeOffset.x * 0.35
+        for (index, eye) in [leftEye, rightEye].enumerated() {
+            let openness = BlinkAnimation.openness(time: expressionTime, eye: index)
+            eye.yScale = openness
+            eye.position = .init(x: (index == 0 ? -1.0 : 6.0) + pointerEyeOffset.x,
+                                 y: 2 + (1.5 + pointerEyeOffset.y) * openness)
+        }
     }
 
     private func place(_ limb: RigLimb, root: WorldPoint, target: WorldPoint, knee: Bool, elbowPole: WorldPoint = .init(x: -24, y: -6)) {

@@ -108,3 +108,8 @@ Omit `--exercise` for a stable layout. Add `--start-low --rope-demo` to begin a 
 Live native key input through the focused control window moved the explorer from x855 to x≈924 with Right; G fired; Up entered rope climbing; releasing held rope length; Down descended; Space jumped off; Escape closed the key window and returned to autonomous mode. Focused movement was checked interactively because command-line native checks can inspect routing and key-window capability but cannot establish actual activation under macOS focus-stealing rules.
 
 Accessibility access is false in this build's test context. No permission was granted and no external control press/mouse click was executed. The untrusted path performs no click; the permitted AXPress/fallback-click path remains an interactive acceptance check once the user grants access. Only direct E presses request interaction, and repeated keyDown events cannot produce repeated clicks. Movement itself does not require access.
+
+
+### Pointer awareness — 6 November 2026
+
+Debug/Release builds and all 27 applicable native checks pass (the denied-permission check is skipped because Accessibility access is now granted). The shared rig's eye/head response was inspected in the playground, including mirrored facing. Coordinate diagnostics during development confirmed conversion from the current AppKit screen pointer through the window/view/scene into head space; those diagnostics were removed. Eyes lead the head and blend back to the base expression at distance, retaining asynchronous blinks. No simulation or input-panel geometry changed; current-pointer sampling requires no event monitor or extra permission. Visual timing remains subject to user preference.

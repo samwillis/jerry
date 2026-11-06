@@ -12,6 +12,8 @@ While held, idle movement stops. Release carries recent drag momentum, so quick 
 
 On landing, the explorer briefly crouches with planted feet and then rises. A settling interval prevents immediate autonomous movement. Occasional blinks have a tiny timing offset between the eyes. Dragging is still available when paused; pausing freezes visual clocks, settling, recovery, and automatic terrain polling. Resume refreshes geometry immediately. Releasing a dragged explorer refreshes geometry even while paused.
 
+Bring the pointer near him and he notices it: his eyes follow first, with a small, slower head turn. Attention fades smoothly beyond about 220 points and returns to his normal expression. Blinking continues while he watches. This samples the current pointer position without capturing mouse events.
+
 ## Play with the keyboard
 
 Choose hiking menu → **Control Explorer with Keyboard…**. A small control window takes focus and shows the keys. The explorer stops choosing adventures until you leave control mode.
