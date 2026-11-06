@@ -119,7 +119,7 @@ final class ExplorerRig: SKNode {
     private let leftEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
     private let rightEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
     private let leftArm = RigLimb(upper: 12, lower: 12, color: ExplorerPalette.jacket, foot: false)
-    private let rightArm = RigLimb(upper: 12, lower: 12, color: ExplorerPalette.farSleeve, foot: false)
+    private let rightArm = RigLimb(upper: 12, lower: 12, color: ExplorerPalette.jacket, foot: false)
     private let leftLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: ExplorerPalette.trousers, foot: true)
     private let rightLeg = RigLimb(upper: ExpeditionConfiguration.legSegmentLength, lower: ExpeditionConfiguration.legSegmentLength, color: ExplorerPalette.trousers, foot: true)
     private var animator = RigAnimator()

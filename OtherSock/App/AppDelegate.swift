@@ -147,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .swing: return "Swing on the Rope"
         case .releaseRope: return "Let Go of the Rope"
         case .parachute: return "Jump and Parachute"
-        case .bananaAdventure: return "Look for the Sock"
+        case .sockSearch: return "Look for the Sock"
         case .automatic: return "Enable Idle Exploration"
         }
     }

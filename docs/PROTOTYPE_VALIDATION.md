@@ -266,3 +266,12 @@ Up to two streams now cover the attached/working window and the visible keyboard
 - 22 live ScreenCaptureKit checks pass across 720 × 520 and 1372 × 920 fixtures: faint rules, low-contrast blocks, vertical cracks, text/underline rejection, scroll grip identity and continuous holds during unrelated repaints.
 - Debug and packaged Release builds pass. Live diagnostics show four keyboard holds alongside working-window holds, and 14 exposed terrain segments versus only three screen-rescue segments before the repair.
 - The updated app remains running with the existing exploration/guide preferences. Internal capture is bounded to the working/attached window plus a supplementary window; it does not analyse every background window simultaneously.
+
+
+## Patterned socks, matching sleeves and Jerry — 6 November 2026
+
+Removed the banana artwork/reveal and discovery flag. The exploration sequence now finds the sock it spots, with four rotating designs: red/cream stripes, blue/cream spots, teal argyle and purple zigzags. Patterns, cuff ribbing, heels and toes are clipped to the sock silhouette. Native SpriteKit artwork for all four designs was rendered and visually reviewed. Core mission/activity names are now SockMission/sockSearch; routing, interruption and completion behaviour are retained.
+
+Both arms now use the same jacket colour/material; the separate darker far-sleeve base was removed. The shared model instructions identify the explorer as Jerry and allow direct conversational answers without computer tools. Live ChatGPT acceptance: “What is your name?” returned “My name is Jerry.” with no computer tool action.
+
+162 core tests, 72 native checks and 18 agent checks pass. Debug and packaged Release builds pass. The updated Debug app remains running.

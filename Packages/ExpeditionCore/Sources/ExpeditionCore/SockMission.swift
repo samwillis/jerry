@@ -2,7 +2,7 @@ import Foundation
 
 /// An interruptible, deterministic comic sequence. No asynchronous animation callbacks:
 /// every beat is driven by the same fixed simulation clock as movement.
-public struct BananaMission {
+public struct SockMission {
     public enum Stage: String, CaseIterable, Sendable {
         case selecting, spotting, approaching, crossing, investigating, revealing, updatingMap, resting
     }

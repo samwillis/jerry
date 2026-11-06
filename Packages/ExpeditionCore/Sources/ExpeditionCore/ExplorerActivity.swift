@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ExplorerActivity: String, CaseIterable, Sendable {
-    case walk, climb, abseil, grapple, ropeClimb, swing, releaseRope, parachute, bananaAdventure, automatic
+    case walk, climb, abseil, grapple, ropeClimb, swing, releaseRope, parachute, sockSearch, automatic
     public var title: String {
         switch self {
         case .walk: return "Walk"
@@ -12,7 +12,7 @@ public enum ExplorerActivity: String, CaseIterable, Sendable {
         case .swing: return "Swing on rope"
         case .releaseRope: return "Release rope"
         case .parachute: return "Parachute"
-        case .bananaAdventure: return "Find the sock"
+        case .sockSearch: return "Find the sock"
         case .automatic: return "Automatic adventures"
         }
     }

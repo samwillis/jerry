@@ -4,7 +4,6 @@ import SpriteKit
 @MainActor
 enum ExplorerPalette {
     static let jacket = NSColor(calibratedRed: 0.83, green: 0.53, blue: 0.18, alpha: 1)
-    static let farSleeve = NSColor(calibratedRed: 0.68, green: 0.4, blue: 0.13, alpha: 1)
     static let trousers = NSColor(calibratedRed: 0.27, green: 0.30, blue: 0.32, alpha: 1)
     static let skin = NSColor(calibratedRed: 0.93, green: 0.74, blue: 0.55, alpha: 1)
     static let bag = NSColor(calibratedRed: 0.52, green: 0.38, blue: 0.25, alpha: 1)

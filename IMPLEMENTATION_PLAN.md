@@ -2,13 +2,13 @@
 
 ## Objective and scope
 
-Deliver a runnable macOS prototype with one draggable explorer that climbs real windows, parachutes towards a supposed sock, and discovers a banana. The user must be able to continue working normally throughout.
+Deliver a runnable macOS prototype with one draggable explorer that climbs real windows, parachutes towards a patterned sock, and records the discovery. The user must be able to continue working normally throughout.
 
 The product concept and later ideas live in [PLAN.md](PLAN.md). This document describes the build order. Do not start with three characters, finished artwork, a journal, or Windows support.
 
 ## Current status
 
-Phases 1–7 are implemented for the local, single-display macOS prototype. The latest increment connects real desktop travel, the repeating banana adventure, saved menu preferences, lifecycle guards, and Release packaging. Verification and practical limits are recorded in [prototype validation](docs/PROTOTYPE_VALIDATION.md); this does not claim full-screen traversal, a Windows port, or public distribution readiness.
+Phases 1–7 are implemented for the local, single-display macOS prototype. The latest increment connects real desktop travel, the repeating sock hunt, saved menu preferences, lifecycle guards, and Release packaging. Verification and practical limits are recorded in [prototype validation](docs/PROTOTYPE_VALIDATION.md); this does not claim full-screen traversal, a Windows port, or public distribution readiness.
 
 ## Initial technical decisions
 
@@ -114,7 +114,7 @@ Implement in small, reviewable tasks. Each task should produce a runnable previe
 3. **Character design task:** use an image-generation agent/tool to draw a reference character with a clear silhouette, oversized equipment, and a consistent style. Review at actual desktop size before producing all the parts.
 4. **Body-part artwork task:** generate artwork and prepare separate transparent parts using the reference and a documented neutral pose. Record each asset's dimensions, pivot, attachment points, overlap, and layer order in a rig manifest. Inspect and clean up alignment, transparent edges, missing areas behind joints, and consistency of clothing and proportions; generation alone does not guarantee rig-ready assets.
 5. **Artwork integration task:** replace placeholder shapes with the prepared parts without changing the movement system. Check every preview pose in both directions and on light and dark backgrounds. Keep the shape rig available for debugging.
-6. **Personality task:** add facial expressions and bespoke poses for binoculars, the upside-down map, the kettle, and the banana reveal. Keep these expressions and equipment poses on the single explorer; vary his confidence, caution and fatigue.
+6. **Personality task:** add facial expressions and bespoke poses for binoculars, the upside-down map, the kettle, and the sock discovery. Keep these expressions and equipment poses on the single explorer; vary his confidence, caution and fatigue.
 
 Prefer one consistent articulated rig over independently generated full-frame sprite sheets. Use occasional hand-authored or generated-and-cleaned special frames where articulation cannot express a comic pose well. Finished art and the other two characters remain subsequent increments; this stage establishes the workflow with one explorer.
 
@@ -155,18 +155,18 @@ Refinement (6 November 2026): added phase-synchronised walking and climbing, a s
 
 Rope increment (6 November 2026): grappling, swinging, rope climbing and abseiling now share a physical line/session. Hook acquisition adds reachable graph transitions; gravity, slack/tension, reeling/payout, contacts and momentum govern hanging movement. Menu mode changes keep the existing line, and a landed abseiler can climb back up it. Native and numerical verification is in the latest rope section of the validation record.
 
-## 6. Assemble the banana adventure
+## 6. Assemble the sock hunt
 
-1. Implement mission stages: select destination, spot suspected sock, approach launch point, cross, investigate, reveal banana, update map, rest.
+1. Implement mission stages: select destination, spot suspected sock, approach launch point, cross, investigate, discover the sock, update map, rest.
 2. Place the discovery prop on a reachable surface. Tie its location to its supporting window and reselect if that location disappears.
 3. Prefer parachuting when a valid launch and landing pair exists; use climbing or a nearer destination when the desktop layout does not permit it.
-4. Add binoculars, a flag, a parachute, a rope, and a banana using simple temporary art.
+4. Add binoculars, patterned socks, a parachute, and a rope using simple temporary art.
 5. Coordinate movement and animation through events. Cancel stale animation completions when the user grabs a character or its route changes.
 6. Add small pauses for anticipation, disappointment, and misplaced confidence.
 
 Acceptance: the entire sequence runs unattended on a suitable desktop layout, and interruption by dragging or window changes does not strand the mission. A sparse desktop still permits safe wandering and rest.
 
-Implementation status (5 November 2026): the deterministic mission director selects a reachable discovery, prefers parachute routes when available, and runs spotting, approach, crossing, investigation, banana reveal, map update, and rest beats. Simple binoculars, a sock silhouette, banana, flag, map, canopy, and anchored rope render in the click-through layer. Window-relative props follow their supports; missing destinations and grabs invalidate the old mission. Tests cover unattended repetition on sparse and suitable desktops, interruption, moving/removing destinations, and landing continuations.
+Implementation status (5 November 2026): the deterministic mission director selects a reachable discovery, prefers parachute routes when available, and runs spotting, approach, crossing, investigation, sock discovery, map update, and rest beats. Simple binoculars, patterned socks, map, canopy, and anchored rope render in the click-through layer. Window-relative props follow their supports; missing destinations and grabs invalidate the old mission. Tests cover unattended repetition on sparse and suitable desktops, interruption, moving/removing destinations, and landing continuations.
 
 ## 7. Package and evaluate the first prototype
 
@@ -276,3 +276,8 @@ Removed the companion renderer, recruitment tool and role/job scheduling entirel
 ## Ask shortcut and menu organisation — 6 November 2026
 
 Added a registered Control–Option–Return system shortcut for Ask Explorer, independent of the Control–Option–Space manual-control shortcut. Both handlers filter their own Carbon event IDs, handle key release and suppress repeat presses. Reopening an existing prompt preserves its draft and return-to-control behaviour. The main menu groups task/journal actions and manual/idle modes; movement preferences are under Settings, while terrain guides, activity tests and the Debug animation playground are under Developer Tools.
+
+
+## Patterned sock discoveries and Jerry — 6 November 2026
+
+The banana gag has been removed. SockMission now discovers the same patterned sock it spots, rotating stripes, spots, argyle and zigzags between completed expeditions. Both sleeves share the jacket palette. The shared AI system prompt names the explorer Jerry and separates conversational replies from computer tasks; live identity acceptance returned “My name is Jerry.”

@@ -101,7 +101,7 @@ public struct ExplorerInteraction {
     public private(set) var idleExplorationEnabled = true
     public var autonomous = false
     public var runsMission = false
-    public private(set) var mission = BananaMission()
+    public private(set) var mission = SockMission()
     public private(set) var requestedActivity: ExplorerActivity?
     public private(set) var pendingActivity: ExplorerActivity?
     public private(set) var activityIssue: String?
@@ -123,7 +123,7 @@ public struct ExplorerInteraction {
         return "\(requestedActivity.title): \(hasPendingTravel ? state.rawValue : "finished")"
     }
     public var availableActivities: Set<ExplorerActivity> {
-        var result: Set<ExplorerActivity> = [.automatic, .bananaAdventure]
+        var result: Set<ExplorerActivity> = [.automatic, .sockSearch]
         if ropeSession != nil {
             result.formUnion([.abseil, .ropeClimb, .swing, .releaseRope])
             if ropeSession?.mode != .supported { return result }
@@ -184,7 +184,7 @@ public struct ExplorerInteraction {
             afterLanding.removeAll()
             return true
         }
-        if activity == .automatic || activity == .bananaAdventure {
+        if activity == .automatic || activity == .sockSearch {
             if activity == .automatic { idleExplorationEnabled = true }
             if let source = currentSupport { attachment = source }
             route.removeAll(); afterLanding.removeAll(); ropeSession = nil

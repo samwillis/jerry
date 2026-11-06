@@ -25,7 +25,7 @@ Give the explorer a destination and a short sequence:
 2. Climb to a launch point.
 3. Jump and deploy a parachute.
 4. Land and investigate.
-5. Discover a banana.
+5. Discover a patterned sock.
 6. Mark the map with unjustified confidence.
 
 Add abseiling as another way down, plus recovery behaviours for missed landings and disappearing platforms.
@@ -78,7 +78,7 @@ Prioritise getting the Mac version right; the first prototype should help decide
 
 ## First milestone
 
-One draggable explorer, one display, real window climbing, one parachute jump, and one disappointing banana. This should establish whether the central idea feels alive before building the whole expedition.
+One draggable explorer, one display, real window climbing, one parachute jump, and one patterned sock. This should establish whether the central idea feels alive before building the whole expedition.
 
 ## Later ideas
 

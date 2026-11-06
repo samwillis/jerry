@@ -1,7 +1,7 @@
 import XCTest
 @testable import ExpeditionCore
 
-final class BananaMissionTests: XCTestCase {
+final class SockMissionTests: XCTestCase {
     private let viewport = WorldRect(x: 0, y: 0, width: 1000, height: 800)
     private func terrain(_ windows: [DesktopWindow] = []) -> TerrainSnapshot { .init(windows: windows, viewport: viewport) }
     private func explorer(_ terrain: TerrainSnapshot, at position: WorldPoint = .init(x: 100, y: 0)) -> ExplorerInteraction {
@@ -20,7 +20,7 @@ final class BananaMissionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(subject.mission.completedExpeditions, 2)
         XCTAssertTrue(stages.isSuperset(of: ["selecting", "spotting", "crossing", "investigating", "revealing", "updatingMap", "resting"]))
     }
-    func testSuitableLayoutUsesParachuteAndCompletesBananaAdventure() {
+    func testSuitableLayoutUsesParachuteAndCompletesSockSearch() {
         let t = terrain([.init(id: 1, frame: .init(x: 300, y: 20, width: 300, height: 350))])
         var subject = explorer(t, at: .init(x: 450, y: 370))
         var stages = Set<String>(), states = Set<String>()
@@ -84,7 +84,7 @@ final class BananaMissionTests: XCTestCase {
     }
 }
 
-extension BananaMissionTests {
+extension SockMissionTests {
     func testGrabAndReleaseWithoutAdvancingClockCancelsMissionImmediately() {
         var subject = explorer(terrain())
         for _ in 0..<300 { subject.advance(by: 1.0 / 60); if subject.mission.target != nil { break } }

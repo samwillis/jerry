@@ -166,7 +166,7 @@ final class ManualControlFollowupTests: XCTestCase {
     }
     func testExplicitSockSearchRunsOnceWhenIdleExplorationIsOff() {
         var value = actor(); value.setIdleExploration(false)
-        XCTAssertTrue(value.requestActivity(.bananaAdventure))
+        XCTAssertTrue(value.requestActivity(.sockSearch))
         advance(&value, 120)
         XCTAssertEqual(value.mission.completedExpeditions, 1)
         XCTAssertFalse(value.runsMission)
