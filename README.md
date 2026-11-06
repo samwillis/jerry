@@ -4,7 +4,7 @@ A tiny, deeply unqualified desktop expedition searching for the other sock.
 
 ## Current prototype: phases one to seven
 
-The macOS app draws one articulated, approximately 74-point explorer above normal windows. The hiking menu groups **Ask Jerry…** and **Expedition Journal…** first, followed by **Take Control**, **Enable Idle Exploration**, and **Stop Task** while AI work is running. **Settings…** opens one window with General, AI, Privacy & Access, Controls and Advanced sections. Preferences save immediately. Welcome, Settings and the journal share a warm field-notebook style. Enable Developer Tools under Advanced to expose activity tests; Debug builds also include the animation playground. Menus use at most two levels.
+The macOS app draws one articulated, approximately 74-point explorer above normal windows. The Jerry menu groups **Ask Jerry…** and **Expedition Journal…** first, followed by **Take Control**, **Enable Idle Exploration**, and **Stop Task** while AI work is running. **Settings…** opens one window with General, AI, Privacy & Access, Controls and Advanced sections. Preferences save immediately. Welcome, Settings and the journal share a warm field-notebook style. Enable Developer Tools under Advanced to expose activity tests; Debug builds also include the animation playground. Menus use at most two levels.
 
 With **Enable Idle Exploration** checked, he wanders, explores windows and looks for the sock. Uncheck it and he stays where he is, watches a nearby pointer, and remains draggable. Gravity, window-edge landing and parachute recovery keep working. This does not freeze the simulation. Leaving manual control respects the idle preference. A legacy paused preference starts with idle exploration disabled.
 
@@ -47,7 +47,7 @@ Hold **Shift** for a distinct running gait at about twice manual walking speed, 
 
 Releasing Up/Down holds the current rope length, allowing a natural swing. Walking uses twice the normal cadence and matches its foot motion. A ground jump has a short, planted crouch and leg push before take-off, then tucks and reaches for landing. Air steering accelerates smoothly and retains sideways momentum on release. Landings compress the knees before moving on. There are no mid-air double jumps. Changing apps, pausing, dragging, resetting, sleeping, or leaving the desktop stops keyboard capture and clears held directions. Movement needs no Accessibility or Input Monitoring permission.
 
-**E** targets the visible crosshair, first using an accessible control's Press action and otherwise sending one ordinary left click there. Choose **Settings → Privacy & Access → Open Accessibility Settings…** in the hiking menu (or press E once), then enable The Other Sock under **System Settings → Privacy & Security → Accessibility**. Return to keyboard control afterward. Without that permission E performs no click. Clicks keep the manual session and rope active. After an action takes focus, the explorer regains keyboard input without opening a window. E works while hanging, climbing or swinging; held movement is reconciled afterward to prevent stuck keys. Use Esc if you want to type in the target app normally. Buttons and toggles can be pressed; this first version does not route text typing, double-clicks, right-clicks, or drag gestures through the explorer.
+**E** targets the visible crosshair, first using an accessible control's Press action and otherwise sending one ordinary left click there. Choose **Settings → Privacy & Access → Open Accessibility Settings…** in the Jerry menu (or press E once), then enable The Other Sock under **System Settings → Privacy & Security → Accessibility**. Return to keyboard control afterward. Without that permission E performs no click. Clicks keep the manual session and rope active. After an action takes focus, the explorer regains keyboard input without opening a window. E works while hanging, climbing or swinging; held movement is reconciled afterward to prevent stuck keys. Use Esc if you want to type in the target app normally. Buttons and toggles can be pressed; this first version does not route text typing, double-clicks, right-clicks, or drag gestures through the explorer.
 
 ## Trigger an activity
 
@@ -75,7 +75,7 @@ Movement uses a fixed 120 Hz simulation with at most 0.25 seconds of catch-up af
 
 ## Animation playground
 
-Enable Developer Tools in **Settings → Advanced**, then open **Developer Tools → Animation Playground…** from the hiking menu, or quit the current app and run its executable with `--playground`. Preview every motion (including Landing), switch facing and background, pause/restart, slow playback, show joints, and tune stride, cadence, and bounce. **Preview time (pauses)** freezes an exact frame for inspection. Drag climbing handholds, the rope anchor, the grab pivot, or the body. A small actual-size explorer appears alongside the enlarged version. See [animation workflow and rig details](docs/ANIMATION_WORKFLOW.md).
+Enable Developer Tools in **Settings → Advanced**, then open **Developer Tools → Animation Playground…** from the Jerry menu, or quit the current app and run its executable with `--playground`. Preview every motion (including Landing), switch facing and background, pause/restart, slow playback, show joints, and tune stride, cadence, and bounce. **Preview time (pauses)** freezes an exact frame for inspection. Drag climbing handholds, the rope anchor, the grab pivot, or the body. A small actual-size explorer appears alongside the enlarged version. See [animation workflow and rig details](docs/ANIMATION_WORKFLOW.md).
 
 The desktop and playground share the same articulated rig and animation controller. Knees bend towards the toes; elbow poles favour the back of the body. The desktop now drives those same movement poses from real surface routes. Final character artwork remains a later refinement.
 
@@ -92,7 +92,7 @@ open build/Build/Products/Debug/OtherSock.app
 
 Or open `OtherSock.xcodeproj`, select the **OtherSock** scheme and **My Mac**, and run. If Xcode requests signing, select **Sign to Run Locally** for local development. The command-line build disables signing and is intended only for local use.
 
-Look just above the Dock, near the horizontal centre of the primary display. The app has no Dock icon or ordinary application window. Use the hiking menu bar icon to control or quit it. Quit a running copy before launching a newly built version.
+Look just above the Dock, near the horizontal centre of the primary display. The app has no Dock icon or ordinary application window. Use the Jerry menu bar icon to control or quit it. Quit a running copy before launching a newly built version.
 
 Debug guides show exposed window tops in green, sides in pink, rescue screen boundaries in teal, and the character's input bounds in yellow. The label reports character state, climbable window count, and visible edge count. Terrain refreshes at approximately 10 Hz and uses window stacking order to subtract covered edges. Guides and geometry remain in logical points on the primary display.
 

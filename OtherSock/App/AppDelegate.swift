@@ -98,9 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.mainMenu = bar
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        if let image = NSImage(systemSymbolName: "figure.hiking", accessibilityDescription: "The Other Sock") {
-            image.isTemplate = true; item.button?.image = image
-        } else { item.button?.title = "Sock" }
+        item.button?.image = ExplorerRig.menuBarArtwork()
         let menu = NSMenu()
         menu.autoenablesItems = false; menu.delegate = self
         let heading = NSMenuItem(title: "The Other Sock", action: nil, keyEquivalent: "")
@@ -310,6 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuNeedsUpdate(developerMenu)
         var passed = true
         func check(_ result: Bool, _ name: String) { print("NATIVE \(result ? "PASS" : "FAIL") \(name)"); passed = passed && result }
+        check(statusItem?.button?.image?.isTemplate == true && statusItem?.button?.image?.size == NSSize(width: 18, height: 18), "menu bar uses Jerry's actual rig as a monochrome template")
         let developer = statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.submenu
         check(developer?.items.contains { $0.title == "Show Terrain Guides" && $0.action == #selector(toggleDebug) } == true && statusItem?.menu?.items.contains { $0.action == #selector(toggleDebug) } == false, "terrain guides are available inside Developer Tools")
         check(developerMenu === developer && developer?.items.contains { $0.action == #selector(triggerActivity(_:)) } == true, "activity tests are directly inside Developer Tools")

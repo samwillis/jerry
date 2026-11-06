@@ -233,6 +233,31 @@ final class ExplorerRig: SKNode {
     }
 
     /// One head-mounted pair for both sock spotting and AI screen reading.
+    /// The actual rig contours, not a separately drawn approximation.
+    static func menuBarArtwork() -> NSImage {
+        let rig = ExplorerRig(); rig.render(delta: 0)
+        let paths = rig.shadowPieces.compactMap(\.path)
+        let bounds = paths.reduce(CGRect.null) { $0.union($1.boundingBoxOfPath) }
+        let eyeCutouts = CGMutablePath()
+        for eye in [rig.leftEye, rig.rightEye] {
+            if let path = eye.path { appendSilhouette(path, from: eye, to: rig, into: eyeCutouts) }
+        }
+        let image = NSImage(size: .init(width: 18, height: 18), flipped: false) { _ in
+            let context = NSGraphicsContext.current!.cgContext
+            let scale = min(16 / bounds.width, 16 / bounds.height)
+            context.saveGState()
+            context.translateBy(x: 9 - bounds.midX * scale, y: 9 - bounds.midY * scale)
+            context.scaleBy(x: scale, y: scale)
+            context.setFillColor(NSColor.black.cgColor)
+            for path in paths { context.addPath(path); context.fillPath() }
+            context.setBlendMode(.clear); context.addPath(eyeCutouts); context.fillPath()
+            context.restoreGState()
+            return true
+        }
+        image.isTemplate = true; image.accessibilityDescription = "Jerry — The Other Sock"
+        return image
+    }
+
     private func buildBinoculars() {
         let casing = NSColor(calibratedRed: 0.19, green: 0.25, blue: 0.24, alpha: 1)
         let brass = NSColor(calibratedRed: 0.64, green: 0.53, blue: 0.32, alpha: 1)

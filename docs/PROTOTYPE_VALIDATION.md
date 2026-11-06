@@ -339,3 +339,10 @@ Retracted each sleeve’s rounded stroke endpoint 1.6 points along the forearm, 
 ## About panel icon — 6 November 2026
 
 The About panel now explicitly loads the bundled AppIcon.icns instead of relying on the system-provided application image. Startup also sets the runtime application icon from that resource. About is available in the regular application menu as well as the hiking menu. Debug/Release builds pass; live review of the opened native About panel confirmed Jerry’s icon replaces the placeholder. The panel remains open for review.
+
+
+## Jerry’s monochrome menu-bar icon — 6 November 2026
+
+Replaced the generic hiking SF Symbol with an 18-point monochrome template generated directly from the real rig’s silhouette paths and eye geometry. Hat, backpack, arms, hands, legs and boots retain their original proportions and pose. It is vector-drawn at the requested backing resolution and uses native template tinting for light/dark/highlighted menu-bar states. No separate approximation of the character is used.
+
+79 native checks pass, including status-item template mode and size. The actual geometry was previewed at menu-bar size on light and dark backgrounds. Debug and packaged Release builds pass; the updated app is running.
