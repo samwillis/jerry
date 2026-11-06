@@ -119,3 +119,8 @@ The playground's **Jumping** motion uses the same preparation, ballistic height,
 ## Rope-climbing elbow stability — 6 November 2026
 
 Climbing uses explicit near/far arm hinge directions instead of a shared pole whose cross product could change sign mid-stroke. Grips stay inside their respective shoulder boundaries, within a 23.5-point reach allowance, and above the harness. Each loaded grip drops by the distance reeled in, keeping its world contact fixed until the next reach; horizontal line angles shorten strokes to stay reachable. Fixed hinges mirror with the rig. Abseiling retains its existing arm setup.
+
+
+## Rope foreground layers — 6 November 2026
+
+During rope climbing, swinging and abseiling, both arms draw above the torso. The active rope draws in front of the jacket and below the arm/grip layers. Other motions restore the ordinary far-arm ordering. Playground abseiling uses the same foreground rope order.

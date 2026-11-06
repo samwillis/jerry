@@ -132,3 +132,8 @@ The crouch, fully extended take-off, airborne tuck and landing compression were 
 126 core tests pass, including resuming idle exploration after an explicit action, a single explicit sock search while idle exploration is off, disabling idle exploration mid-walk, passive drop/landing while idle exploration is off, respecting the preference after manual control, selecting/rejecting aimed rims, firing in flight, preserving momentum when replacing an attached line, and pumping/braking a swing tangentially. 35 native checks pass, covering G hold/release, click-induced focus loss, the simplified menu, idle checkbox behavior, and registering/dispatching/unregistering the system hotkey with repeat suppression.
 
 Real disposable fixture runs received native AXPress clicks and custom-canvas fallback clicks, both from the floor and while attached to a rope. The control HUD remained active with focus after each click; G produced firing→swinging and arrows continued movement/climbing. Accessibility was already granted; no new permission was granted by these checks. The global shortcut registered successfully; native dispatch invokes its callback. Targeted computer-use keyboard injection did not trigger the OS-wide shortcut path, so physical cross-app shortcut use remains a manual acceptance check. Both Debug and packaged Release builds pass.
+
+
+### Rope/arm visibility — 6 November 2026
+
+Debug and packaged Release builds pass, with all 35 applicable native checks passing. A real high-window fixture climb was inspected: the formerly hidden arm is visible in front of the jacket, and the line remains visible across the body beneath the hands. This is a render-layer change; physics, rig endpoints and input bounds are unchanged.

@@ -41,6 +41,7 @@ final class ExplorerScene: SKScene {
         addChild(rope)
         rope.strokeColor = .init(calibratedRed: 0.72, green: 0.57, blue: 0.32, alpha: 1)
         rope.lineWidth = 1.2
+        rope.zPosition = 1 // Over the jacket, beneath the foreground rope grips.
         addChild(explorer)
         let hookPath = CGMutablePath()
         hookPath.move(to: .init(x: -5, y: 0)); hookPath.addLine(to: .init(x: 4, y: 0))

@@ -44,6 +44,7 @@ final class AnimationPlaygroundScene: SKScene {
         backgroundColor = NSColor(calibratedWhite: 0.09, alpha: 1)
         addChild(terrain)
         addChild(rope)
+        rope.zPosition = 1
         addChild(rig)
         addChild(actualSizeRig)
         addChild(handles)

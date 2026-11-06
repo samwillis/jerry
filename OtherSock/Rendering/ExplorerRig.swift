@@ -249,6 +249,11 @@ final class ExplorerRig: SKNode {
 
     func render(delta: Double) {
         var pose = animator.advance(by: delta, synchronizedTime: synchronizedTime)
+        // Both rope grips must read in front of the jacket, with the line between
+        // the torso and gloves. Restore the usual far-arm stack for other motions.
+        let onRope = ropePose != nil || [.ropeClimbing, .ropeSwinging, .abseiling].contains(motion)
+        rightArm.zPosition = onRope ? 2 : 0
+        leftArm.zPosition = onRope ? 3 : 0
         ropeBlendTime += delta.isFinite ? min(max(delta, 0), 0.1) : 0
         if let ropePose {
             let t = min(1, ropeBlendTime / 0.15)
