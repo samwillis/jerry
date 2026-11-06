@@ -334,3 +334,8 @@ The reproducible scripts/render-app-icon.sh exporter creates the PNG master and 
 ## Sleeve caps inside the hands — 6 November 2026
 
 Retracted each sleeve’s rounded stroke endpoint 1.6 points along the forearm, so its cap ends inside the palm rather than protruding past it. Hand placement, IK/contact targets and boots are unchanged. Regenerated the icon from the corrected rig and visually reviewed both wrists. Debug/Release builds and 78 native checks pass.
+
+
+## About panel icon — 6 November 2026
+
+The About panel now explicitly loads the bundled AppIcon.icns instead of relying on the system-provided application image. Startup also sets the runtime application icon from that resource. About is available in the regular application menu as well as the hiking menu. Debug/Release builds pass; live review of the opened native About panel confirmed Jerry’s icon replaces the placeholder. The panel remains open for review.

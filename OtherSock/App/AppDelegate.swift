@@ -5,6 +5,7 @@ import ExpeditionCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
+    private let applicationArtwork = Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap { NSImage(contentsOf: $0) }
     private var overlay: OverlayController?
     private var welcome: WelcomeController?
     private var taskController: AgentTaskController?
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let applicationArtwork { NSApp.applicationIconImage = applicationArtwork }
         installMenu()
         overlay = OverlayController()
         overlay?.onKeyboardControlChanged = { [weak self] enabled in
@@ -80,6 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if NSApp.mainMenu == nil {
             let bar = NSMenu()
             let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu
+            appMenu.addItem(withTitle: "About The Other Sock", action: #selector(showAbout), keyEquivalent: "").target = self
+            appMenu.addItem(.separator())
             let ask = appMenu.addItem(withTitle: "Ask Jerry…", action: #selector(openTasks), keyEquivalent: "\r")
             ask.target = self; ask.keyEquivalentModifierMask = [.control, .option]
             appMenu.addItem(withTitle: "Expedition Journal…", action: #selector(showAgentActivity), keyEquivalent: "").target = self
@@ -236,7 +240,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func stopTask() { taskController?.stop() }
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "The Other Sock", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "", .credits: NSAttributedString(string: "Jerry. One small adventurer. One missing sock.")])
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [.applicationName: "The Other Sock", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "", .credits: NSAttributedString(string: "Jerry. One small adventurer. One missing sock.")]
+        // Avoid the placeholder held by Launch Services for an earlier local build.
+        if let applicationArtwork { options[.applicationIcon] = applicationArtwork }
+        NSApp.orderFrontStandardAboutPanel(options: options)
     }
     private func applySettings() {
         let defaults = UserDefaults.standard
