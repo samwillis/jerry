@@ -161,7 +161,7 @@ public struct RopeSession {
         }
         previousAnchor = guide.anchor
     }
-    public mutating func advance(by dt: Double, guide: AbseilRope, minimumLength: Double) {
+    public mutating func advance(by dt: Double, guide: AbseilRope, minimumLength: Double, workRate: Double = 1) {
         followSupport(guide)
         supportMotionAge += dt
         if supportMotionAge > 0.15 { supportVelocity = .zero }
@@ -181,14 +181,15 @@ public struct RopeSession {
             return
         }
         guard mode != .supported else { return }
+        let motorTime = dt * min(2, max(1, workRate))
         var payOut = 0.0
         if takeUp > 0 {
-            let part = min(dt * 120, takeUp); payOut -= part; takeUp -= part
+            let part = min(motorTime * 120, takeUp); payOut -= part; takeUp -= part
             if takeUp <= 0 { age = 0 }
         } else if mode == .climbing {
-            payOut -= ClimbingGait.distance(from: pullTime, to: pullTime + dt)
-            pullTime += dt
-        } else if mode == .descending { payOut += 48 * dt }
+            payOut -= ClimbingGait.distance(from: pullTime, to: pullTime + motorTime)
+            pullTime += motorTime
+        } else if mode == .descending { payOut += 48 * motorTime }
         payOut = max(minimumLength - body.length, payOut)
         body.advance(by: dt, guide: guide, payOut: payOut)
         if mode == .swinging && climbsAfterSwing && age > 3.0 && takeUp <= 0 { switchMode(.climbing) }

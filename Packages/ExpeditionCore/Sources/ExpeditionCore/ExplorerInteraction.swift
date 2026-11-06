@@ -18,13 +18,25 @@ public struct ExplorerInteraction {
         }
     }
 
-    public enum State: String { case idle, held, settling, recovering, preparingJump, jumping, walking, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
+    public enum State: String { case idle, held, settling, recovering, preparingJump, jumping, walking, running, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
     public private(set) var position: Point
     public private(set) var state: State = .idle
     public private(set) var attachment: TerrainAttachment?
     public private(set) var keyboardControlEnabled = false
     public private(set) var controlHorizontal = 0.0
     public private(set) var controlVertical = 0.0
+    public private(set) var controlFastPace = false
+    public private(set) var runWhenExploring = false
+    public private(set) var fasterRopeWork = false
+    public var ropeWorkRate: Double { fasterRopeWork || (keyboardControlEnabled && controlFastPace) ? 1.8 : 1 }
+    public mutating func setRunWhenExploring(_ enabled: Bool) {
+        runWhenExploring = enabled
+        if !keyboardControlEnabled, route.first?.kind == .walking { startTravel() }
+    }
+    public mutating func setFasterRopeWork(_ enabled: Bool) { fasterRopeWork = enabled }
+    public private(set) var runningTime = 0.0
+    public var manualTravelSpeed: Double { controlFastPace ? RunningGait.speed : 80 }
+    public mutating func setControlFastPace(_ fast: Bool) { controlFastPace = keyboardControlEnabled && fast }
     private var controlVelocity = Point.zero
     public private(set) var jumpPreparationElapsed = 0.0
     public private(set) var jumpAirElapsed = 0.0
@@ -271,7 +283,7 @@ public struct ExplorerInteraction {
             }
             if ropeSession != nil && ropeSession?.mode != .supported {
                 advanceRope(by: dt)
-            } else if state == .walking || state == .climbing || state == .abseiling || state == .traversingEdge {
+            } else if state == .walking || state == .running || state == .climbing || state == .abseiling || state == .traversingEdge {
                 advanceTravel(by: dt)
             } else {
                 advancePhysics(by: dt)
@@ -482,7 +494,9 @@ public struct ExplorerInteraction {
             if hypot(to.x - from.x, to.y - from.y) > 1 { ropeSession = nil }
             let direction: Double = to.x >= from.x ? 1 : -1
             if state != .walking || facing != direction { walkingTime = 0 }
-            state = .walking; facing = direction
+            let runs = runWhenExploring && !keyboardControlEnabled && requestedActivity == nil && hypot(to.x - from.x, to.y - from.y) >= 90
+            if runs && state != .running { runningTime = 0 }
+            state = runs ? .running : .walking; facing = direction
         case .climbing:
             if state != .climbing { climbingTime = ClimbingGait.time(atHeight: heightAlongWall) }
             state = .climbing; facing = step.from.edge == .left ? 1 : -1
@@ -508,12 +522,19 @@ public struct ExplorerInteraction {
         if let motion = edgeMotion {
             travelFraction = min(1, travelFraction + dt / EdgeTraversal.duration(motion))
         } else if step.kind == .walking {
-            let travelled = WalkingGait.distance(from: walkingTime, to: walkingTime + dt, tuning: walkingTuning)
-            walkingTime += dt
+            let travelled: Double
+            if state == .running {
+                travelled = RunningGait.distance(from: runningTime, to: runningTime + dt)
+                runningTime += dt
+            } else {
+                travelled = WalkingGait.distance(from: walkingTime, to: walkingTime + dt, tuning: walkingTuning)
+                walkingTime += dt
+            }
             travelFraction = min(1, travelFraction + travelled / max(0.01, distance))
         } else if step.kind == .climbing {
-            let lifted = ClimbingGait.distance(from: climbingTime, to: climbingTime + dt)
-            climbingTime += dt
+            let workStep = dt * ropeWorkRate
+            let lifted = ClimbingGait.distance(from: climbingTime, to: climbingTime + workStep)
+            climbingTime += workStep
             travelFraction = min(1, travelFraction + lifted / max(0.01, distance))
         } else {
             travelFraction = min(1, travelFraction + 48 * dt / max(0.01, distance))
@@ -596,7 +617,7 @@ public struct ExplorerInteraction {
         let minimum = guide.length(to: lipHarness)
         let previous = position
         let wasFiring = session.mode == .firing
-        session.advance(by: dt, guide: guide, minimumLength: minimum)
+        session.advance(by: dt, guide: guide, minimumLength: minimum, workRate: ropeWorkRate)
         var next = session.feet
         if wasFiring && session.mode != .firing { attachment = nil }
         if !wasFiring || session.freeFlightWhileFiring {
@@ -702,7 +723,7 @@ public struct ExplorerInteraction {
             if ropeSession?.mode == .climbing || ropeSession?.mode == .descending { ropeSession?.switchMode(.swinging) }
             return
         }
-        if state == .walking || state == .climbing, let terrain, let support = currentSupport,
+        if state == .walking || state == .running || state == .climbing, let terrain, let support = currentSupport,
            let point = TerrainSupport.resolve(support, in: terrain) {
             attachment = support; position = point; route.removeAll(); state = .idle
         }
@@ -750,7 +771,7 @@ public struct ExplorerInteraction {
             } else { attachment = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1)?.0 }
         }
         keyboardControlEnabled = enabled
-        controlHorizontal = 0; controlVertical = 0
+        controlHorizontal = 0; controlVertical = 0; controlFastPace = false
         mission.cancel(); runsMission = !enabled && idleExplorationEnabled
         requestedActivity = nil; pendingActivity = nil
         route.removeAll(); afterLanding.removeAll(); flightContinuation.removeAll(); ropeContinuation.removeAll()
@@ -789,7 +810,7 @@ public struct ExplorerInteraction {
                 route.removeAll(); state = .preparingJump
                 return
             }
-            controlVelocity = .init(x: controlHorizontal * 80, y: controlVertical < 0 ? -30 : 260)
+            controlVelocity = .init(x: controlHorizontal * manualTravelSpeed, y: controlVertical < 0 ? -30 : 260)
             if controlVertical < 0 { dropThroughRemaining = 0.3 }
             attachment = nil
         }
@@ -822,7 +843,7 @@ public struct ExplorerInteraction {
             if jumpPreparationElapsed + 0.000001 >= JumpAnimation.preparationDuration {
                 jumpPreparationElapsed = JumpAnimation.preparationDuration
                 self.attachment = nil
-                controlVelocity = .init(x: controlHorizontal * 80, y: JumpAnimation.launchSpeed)
+                controlVelocity = .init(x: controlHorizontal * manualTravelSpeed, y: JumpAnimation.launchSpeed)
                 jumpAirElapsed = 0; state = .jumping
             }
             return
@@ -843,7 +864,7 @@ public struct ExplorerInteraction {
         if state == .jumping || attachment == nil {
             let previous = position
             jumpAirElapsed += dt
-            let targetSpeed = controlHorizontal * 80
+            let targetSpeed = controlHorizontal * manualTravelSpeed
             let acceleration = controlHorizontal == 0 ? 120.0 : 400.0
             controlVelocity.x += min(acceleration * dt, max(-acceleration * dt, targetSpeed - controlVelocity.x))
             // Exact constant-acceleration displacement avoids a take-off timing bias.
@@ -894,14 +915,15 @@ public struct ExplorerInteraction {
                 beginRope(.init(from: wall, to: wall, kind: .abseiling), mode: .descending)
                 return
             }
-            let lift = ClimbingGait.distance(from: climbingTime, to: climbingTime + dt)
+            let climbStep = dt * ropeWorkRate
+            let lift = ClimbingGait.distance(from: climbingTime, to: climbingTime + climbStep)
             let height = min(window.frame.height - EdgeTraversal.lipHeight, wall.offset + (controlVertical > 0 ? lift : 0))
             let next = TerrainAttachment(owner: wall.owner, edge: wall.edge, offset: height)
             if let point = TerrainSupport.resolve(next, in: terrain) {
                 attachment = next; position = point
                 facing = wall.edge == .left ? 1 : -1
                 state = controlVertical > 0 ? .climbing : .idle
-                if controlVertical > 0 { climbingTime += dt }
+                if controlVertical > 0 { climbingTime += climbStep }
                 if controlVertical > 0, height >= window.frame.height - EdgeTraversal.lipHeight - 0.001,
                    let mantle = graph?.steps.first(where: { $0.kind == .mantling && $0.from == next }) { _ = follow([mantle]) }
             }
@@ -910,13 +932,19 @@ public struct ExplorerInteraction {
         if controlHorizontal != 0 {
             ropeSession = nil
             facing = controlHorizontal
-            let stride = WalkingGait.distance(from: walkingTime, to: walkingTime + dt * 2, tuning: walkingTuning)
-            walkingTime += dt * 2
+            let stride: Double
+            if controlFastPace {
+                stride = RunningGait.distance(from: runningTime, to: runningTime + dt)
+                runningTime += dt
+            } else {
+                stride = WalkingGait.distance(from: walkingTime, to: walkingTime + dt * 2, tuning: walkingTuning)
+                walkingTime += dt * 2
+            }
             position.x += facing * stride
             clampPosition()
             if let (anchor, point) = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1) {
-                attachment = anchor; position = point; state = .walking
-            } else { attachment = nil; controlVelocity = .init(x: facing * 80, y: 0); jumpAirElapsed = 0; state = .jumping }
+                attachment = anchor; position = point; state = controlFastPace ? .running : .walking
+            } else { attachment = nil; controlVelocity = .init(x: facing * manualTravelSpeed, y: 0); jumpAirElapsed = 0; state = .jumping }
         } else {
             if state == .settling { settlingRemaining -= dt; if settlingRemaining > 0 { return } }
             state = .idle

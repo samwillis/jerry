@@ -229,3 +229,8 @@ Holding G aims a visible rim marker; release fires from standing, in flight or f
 ## Welcome and unobstructed manual control — 6 November 2026
 
 Replaced the long alert with a reusable welcome guide: the actual animated explorer, idle-exploration setting, concise key rows, click-access status/action, and Take Control/Let’s Go buttons. It appears on first launch, records dismissal, and is reopenable through Controls & Tips. The layout can scroll on smaller displays while keeping footer actions accessible. Manual control uses an invisible keyboard target, with no controls window. Holding G routes arrows to the aim marker; releasing fires and restores movement/swing controls. Mouse movement does not aim the hook.
+
+
+## Optional running and faster work — 6 November 2026
+
+Implemented Shift-running with a separate, gait-matched run and airborne stride phase, plus Shift for faster wall climbing, rope climbing and abseiling. Persistent Settings options Run When Exploring and Faster Rope Work make the respective speeds optional defaults. The first enables running on longer automatic walking legs; explicit Walk actions retain walking. Rope work speeds the motor/pull clock without changing gravity or pendulum timing. Settings do not enable idle exploration by themselves. The welcome guide documents Shift.

@@ -20,7 +20,12 @@ enum ExplorerMaterial: String {
 @MainActor
 final class PaintedPart: SKSpriteNode {
     private let silhouette: CGPath
-    var silhouettePath: CGPath { silhouette }
+    var silhouettePath: CGPath {
+        // The painted path is authored in its parent's coordinates, while the
+        // sprite itself is positioned at the bounds' centre.
+        var transform = CGAffineTransform(translationX: -bounds.midX, y: -bounds.midY)
+        return silhouette.copy(using: &transform) ?? silhouette
+    }
     private let material: ExplorerMaterial
     private let base: NSColor
     private let bounds: CGRect

@@ -27,11 +27,14 @@ Press **Control–Option–Space** from any app while The Other Sock is open, or
 | ← / → or A / D | Walk; steer while airborne; push a swing |
 | ↑ / W | Grab/climb a nearby exposed side, or climb the attached rope |
 | ↓ / S | Lower over a nearby window edge and abseil, or descend the attached rope |
+| Shift | Run; climb walls/ropes and abseil faster |
 | Space | Jump; jump off/release a rope |
 | ↓ + Space | Drop through the current platform |
 | Hold G, release G | Use the arrow keys to aim at a window’s top rim, then fire; works from a platform, in the air, or on a rope |
 | E | Click the crosshair beside his hand |
 | Esc | End control and return focus to the previous app |
+
+Hold **Shift** for a distinct running gait at about twice manual walking speed, or for 1.8× wall/rope climbing and abseiling. Release it to return to normal pace. **Settings → Run When Exploring** enables running on longer idle journeys, and **Faster Rope Work** makes the faster work rate the default. Both settings start off, persist across relaunch, and do not turn idle exploration on. Gravity, jump height, hook flight and swing timing remain unchanged.
 
 Releasing Up/Down holds the current rope length, allowing a natural swing. Walking uses twice the normal cadence and matches its foot motion. A ground jump has a short, planted crouch and leg push before take-off, then tucks and reaches for landing. Air steering accelerates smoothly and retains sideways momentum on release. Landings compress the knees before moving on. There are no mid-air double jumps. Changing apps, pausing, dragging, resetting, sleeping, or leaving the desktop stops keyboard capture and clears held directions. Movement needs no Accessibility or Input Monitoring permission.
 

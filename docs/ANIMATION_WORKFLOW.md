@@ -129,3 +129,12 @@ During rope climbing, swinging and abseiling, both arms draw above the torso. Th
 ## Explorer drop shadow — 6 November 2026
 
 A low-opacity silhouette follows the posed head/hat, torso, backpack, limbs, boots, hands and visible launcher. Opaque per-part paths are flattened and Gaussian-blurred before applying 22% opacity, avoiding overlap seams. It sits behind the explorer with a 2.5-point lower-right offset that keeps its screen direction when facing is mirrored. Canopy and world ropes are excluded. No input bounds or simulation positions change.
+
+
+## Running and accelerated rope work — 6 November 2026
+
+`RunningGait` has three cycles per second, 56 points of travel per cycle (168 pt/s), a planted stance whose backward sole motion cancels body travel exactly, and brief intervals with both feet airborne. Running uses bent arm pumps with fixed elbow hinges. The desktop synchronizes the pose to the movement clock; the playground has a Running clip. Shift selects it during manual horizontal travel; normal manual walking remains 80 pt/s. Run momentum carries into jumps without changing the vertical arc.
+
+Shift or the Faster Rope Work setting advances the climbing pull clock, winch take-up and descent payout at 1.8×. Gravity and fixed-step rope integration still use real elapsed time, including during swinging and hook flight. Run When Exploring selects the run for automatic walking legs of at least 90 points, while explicit Walk actions still walk. Settings remain independent of idle exploration.
+
+The run review also corrected shadow paths into sprite-local coordinates and disabled stale effect rasterization, keeping the animated shadow aligned with hats, boots and changing poses.

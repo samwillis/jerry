@@ -101,6 +101,7 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
         let rows = [
             ["⌃ ⌥ Space", "Take or release control, from any app"],
             ["Arrows / WASD", "Walk, climb, descend and swing"],
+            ["Shift", "Run / climb and abseil faster"],
             ["Space / ↓ + Space", "Jump / drop through a ledge"],
             ["Hold G + arrows", "Aim the grappling hook"],
             ["Release G", "Fire at the highlighted window rim"],

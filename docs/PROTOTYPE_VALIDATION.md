@@ -149,3 +149,10 @@ Manual mode now uses a 1×1 transparent, borderless keyboard target rather than 
 ### Explorer shadow — 6 November 2026
 
 The animated silhouette shadow was inspected against the welcome screen's light background. An initial compound-path render showed overlap artifacts; the final version uses opaque individual shapes composited through a blur, producing a clean, soft shadow. Debug and packaged Release builds and all 42 applicable native checks pass. This changes presentation only; the character's input area remains unchanged. With both the welcome illustration and desktop explorer rendering, a development frame report measured approximately 27–28 fps during inspection; this is not a claim of unchanged rendering cost.
+
+
+### Running and faster rope work — 6 November 2026
+
+132 core tests pass, including new running travel/animation synchronization, no planted-sole sliding, an airborne phase with reachable legs, Shift release, running jump momentum without extra height, optional idle-running behavior, faster ascent/descent on the same line, and unchanged gravity-driven swing timing. All 45 applicable native checks and Debug/packaged Release builds pass. The run was inspected enlarged and at desktop size with zero clamped contacts. Real Shift+Right input produced running then idle in the desktop trace without a controls window. Native checks cover modifier routing/reset and sprite-local shadow geometry.
+
+Both faster options are off by default. The fast rope setting changes motor work only; it is not a simulation-wide time scale. Normal/fast locomotion blends through the existing rig transition rather than introducing a separate physics mode.

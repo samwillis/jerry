@@ -83,6 +83,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     private(set) var isPerformingClick = false
     private var aiming = false
     var onDirection: ((Double, Double) -> Void)?
+    var onFastPace: ((Bool) -> Void)?
     var onJump: (() -> Void)?
     var onAimChanged: ((Bool) -> Void)?
     var onAimDirection: ((Double, Double) -> Void)?
@@ -140,6 +141,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     }
     func routeKey(_ event: NSEvent) -> NSEvent? {
         guard isControlling else { return event }
+        onFastPace?(event.modifierFlags.contains(.shift) && event.modifierFlags.intersection([.command, .option, .control]).isEmpty)
         if event.type == .flagsChanged {
             if !event.modifierFlags.intersection([.command, .option, .control]).isEmpty { clearDirections() }
             return event
@@ -176,7 +178,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
         isControlling = false
         clickRestore?.cancel(); clickRestore = nil; isPerformingClick = false
         aiming = false; onAimChanged?(false)
-        clearDirections()
+        clearDirections(); onFastPace?(false)
         if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
         panel.orderOut(nil)
         onStop?()
@@ -197,6 +199,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
                     CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0))
                 })
                 self.updateDirection()
+                self.onFastPace?(CGEventSource.keyState(.combinedSessionState, key: 56) || CGEventSource.keyState(.combinedSessionState, key: 60))
                 if self.aiming && !CGEventSource.keyState(.combinedSessionState, key: 5) {
                     self.aiming = false; self.onAimChanged?(false)
                     self.updateDirection()

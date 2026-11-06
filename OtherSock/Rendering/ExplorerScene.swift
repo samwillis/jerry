@@ -15,6 +15,8 @@ final class ExplorerScene: SKScene {
     private var aimPoint: CGPoint?
     private var aimDirection = CGPoint.zero
     private(set) var idleExplorationEnabled = true
+    private var runWhenExploring = false
+    private var fasterRopeWork = false
     private var startedOnWindow = false
     private var startedRopeDemo = false
     private var startedActivityDemo = false
@@ -84,6 +86,8 @@ final class ExplorerScene: SKScene {
         interaction?.autonomous = true
         interaction?.runsMission = idleExplorationEnabled
         interaction?.setIdleExploration(idleExplorationEnabled)
+        interaction?.setRunWhenExploring(runWhenExploring)
+        interaction?.setFasterRopeWork(fasterRopeWork)
         applyPlacement()
     }
 
@@ -131,6 +135,9 @@ final class ExplorerScene: SKScene {
         let result = interaction?.fireGrapple(toward: .init(x: aimPoint.x, y: aimPoint.y)) ?? false
         applyPlacement(); return result
     }
+    func setRunWhenExploring(_ enabled: Bool) { runWhenExploring = enabled; interaction?.setRunWhenExploring(enabled) }
+    func setFasterRopeWork(_ enabled: Bool) { fasterRopeWork = enabled; interaction?.setFasterRopeWork(enabled) }
+    func setControlFastPace(_ fast: Bool) { interaction?.setControlFastPace(fast) }
     func setControlDirection(_ x: Double, _ y: Double) { interaction?.setControlDirection(horizontal: x, vertical: y) }
     func controlJump() { interaction?.controlJump(); applyPlacement() }
     func controlGrapple() { interaction?.controlGrapple(); applyPlacement() }
@@ -276,6 +283,7 @@ final class ExplorerScene: SKScene {
         case .recovering: motion = .parachuting
         case .preparingJump, .jumping: motion = .jumping
         case .walking: motion = .walking
+        case .running: motion = .running
         case .climbing: motion = .climbing
         case .abseiling: motion = .abseiling
         case .grappling: motion = .grappling
@@ -295,6 +303,7 @@ final class ExplorerScene: SKScene {
         explorer.tuning = interaction.walkingTuning
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
+        if motion == .running { explorer.synchronizedTime = interaction.runningTime }
         explorer.jumpPose = interaction.keyboardJumpPose
         explorer.handTargets = nil
         explorer.footTargets = nil

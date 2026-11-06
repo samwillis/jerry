@@ -92,6 +92,7 @@ final class OverlayController {
             self?.scene.endDrag()
         }
         keyboard.onDirection = { [weak self] x, y in self?.scene.setControlDirection(x, y) }
+        keyboard.onFastPace = { [weak self] fast in self?.scene.setControlFastPace(fast) }
         keyboard.onJump = { [weak self] in self?.scene.controlJump() }
         keyboard.onAimDirection = { [weak self] x, y in self?.scene.setAimDirection(x, y) }
         keyboard.onAimChanged = { [weak self] active in
@@ -204,6 +205,8 @@ final class OverlayController {
     var availableActivities: Set<ExplorerActivity> { scene.availableActivities }
     func requestActivity(_ activity: ExplorerActivity) { setKeyboardControl(false); refreshTerrain(); scene.requestActivity(activity) }
 
+    func setRunWhenExploring(_ enabled: Bool) { scene.setRunWhenExploring(enabled) }
+    func setFasterRopeWork(_ enabled: Bool) { scene.setFasterRopeWork(enabled) }
     func setGentlePace(_ gentle: Bool) { scene.playbackRate = gentle ? 0.65 : 1 }
 
     func setSleeping(_ sleeping: Bool) {
@@ -291,6 +294,8 @@ final class OverlayController {
             passed = passed && condition
         }
         let focus = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let hatPart = PaintedPart(rect: .init(x: -12, y: 7, width: 24, height: 8), radius: 2, color: ExplorerPalette.hat, material: .felt)
+        check(hatPart.silhouettePath.boundingBoxOfPath == .init(x: -12, y: -4, width: 24, height: 8), "shadow silhouettes use sprite-local coordinates")
         show()
         check(panel.isVisible && inputPanel.isVisible, "both panels visible")
         check(panel.ignoresMouseEvents && !inputPanel.ignoresMouseEvents, "input confined to body panel")
@@ -323,10 +328,11 @@ final class OverlayController {
         resetExpedition()
         check(NSWorkspace.shared.frontmostApplication?.processIdentifier == focus, "launch/reset/lifecycle preserve frontmost app")
         let previousApp = NSWorkspace.shared.frontmostApplication
-        var direction = CGPoint.zero, aimDirection = CGPoint.zero, jumps = 0, clicks = 0, shots = 0, aiming = false
+        var direction = CGPoint.zero, aimDirection = CGPoint.zero, jumps = 0, clicks = 0, shots = 0, aiming = false, fastPace = false
         let tester = ExplorerKeyboardController()
         tester.onDirection = { x, y in direction = .init(x: x, y: y) }
         tester.onJump = { jumps += 1 }
+        tester.onFastPace = { fastPace = $0 }
         tester.onInteract = { clicks += 1 }
         tester.onAimChanged = { aiming = $0 }
         tester.onAimDirection = { x, y in aimDirection = .init(x: x, y: y) }
@@ -343,6 +349,10 @@ final class OverlayController {
         check(direction.x == 0, "opposite movement keys cancel")
         _ = tester.routeKey(key(0, down: false)); _ = tester.routeKey(key(124, down: false))
         check(direction == .zero, "key release clears movement")
+        _ = tester.routeKey(key(124, flags: .shift))
+        check(fastPace && direction.x == 1, "Shift movement enables fast pace without clearing directions")
+        _ = tester.routeKey(key(124, down: false))
+        check(!fastPace && direction == .zero, "releasing Shift restores normal pace")
         _ = tester.routeKey(key(49)); _ = tester.routeKey(key(49, repeatKey: true))
         _ = tester.routeKey(key(14)); _ = tester.routeKey(key(14, repeatKey: true))
         check(jumps == 1 && clicks == 1, "jump and click fire once rather than on key repeat")

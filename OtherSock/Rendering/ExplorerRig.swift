@@ -149,7 +149,7 @@ final class ExplorerRig: SKNode {
         shadow.alpha = 0.22
         shadow.filter = CIFilter(name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.5])
         shadow.shouldEnableEffects = true
-        shadow.shouldRasterize = true
+        shadow.shouldRasterize = false
         addChild(shadow)
         addChild(pivot)
         pivot.addChild(body)

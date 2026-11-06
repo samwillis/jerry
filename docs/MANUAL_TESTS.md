@@ -178,3 +178,11 @@ Automated equivalents and native observations are in [prototype validation](PROT
 - [x] Native input routing: hold G and Right/Up directs the aim only; releasing G fires once and restores arrows to movement/swinging. Mouse position is no longer read by grapple aiming.
 - [x] Native first-run check: absent completion marker opens the guide; closing records completion. Tests restore the prior marker afterward.
 - [ ] On a smaller screen, scroll the guide if needed; footer buttons must remain reachable.
+
+
+### Optional fast pace
+
+- [x] Shift+Right moves the desktop explorer in the running state and key release returns to idle, without a controls window.
+- [x] Running preview has visible arm pumps and a brief airborne stride, with zero clamped contacts.
+- [ ] Hold Shift while rope climbing/descending, then release; the same rope must remain attached and hand motion must match the work rate.
+- [ ] Enable Run When Exploring and Faster Rope Work in Settings, relaunch, and verify both remain enabled. Disable Idle Exploration and verify these settings do not start wandering.

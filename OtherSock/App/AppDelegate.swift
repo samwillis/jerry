@@ -10,6 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var needsWelcome: Bool { UserDefaults.standard.integer(forKey: "welcomeVersion") < 1 }
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
+    private var runningItem: NSMenuItem!
+    private var ropePaceItem: NSMenuItem!
+    private var runWhenExploring = UserDefaults.standard.bool(forKey: "runWhenExploring")
+    private var fasterRopeWork = UserDefaults.standard.bool(forKey: "fasterRopeWork")
     private var paceItem: NSMenuItem!
     private var debugItem: NSMenuItem?
     private var activitiesMenu: NSMenu!
@@ -31,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay?.setIdleExploration(idleExploration)
         overlay?.setDebugVisible(showsDebug)
         overlay?.setGentlePace(gentlePace)
+        overlay?.setRunWhenExploring(runWhenExploring)
+        overlay?.setFasterRopeWork(fasterRopeWork)
         overlay?.setPaused(isPaused)
         overlay?.show()
         hotKey.onTrigger = { [weak self] in self?.toggleKeyboard() }
@@ -74,6 +80,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         let settings = NSMenu(title: "Settings"); settings.autoenablesItems = false
         paceItem = add("Slow Movement", action: #selector(togglePace), to: settings)
+        runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: settings)
+        ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: settings)
         _ = add("Allow Clicks in Other Apps…", action: #selector(allowClicks), to: settings)
         settings.addItem(.separator())
         _ = add("Bring Explorer Back to Desktop", action: #selector(resetExpedition), to: settings)
@@ -153,6 +161,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         gentlePace.toggle(); UserDefaults.standard.set(gentlePace, forKey: "gentlePace")
         overlay?.setGentlePace(gentlePace); updateMenu()
     }
+    @objc private func toggleRunning() {
+        runWhenExploring.toggle(); UserDefaults.standard.set(runWhenExploring, forKey: "runWhenExploring")
+        overlay?.setRunWhenExploring(runWhenExploring); updateMenu()
+    }
+    @objc private func toggleRopePace() {
+        fasterRopeWork.toggle(); UserDefaults.standard.set(fasterRopeWork, forKey: "fasterRopeWork")
+        overlay?.setFasterRopeWork(fasterRopeWork); updateMenu()
+    }
     @objc private func showTips() { showWelcome(markSeen: true) }
     private func showWelcome(markSeen: Bool) {
         overlay?.setKeyboardControl(false)
@@ -184,6 +200,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         idleItem?.state = idleExploration ? .on : .off
         debugItem?.state = showsDebug ? .on : .off
         paceItem?.state = gentlePace ? .on : .off
+        runningItem?.state = runWhenExploring ? .on : .off
+        ropePaceItem?.state = fasterRopeWork ? .on : .off
         keyboardItem?.state = overlay?.keyboardControlEnabled == true ? .on : .off
         keyboardItem?.title = overlay?.keyboardControlEnabled == true ? "Release Control" : "Take Control"
         keyboardItem?.toolTip = hotKey.isRegistered ? "Control–Option–Space works from any app." : "The shortcut is unavailable; use this menu item."
