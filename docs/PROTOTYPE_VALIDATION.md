@@ -346,3 +346,12 @@ The About panel now explicitly loads the bundled AppIcon.icns instead of relying
 Replaced the generic hiking SF Symbol with an 18-point monochrome template generated directly from the real rig’s silhouette paths and eye geometry. Hat, backpack, arms, hands, legs and boots retain their original proportions and pose. It is vector-drawn at the requested backing resolution and uses native template tinting for light/dark/highlighted menu-bar states. No separate approximation of the character is used.
 
 79 native checks pass, including status-item template mode and size. The actual geometry was previewed at menu-bar size on light and dark backgrounds. Debug and packaged Release builds pass; the updated app is running.
+
+
+## Native notebook controls and head icon — 6 November 2026
+
+Welcome, Settings and the journal use native macOS close/minimise/zoom controls in transparent full-content title bars, retaining the paper, binding and typography. Controls sit 36 points from the left edge, clear of the stitching, and share a 16-point header centreline with the notebook caption. Journal paper extends into the title bar instead of leaving the controls above a separate paper surface. Its caption row has an explicit height to match the native controls. Native close preserves the reusable windows and journal entries.
+
+The menu-bar template now uses only Jerry’s actual head/hat paths and eye cutouts, in a 22-point image with 20-point artwork (25% larger than the first head-only version). It keeps native template tinting and vector drawing.
+
+Debug and packaged Release builds pass, with 79 native and 28 agent checks passing. Live accessibility review confirmed native controls on all three windows and native welcome close behavior. User visual review confirmed Welcome and Settings alignment and journal paper extending behind the controls; the journal caption was subsequently aligned with an explicit 16-point row. The updated Debug app remains running.

@@ -58,7 +58,18 @@ enum NotebookTheme {
         let title = NSAttributedString(string: button.title, attributes: [.foregroundColor: primary ? paper : ink, .font: button.font!])
         button.attributedTitle = title; button.attributedAlternateTitle = title
     }
+    /// Keep the native controls clear of the binding and level with the field-note title.
+    static func alignWindowButtons(in content: NSView) {
+        guard let window = content.window else { return }
+        for (index, kind) in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].enumerated() {
+            guard let button = window.standardWindowButton(kind), let parent = button.superview else { continue }
+            let size = button.frame.size
+            let origin = NSPoint(x: 36 + CGFloat(index) * 20, y: content.bounds.height - 16 - size.height / 2)
+            button.setFrameOrigin(content.convert(origin, to: parent))
+        }
+    }
     static func install(on window: NSWindow, title: String) -> NSView {
+        window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
         window.isMovableByWindowBackground = true; window.appearance = NSAppearance(named: .aqua)
         let root = NotebookPaperView(); root.wantsLayer = true; root.layer?.cornerRadius = 12; root.layer?.masksToBounds = true
@@ -67,14 +78,10 @@ enum NotebookTheme {
         let caption = NSTextField(labelWithString: "◉  THE OTHER SOCK / " + title.uppercased())
         caption.font = .monospacedSystemFont(ofSize: 10, weight: .medium); caption.textColor = faded
         caption.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(caption)
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close " + title)!, target: header, action: #selector(NotebookHeaderView.closeNotebook))
-        close.isBordered = false; close.contentTintColor = faded; close.setAccessibilityLabel("Close " + title); close.toolTip = "Close"
-        close.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(close)
         let body = NSView(); body.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(body)
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: root.topAnchor), header.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14), header.trailingAnchor.constraint(equalTo: root.trailingAnchor), header.heightAnchor.constraint(equalToConstant: 44),
-            caption.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 22), caption.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            close.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14), close.centerYAnchor.constraint(equalTo: header.centerYAnchor), close.widthAnchor.constraint(equalToConstant: 28), close.heightAnchor.constraint(equalToConstant: 28),
+            caption.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 94), caption.centerYAnchor.constraint(equalTo: header.topAnchor, constant: 16),
             body.topAnchor.constraint(equalTo: header.bottomAnchor), body.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14), body.trailingAnchor.constraint(equalTo: root.trailingAnchor), body.bottomAnchor.constraint(equalTo: root.bottomAnchor)
         ])
         return body
@@ -90,10 +97,14 @@ final class NotebookWindow: NSWindow {
 private final class NotebookHeaderView: NSView {
     override var mouseDownCanMoveWindow: Bool { true }
     override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
-    @objc func closeNotebook() { window?.close() }
+}
+
+final class NotebookContentView: NSView {
+    override func layout() { super.layout(); NotebookTheme.alignWindowButtons(in: self) }
 }
 
 private final class NotebookPaperView: NSView {
+    override func layout() { super.layout(); NotebookTheme.alignWindowButtons(in: self) }
     override var mouseDownCanMoveWindow: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
         NotebookTheme.paper.setFill(); bounds.fill()
@@ -170,6 +181,7 @@ struct ExpeditionJournalView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(JournalPalette.leather.opacity(0.25), lineWidth: 1).allowsHitTesting(false) }
+        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 340, minHeight: 400)
         .environment(\.colorScheme, .light)
         .tint(JournalPalette.ink)
@@ -180,9 +192,7 @@ struct ExpeditionJournalView: View {
                 Image(systemName: "safari").font(.system(size: 16, weight: .light))
                 Text("THE OTHER SOCK / FIELD NOTES").font(.system(size: 9, weight: .semibold, design: .monospaced)).tracking(1.1)
                 Spacer(minLength: 0)
-                Button(action: hide) { Image(systemName: "xmark").font(.system(size: 12)).frame(width: 26, height: 26) }
-                    .buttonStyle(.plain).help("Close journal").accessibilityLabel("Close journal")
-            }.foregroundStyle(JournalPalette.faded)
+            }.frame(height: 16).foregroundStyle(JournalPalette.faded).padding(.leading, 72)
             Text("Expedition journal").font(.system(size: 28, weight: .medium, design: .serif)).italic()
             Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(JournalPalette.faded)
@@ -192,7 +202,7 @@ struct ExpeditionJournalView: View {
                 Circle().fill(journal.isRunning ? JournalPalette.rust : JournalPalette.faded.opacity(0.5)).frame(width: 5, height: 5).padding(.top, 5)
                 Text(journal.status).font(.system(size: 11)).foregroundStyle(JournalPalette.faded).lineLimit(2)
             }
-        }.padding(.leading, 36).padding(.trailing, 20).padding(.top, 16).padding(.bottom, 20)
+        }.padding(.leading, 36).padding(.trailing, 20).padding(.top, 8).padding(.bottom, 20)
     }
     private var emptyPage: some View {
         VStack(alignment: .leading, spacing: 16) {

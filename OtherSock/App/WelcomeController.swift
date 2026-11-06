@@ -51,7 +51,7 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
     var onClose: (() -> Void)?
     private let illustration = SKView()
     init() {
-        let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 560, height: 450), styleMask: [.borderless, .closable], backing: .buffered, defer: false)
+        let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 560, height: 450), styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "Welcome to The Other Sock"; window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         super.init(window: window); window.delegate = self; window.center()

@@ -232,21 +232,25 @@ final class ExplorerRig: SKNode {
         }
     }
 
-    /// One head-mounted pair for both sock spotting and AI screen reading.
-    /// The actual rig contours, not a separately drawn approximation.
+    /// Jerry’s actual head contours, sized for legibility in the menu bar.
     static func menuBarArtwork() -> NSImage {
         let rig = ExplorerRig(); rig.render(delta: 0)
-        let paths = rig.shadowPieces.compactMap(\.path)
+        let paths = rig.head.children.compactMap { node -> CGPath? in
+            guard let part = node as? PaintedPart else { return nil }
+            let path = CGMutablePath()
+            appendSilhouette(part.silhouettePath, from: part, to: rig.head, into: path)
+            return path
+        }
         let bounds = paths.reduce(CGRect.null) { $0.union($1.boundingBoxOfPath) }
         let eyeCutouts = CGMutablePath()
         for eye in [rig.leftEye, rig.rightEye] {
-            if let path = eye.path { appendSilhouette(path, from: eye, to: rig, into: eyeCutouts) }
+            if let path = eye.path { appendSilhouette(path, from: eye, to: rig.head, into: eyeCutouts) }
         }
-        let image = NSImage(size: .init(width: 18, height: 18), flipped: false) { _ in
+        let image = NSImage(size: .init(width: 22, height: 22), flipped: false) { _ in
             let context = NSGraphicsContext.current!.cgContext
-            let scale = min(16 / bounds.width, 16 / bounds.height)
+            let scale = min(20 / bounds.width, 20 / bounds.height)
             context.saveGState()
-            context.translateBy(x: 9 - bounds.midX * scale, y: 9 - bounds.midY * scale)
+            context.translateBy(x: 11 - bounds.midX * scale, y: 11 - bounds.midY * scale)
             context.scaleBy(x: scale, y: scale)
             context.setFillColor(NSColor.black.cgColor)
             for path in paths { context.addPath(path); context.fillPath() }

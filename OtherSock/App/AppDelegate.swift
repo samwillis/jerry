@@ -308,7 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuNeedsUpdate(developerMenu)
         var passed = true
         func check(_ result: Bool, _ name: String) { print("NATIVE \(result ? "PASS" : "FAIL") \(name)"); passed = passed && result }
-        check(statusItem?.button?.image?.isTemplate == true && statusItem?.button?.image?.size == NSSize(width: 18, height: 18), "menu bar uses Jerry's actual rig as a monochrome template")
+        check(statusItem?.button?.image?.isTemplate == true && statusItem?.button?.image?.size == NSSize(width: 22, height: 22), "menu bar uses Jerry's actual head as a monochrome template")
         let developer = statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.submenu
         check(developer?.items.contains { $0.title == "Show Terrain Guides" && $0.action == #selector(toggleDebug) } == true && statusItem?.menu?.items.contains { $0.action == #selector(toggleDebug) } == false, "terrain guides are available inside Developer Tools")
         check(developerMenu === developer && developer?.items.contains { $0.action == #selector(triggerActivity(_:)) } == true, "activity tests are directly inside Developer Tools")

@@ -108,7 +108,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
 
     override init(window: NSWindow?) { super.init(window: window) }
     convenience init() {
-        let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(624, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.borderless, .closable, .resizable], backing: .buffered, defer: false)
+        let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(624, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         self.init(window: window)
         window.title = "The Other Sock — Settings"; window.minSize = .init(width: 780, height: 464); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
         let settingsBody = NotebookTheme.install(on: window, title: "Base camp")
@@ -347,13 +347,15 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         return false
     }
     private func buildJournal() {
-        journal = ExplorerFloatingPanel(contentRect: .init(x: 0, y: 0, width: 380, height: 600), styleMask: [.borderless, .nonactivatingPanel, .resizable], backing: .buffered, defer: false)
+        journal = ExplorerFloatingPanel(contentRect: .init(x: 0, y: 0, width: 380, height: 600), styleMask: [.titled, .closable, .miniaturizable, .nonactivatingPanel, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         journal.title = "Expedition journal"; journal.isReleasedWhenClosed = false; journal.hidesOnDeactivate = false; journal.level = .floating
         journal.minSize = .init(width: 340, height: 400)
         journal.isOpaque = false; journal.backgroundColor = .clear; journal.hasShadow = true
+        journal.titleVisibility = .hidden; journal.titlebarAppearsTransparent = true
+        journal.appearance = NSAppearance(named: .aqua)
         journal.isMovableByWindowBackground = true
         journal.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let glass = NSView(); journal.contentView = glass
+        let glass = NotebookContentView(); journal.contentView = glass
         let host = NSHostingView(rootView: ExpeditionJournalView(journal: journalState, stop: { [weak self] in self?.stop() }, newTask: { [weak self] in self?.newPrompt() }, hide: { [weak self] in self?.hideJournal() }, save: { [weak self] in self?.saveLog() }))
         host.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(host)
         NSLayoutConstraint.activate([host.leadingAnchor.constraint(equalTo: glass.leadingAnchor), host.trailingAnchor.constraint(equalTo: glass.trailingAnchor), host.topAnchor.constraint(equalTo: glass.topAnchor), host.bottomAnchor.constraint(equalTo: glass.bottomAnchor)])
