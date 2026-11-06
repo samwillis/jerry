@@ -298,3 +298,8 @@ Remaining publication gates:
 - [ ] Public privacy/support documentation and an update strategy.
 
 These are release gates; the current package remains an unsigned local prototype.
+
+
+## Notebook interface refinement — 6 November 2026
+
+Unified welcome/Settings with the journal’s field-notebook materials and typography. Added padded sidebar navigation and a single shared header. Grounded the welcome illustration on a floor edge with the shadow clipped behind it. Shortened Settings copy, consolidated account controls and fixed card text wrapping. Every keyboard control remains visible in compact groups; none is behind a disclosure. Live layout review and 103 native/agent checks pass.

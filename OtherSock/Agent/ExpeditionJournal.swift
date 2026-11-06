@@ -37,12 +37,87 @@ final class ExpeditionJournal: ObservableObject {
     }
 }
 
+/// Shared by the SwiftUI journal and the AppKit welcome/settings notebooks.
+@MainActor
+enum NotebookTheme {
+    static let paper = NSColor(calibratedRed: 0.98, green: 0.95, blue: 0.86, alpha: 1)
+    static let ink = NSColor(calibratedRed: 0.24, green: 0.29, blue: 0.25, alpha: 1)
+    static let faded = NSColor(calibratedRed: 0.45, green: 0.45, blue: 0.36, alpha: 1)
+    static let leather = NSColor(calibratedRed: 0.38, green: 0.26, blue: 0.17, alpha: 1)
+    static let rust = NSColor(calibratedRed: 0.64, green: 0.32, blue: 0.22, alpha: 1)
+    static func font(_ size: CGFloat, weight: NSFont.Weight = .regular, italic: Bool = false) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight)
+        guard var descriptor = base.fontDescriptor.withDesign(.serif) else { return base }
+        if italic { descriptor = descriptor.withSymbolicTraits(.italic) }
+        return NSFont(descriptor: descriptor, size: size) ?? base
+    }
+    static func style(_ button: NSButton, primary: Bool = false) {
+        button.bezelStyle = .rounded; button.bezelColor = primary ? ink : leather.withAlphaComponent(0.09)
+        button.contentTintColor = primary ? paper : ink
+        button.font = .systemFont(ofSize: 12, weight: primary ? .medium : .regular)
+        let title = NSAttributedString(string: button.title, attributes: [.foregroundColor: primary ? paper : ink, .font: button.font!])
+        button.attributedTitle = title; button.attributedAlternateTitle = title
+    }
+    static func install(on window: NSWindow, title: String) -> NSView {
+        window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
+        window.isMovableByWindowBackground = true; window.appearance = NSAppearance(named: .aqua)
+        let root = NotebookPaperView(); root.wantsLayer = true; root.layer?.cornerRadius = 12; root.layer?.masksToBounds = true
+        window.contentView = root
+        let header = NotebookHeaderView(); header.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(header)
+        let caption = NSTextField(labelWithString: "◉  THE OTHER SOCK / " + title.uppercased())
+        caption.font = .monospacedSystemFont(ofSize: 10, weight: .medium); caption.textColor = faded
+        caption.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(caption)
+        let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close " + title)!, target: header, action: #selector(NotebookHeaderView.closeNotebook))
+        close.isBordered = false; close.contentTintColor = faded; close.setAccessibilityLabel("Close " + title); close.toolTip = "Close"
+        close.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(close)
+        let body = NSView(); body.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(body)
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: root.topAnchor), header.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14), header.trailingAnchor.constraint(equalTo: root.trailingAnchor), header.heightAnchor.constraint(equalToConstant: 44),
+            caption.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 22), caption.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            close.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14), close.centerYAnchor.constraint(equalTo: header.centerYAnchor), close.widthAnchor.constraint(equalToConstant: 28), close.heightAnchor.constraint(equalToConstant: 28),
+            body.topAnchor.constraint(equalTo: header.bottomAnchor), body.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14), body.trailingAnchor.constraint(equalTo: root.trailingAnchor), body.bottomAnchor.constraint(equalTo: root.bottomAnchor)
+        ])
+        return body
+    }
+}
+
+@MainActor
+final class NotebookWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+private final class NotebookHeaderView: NSView {
+    override var mouseDownCanMoveWindow: Bool { true }
+    override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+    @objc func closeNotebook() { window?.close() }
+}
+
+private final class NotebookPaperView: NSView {
+    override var mouseDownCanMoveWindow: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        NotebookTheme.paper.setFill(); bounds.fill()
+        NotebookTheme.leather.withAlphaComponent(0.025).setStroke()
+        let fibres = NSBezierPath(); fibres.lineWidth = 0.5
+        for y in stride(from: CGFloat(2), to: bounds.height, by: 4) { fibres.move(to: .init(x: 10, y: y)); fibres.line(to: .init(x: bounds.width, y: y)) }; fibres.stroke()
+        NotebookTheme.rust.withAlphaComponent(0.22).setStroke()
+        let margin = NSBezierPath(); margin.lineWidth = 0.7; margin.move(to: .init(x: 25, y: 0)); margin.line(to: .init(x: 25, y: bounds.height)); margin.stroke()
+        NotebookTheme.leather.setFill(); NSRect(x: 0, y: 0, width: 10, height: bounds.height).fill()
+        NotebookTheme.paper.withAlphaComponent(0.5).setStroke()
+        let stitches = NSBezierPath(); stitches.lineWidth = 1
+        for y in stride(from: CGFloat(12), to: bounds.height, by: 10) { stitches.move(to: .init(x: 5, y: y)); stitches.line(to: .init(x: 5, y: y + 4)) }; stitches.stroke()
+        NotebookTheme.leather.withAlphaComponent(0.25).setStroke()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 12, yRadius: 12).stroke()
+    }
+}
+
+@MainActor
 private enum JournalPalette {
-    static let paper = Color(red: 0.98, green: 0.95, blue: 0.86)
-    static let ink = Color(red: 0.24, green: 0.29, blue: 0.25)
-    static let faded = Color(red: 0.45, green: 0.45, blue: 0.36)
-    static let leather = Color(red: 0.38, green: 0.26, blue: 0.17)
-    static let rust = Color(red: 0.64, green: 0.32, blue: 0.22)
+    static let paper = Color(nsColor: NotebookTheme.paper)
+    static let ink = Color(nsColor: NotebookTheme.ink)
+    static let faded = Color(nsColor: NotebookTheme.faded)
+    static let leather = Color(nsColor: NotebookTheme.leather)
+    static let rust = Color(nsColor: NotebookTheme.rust)
 }
 
 struct ExpeditionJournalView: View {

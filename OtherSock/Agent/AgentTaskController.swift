@@ -22,9 +22,16 @@ private final class PromptSurface: NSView {
 }
 
 private final class SettingsCardView: NSView {
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.035).cgColor }
+    override func draw(_ dirtyRect: NSRect) {
+        NotebookTheme.leather.withAlphaComponent(0.045).setFill()
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7); shape.fill()
+        NotebookTheme.leather.withAlphaComponent(0.12).setStroke(); shape.lineWidth = 0.7; shape.stroke()
+    }
+}
+
+private final class NotebookNavigationCell: NSButtonCell {
+    override func drawTitle(_ title: NSAttributedString, withFrame frame: NSRect, in controlView: NSView) -> NSRect {
+        super.drawTitle(title, withFrame: frame.insetBy(dx: 12, dy: 0), in: controlView)
     }
 }
 
@@ -56,6 +63,9 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private var navigation: [NSButton] = []
     private var preferenceButtons: [String: NSButton] = [:]
     private let paceChoice = NSPopUpButton()
+    private let chatGPTHelp = NSTextField(wrappingLabelWithString: "Continue in your browser. Your password stays there.")
+    private let accessSettingsButton = NSButton(title: "Open Settings…", target: nil, action: nil)
+    private let recordingSettingsButton = NSButton(title: "Open Settings…", target: nil, action: nil)
     private let accessState = NSTextField(wrappingLabelWithString: "")
     private let recordingState = NSTextField(wrappingLabelWithString: "")
     private let generalState = NSTextField(wrappingLabelWithString: "")
@@ -98,10 +108,11 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
 
     override init(window: NSWindow?) { super.init(window: window) }
     convenience init() {
-        let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 760, height: min(580, max(420, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(624, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.borderless, .closable, .resizable], backing: .buffered, defer: false)
         self.init(window: window)
-        window.title = "The Other Sock — Settings"; window.minSize = .init(width: 760, height: 420); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
-        buildSettings(); buildPrompt(); buildJournal()
+        window.title = "The Other Sock — Settings"; window.minSize = .init(width: 780, height: 464); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
+        let settingsBody = NotebookTheme.install(on: window, title: "Base camp")
+        buildSettings(in: settingsBody); buildPrompt(); buildJournal()
         computer.progress = { [weak self] in self?.journalState.status = $0; self?.appendLog("Activity", $0) }
         computer.logResult = { [weak self] in self?.appendLog("Tool result", $0) }
         computer.beforeInput = { [weak self] in self?.journal.orderOut(nil); self?.onBeforeInput?() }
@@ -120,8 +131,8 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         for button in navigation {
             let selected = button.title == section
             button.state = selected ? .on : .off
-            button.layer?.backgroundColor = selected ? NSColor.controlAccentColor.withAlphaComponent(0.14).cgColor : NSColor.clear.cgColor
-            button.contentTintColor = selected ? .controlAccentColor : .labelColor
+            button.layer?.backgroundColor = selected ? NotebookTheme.leather.withAlphaComponent(0.12).cgColor : NSColor.clear.cgColor
+            button.contentTintColor = selected ? NotebookTheme.ink : NotebookTheme.faded
         }
     }
     func openPrompt(resumeControl: Bool = false) {
@@ -131,9 +142,9 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         NSApp.activate(ignoringOtherApps: true); promptWindow.makeFirstResponder(requestField)
     }
     private func label(_ text: String, size: CGFloat = 13, weight: NSFont.Weight = .regular) -> NSTextField {
-        let field = NSTextField(wrappingLabelWithString: text); field.font = .systemFont(ofSize: size, weight: weight); return field
+        let field = NSTextField(wrappingLabelWithString: text); field.font = NotebookTheme.font(size, weight: weight, italic: size >= 20); field.textColor = NotebookTheme.ink; field.setContentCompressionResistancePriority(.required, for: .vertical); return field
     }
-    private func button(_ title: String, _ selector: Selector) -> NSButton { NSButton(title: title, target: self, action: selector) }
+    private func button(_ title: String, _ selector: Selector) -> NSButton { let result = NSButton(title: title, target: self, action: selector); NotebookTheme.style(result); return result }
     private func row(_ views: [NSView]) -> NSStackView { let row = NSStackView(views: views); row.spacing = 10; row.alignment = .centerY; return row }
     private func stack(in content: NSView, inset: CGFloat = 24) -> NSStackView {
         let stack = NSStackView(); stack.orientation = .vertical; stack.distribution = .fill; stack.alignment = .leading; stack.spacing = 16; stack.translatesAutoresizingMaskIntoConstraints = false
@@ -141,28 +152,29 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: inset), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -inset), stack.topAnchor.constraint(equalTo: content.topAnchor, constant: inset), stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -inset)])
         return stack
     }
-    private func card(_ views: [NSView], width: CGFloat) -> NSView {
-        let box = SettingsCardView(); box.wantsLayer = true; box.layer?.cornerRadius = 12; box.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.035).cgColor
-        let body = stack(in: box, inset: 16); body.spacing = 10
-        for view in views { body.addArrangedSubview(view); view.widthAnchor.constraint(equalToConstant: width - 32).isActive = true }
-        body.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -16).isActive = true
+    private func card(_ views: [NSView], width: CGFloat, spacing: CGFloat = 10, inset: CGFloat = 16) -> NSView {
+        let box = SettingsCardView()
+        let body = stack(in: box, inset: inset); body.spacing = spacing
+        for view in views {
+            body.addArrangedSubview(view); view.widthAnchor.constraint(equalToConstant: width - inset * 2).isActive = true
+            if let text = view as? NSTextField { text.preferredMaxLayoutWidth = width - inset * 2; text.maximumNumberOfLines = 0 }
+        }
+        body.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -inset).isActive = true
         box.widthAnchor.constraint(equalToConstant: width).isActive = true
         return box
     }
-    private func buildSettings() {
-        guard let content = window?.contentView else { return }
-        let sidebar = NSVisualEffectView(); sidebar.material = .sidebar; sidebar.blendingMode = .behindWindow
+    private func buildSettings(in content: NSView) {
+        let sidebar = NSView(); sidebar.wantsLayer = true; sidebar.layer?.backgroundColor = NotebookTheme.leather.withAlphaComponent(0.035).cgColor
         sidebar.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(sidebar)
-        let links = stack(in: sidebar, inset: 14); links.spacing = 5
-        let brand = label("THE OTHER SOCK", size: 10, weight: .semibold); brand.textColor = .secondaryLabelColor; links.addArrangedSubview(brand)
-        links.addArrangedSubview(label("Jerry’s base camp", size: 13, weight: .medium))
-        links.setCustomSpacing(22, after: links.arrangedSubviews.last!)
+        let links = stack(in: sidebar, inset: 18); links.spacing = 5
         let main = NSView(); main.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(main)
-        NSLayoutConstraint.activate([sidebar.leadingAnchor.constraint(equalTo: content.leadingAnchor), sidebar.topAnchor.constraint(equalTo: content.topAnchor), sidebar.bottomAnchor.constraint(equalTo: content.bottomAnchor), sidebar.widthAnchor.constraint(equalToConstant: 164), main.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), main.trailingAnchor.constraint(equalTo: content.trailingAnchor), main.topAnchor.constraint(equalTo: content.topAnchor), main.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
+        NSLayoutConstraint.activate([sidebar.leadingAnchor.constraint(equalTo: content.leadingAnchor), sidebar.topAnchor.constraint(equalTo: content.topAnchor), sidebar.bottomAnchor.constraint(equalTo: content.bottomAnchor), sidebar.widthAnchor.constraint(equalToConstant: 180), main.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), main.trailingAnchor.constraint(equalTo: content.trailingAnchor), main.topAnchor.constraint(equalTo: content.topAnchor), main.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
         for name in ["General", "AI", "Privacy & Access", "Controls", "Advanced"] {
-            let button = NSButton(title: name, target: self, action: #selector(settingsSectionChanged(_:)))
+            let button = NSButton()
+            button.cell = NotebookNavigationCell(textCell: name)
+            button.title = name; button.target = self; button.action = #selector(settingsSectionChanged(_:))
             button.isBordered = false; button.wantsLayer = true; button.layer?.cornerRadius = 6
-            button.setButtonType(.pushOnPushOff); button.alignment = .left; button.font = .systemFont(ofSize: 12)
+            button.setButtonType(.pushOnPushOff); button.alignment = .left; button.font = NotebookTheme.font(13)
             button.heightAnchor.constraint(equalToConstant: 30).isActive = true
             links.addArrangedSubview(button); button.widthAnchor.constraint(equalTo: links.widthAnchor).isActive = true; navigation.append(button)
             let scroll = NSScrollView(); scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
@@ -172,7 +184,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
             let body = stack(in: document); body.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24).isActive = true
             settingsPages[name] = scroll
-            body.addArrangedSubview(label(name == "AI" ? "A little help thinking." : name, size: 23, weight: .semibold))
+            body.addArrangedSubview(label(name == "AI" ? "AI connection" : name, size: 23, weight: .semibold))
             switch name {
             case "General": buildGeneral(body)
             case "AI": buildAI(body)
@@ -181,78 +193,79 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             default: buildAdvanced(body)
             }
         }
+        for button in [signInButton, cancelSignInButton, disconnectButton, refreshModelsButton, requestSettingsButton, loginSettingsButton, accessSettingsButton, recordingSettingsButton] { NotebookTheme.style(button) }
+        for picker in [provider, paceChoice] { picker.contentTintColor = NotebookTheme.ink }
         selectSettings("General")
         settingsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshSettings() }
         }
     }
-    private func note(_ text: String) -> NSTextField { let field = label(text, size: 12); field.textColor = .secondaryLabelColor; field.preferredMaxLayoutWidth = 532; return field }
+    private func note(_ text: String) -> NSTextField { let field = label(text, size: 12); field.textColor = NotebookTheme.faded; field.preferredMaxLayoutWidth = 532; return field }
     private func preference(_ title: String, key: String) -> NSButton {
         let control = NSButton(checkboxWithTitle: title, target: self, action: #selector(preferenceChanged(_:)))
-        control.identifier = .init(key); preferenceButtons[key] = control; return control
+        control.identifier = .init(key); control.contentTintColor = NotebookTheme.ink; control.font = .systemFont(ofSize: 12); preferenceButtons[key] = control; return control
     }
     private func buildGeneral(_ body: NSStackView) {
-        body.addArrangedSubview(note("One small adventurer, at home on your desktop. Changes are saved automatically."))
-        body.addArrangedSubview(card([label("Exploration", size: 14, weight: .semibold), preference("Enable idle exploration", key: "idleExploration"), note("Jerry looks for socks when you’re busy. Turn this off and he rests, watches your pointer and stays draggable.")], width: 532))
+        body.addArrangedSubview(card([label("Exploration", size: 14, weight: .semibold), preference("Explore when idle", key: "idleExploration"), note("Look for socks while you work. When off, Jerry stays put.")], width: 532))
         paceChoice.addItems(withTitles: ["Gentle", "Normal"]); paceChoice.target = self; paceChoice.action = #selector(paceChanged)
-        body.addArrangedSubview(card([label("Movement", size: 14, weight: .semibold), row([label("Movement pace"), paceChoice]), preference("Run when exploring", key: "runWhenExploring"), preference("Faster rope work", key: "fasterRopeWork"), note("Hold Shift while in control to move faster whenever you need to.")], width: 532))
-        body.addArrangedSubview(preference("Open The Other Sock at login", key: "launchAtLogin"))
+        body.addArrangedSubview(card([label("Movement", size: 14, weight: .semibold), row([label("Pace"), paceChoice]), preference("Run while exploring", key: "runWhenExploring"), preference("Faster rope work", key: "fasterRopeWork")], width: 532))
+        body.addArrangedSubview(preference("Open at login", key: "launchAtLogin"))
         loginSettingsButton.target = self; loginSettingsButton.action = #selector(openLoginItems)
         body.addArrangedSubview(loginSettingsButton)
-        generalState.textColor = .secondaryLabelColor; generalState.font = .systemFont(ofSize: 11); body.addArrangedSubview(generalState)
+        generalState.textColor = NotebookTheme.faded; generalState.font = .systemFont(ofSize: 11); body.addArrangedSubview(generalState)
         body.addArrangedSubview(row([button("Bring Jerry Back", #selector(resetExplorer)), button("Meet Jerry…", #selector(showWelcome))]))
+        body.addArrangedSubview(note("Changes save automatically."))
     }
     private func buildAI(_ body: NSStackView) {
-        body.addArrangedSubview(note("Connect an account when you want to give Jerry a task. Exploring and manual control work without AI."))
         provider.addItems(withTitles: ["Offline connection test", "ChatGPT", "OpenAI API key"]); provider.item(at: 0)?.isHidden = true
         provider.target = self; provider.action = #selector(providerChanged)
-        body.addArrangedSubview(row([label("Connect with", weight: .medium), provider]))
-        connection.textColor = .secondaryLabelColor; connection.font = .systemFont(ofSize: 12); connection.preferredMaxLayoutWidth = 532
+        connection.textColor = NotebookTheme.faded; connection.font = .systemFont(ofSize: 12); connection.preferredMaxLayoutWidth = 400
         signInButton.target = self; signInButton.action = #selector(signIn)
         cancelSignInButton.target = self; cancelSignInButton.action = #selector(cancelSignIn)
         disconnectButton.target = self; disconnectButton.action = #selector(disconnectSelected)
-        chatGPTSection = card([label("Your ChatGPT account", size: 14, weight: .semibold), note("Sign in securely in your browser. Your password never enters The Other Sock."), row([signInButton, cancelSignInButton])], width: 532)
-        apiKey.placeholderString = "Paste an API key"; apiKey.setAccessibilityLabel("OpenAI API key")
-        keySection = card([label("Your OpenAI API key", size: 14, weight: .semibold), note("API usage is billed separately by your provider. Your key is saved in this Mac’s Keychain."), apiKey, row([button("Save Key", #selector(saveKey))])], width: 532)
-        body.addArrangedSubview(chatGPTSection); body.addArrangedSubview(keySection)
-        body.addArrangedSubview(row([connection, disconnectButton]))
-        model.stringValue = UserDefaults.standard.string(forKey: "agentModelID") ?? ""; model.placeholderString = "Connect to choose a model"; model.isEditable = true; model.delegate = self
+        chatGPTHelp.font = NotebookTheme.font(12); chatGPTHelp.textColor = NotebookTheme.faded
+        let chat = NSStackView(views: [chatGPTHelp, row([signInButton, cancelSignInButton])]); chat.orientation = .vertical; chat.alignment = .leading; chat.spacing = 10; chatGPTSection = chat
+        apiKey.placeholderString = "Paste an API key"; apiKey.setAccessibilityLabel("OpenAI API key"); apiKey.widthAnchor.constraint(equalToConstant: 350).isActive = true
+        let key = NSStackView(views: [note("API usage is billed separately."), row([apiKey, button("Save Key", #selector(saveKey))])]); key.orientation = .vertical; key.alignment = .leading; key.spacing = 10; keySection = key
+        body.addArrangedSubview(card([row([label("Connection", size: 14, weight: .semibold), provider]), chatGPTSection, keySection, row([connection, disconnectButton])], width: 532))
+        model.stringValue = UserDefaults.standard.string(forKey: "agentModelID") ?? ""; model.placeholderString = "Choose a model"; model.isEditable = true; model.delegate = self
         model.widthAnchor.constraint(equalToConstant: 360).isActive = true
         refreshModelsButton.target = self; refreshModelsButton.action = #selector(loadModels)
-        modelsSection = card([label("Model", size: 14, weight: .semibold), row([model, refreshModelsButton]), note("Models load automatically after connecting. You can choose another model or enter its name.")], width: 532)
-        body.addArrangedSubview(modelsSection)
-        status.textColor = .secondaryLabelColor; status.font = .systemFont(ofSize: 12); status.preferredMaxLayoutWidth = 532; status.widthAnchor.constraint(equalToConstant: 532).isActive = true; body.addArrangedSubview(status)
-        body.addArrangedSubview(note("AI tasks send visible controls and text to your chosen connection. Image sharing is optional in Privacy & Access."))
-        requestSettingsButton.target = self; requestSettingsButton.action = #selector(returnToRequest)
-        body.addArrangedSubview(requestSettingsButton)
+        modelsSection = card([label("Model", size: 14, weight: .semibold), row([model, refreshModelsButton])], width: 532); body.addArrangedSubview(modelsSection)
+        status.textColor = NotebookTheme.faded; status.font = .systemFont(ofSize: 12); status.preferredMaxLayoutWidth = 532; status.widthAnchor.constraint(equalToConstant: 532).isActive = true; body.addArrangedSubview(status)
+        requestSettingsButton.target = self; requestSettingsButton.action = #selector(returnToRequest); body.addArrangedSubview(requestSettingsButton)
+        body.addArrangedSubview(note("Tasks share visible text and controls with this connection. Image sharing is optional in Privacy & Access."))
     }
     private func buildPrivacy(_ body: NSStackView) {
-        body.addArrangedSubview(note("You decide what Jerry can do. Permission is requested only when you enable a feature."))
-        accessState.textColor = .secondaryLabelColor; recordingState.textColor = .secondaryLabelColor
-        body.addArrangedSubview(card([label("Desktop interaction", size: 14, weight: .semibold), note("Accessibility lets Jerry read controls and text during AI tasks and click real buttons. Basic exploring and movement don’t need it."), accessState, row([button("Open Accessibility Settings…", #selector(openAccessibility))])], width: 532))
-        body.addArrangedSubview(card([label("Explore inside windows", size: 14, weight: .semibold), preference("Find ledges and cracks inside windows", key: "exploreInsideWindows"), note("Uses Screen Recording access to analyse the working window and onscreen keyboard locally. Terrain images aren’t saved or sent to the AI."), recordingState, row([button("Open Screen Recording Settings…", #selector(openRecording))])], width: 532))
-        let images = NSButton(checkboxWithTitle: "Share active-window images with the AI", target: self, action: #selector(imagesChanged)); images.identifier = .init("agentShareImages"); preferenceButtons["agentShareImages"] = images
-        body.addArrangedSubview(card([label("AI image sharing · optional", size: 14, weight: .semibold), images, note("When enabled, AI inspection can send an image of the active window to your selected connection. This is separate from local terrain detection and also needs Screen Recording access.")], width: 532))
-        body.addArrangedSubview(note("Credentials are stored in macOS Keychain. Journal history remains in memory until you quit, unless you save a log. Saved logs can contain task text and observed screen content."))
+        accessState.textColor = NotebookTheme.faded; recordingState.textColor = NotebookTheme.faded
+        accessSettingsButton.target = self; accessSettingsButton.action = #selector(openAccessibility)
+        recordingSettingsButton.target = self; recordingSettingsButton.action = #selector(openRecording)
+        body.addArrangedSubview(card([label("Desktop access", size: 14, weight: .semibold), note("Read controls and click buttons in other apps. Requires Accessibility access."), row([accessState, accessSettingsButton])], width: 532))
+        body.addArrangedSubview(card([label("Window ledges", size: 14, weight: .semibold), preference("Find ledges inside windows", key: "exploreInsideWindows"), note("Finds ledges and cracks locally, without saving or sharing images. Requires Screen Recording access."), row([recordingState, recordingSettingsButton])], width: 532))
+        let images = NSButton(checkboxWithTitle: "Also share window images", target: self, action: #selector(imagesChanged)); images.contentTintColor = NotebookTheme.ink; images.identifier = .init("agentShareImages"); preferenceButtons["agentShareImages"] = images
+        body.addArrangedSubview(card([label("AI sharing", size: 14, weight: .semibold), note("AI tasks share visible text and controls."), images, note("Images go to the AI and also need Screen Recording access.")], width: 532))
+        body.addArrangedSubview(note("Keys stay in Keychain. The journal clears when you quit; saved logs may include screen content."))
     }
     private func buildControls(_ body: NSStackView) {
-        body.addArrangedSubview(note("Drag Jerry at any time. Keyboard controls are captured only after you take control."))
-        for entry in ExplorerControls.rows {
-            let key = label(entry[0], size: 11, weight: .medium); key.font = .monospacedSystemFont(ofSize: 11, weight: .medium); key.widthAnchor.constraint(equalToConstant: 145).isActive = true
-            body.addArrangedSubview(row([key, label(entry[1], size: 12)]))
+        body.spacing = 10
+        for (title, entries) in ExplorerControls.groups {
+            let heading = label(title, size: 14, weight: .semibold)
+            let rows = entries.map { entry -> NSView in
+                let key = label(entry[0], size: 11, weight: .medium)
+                key.font = .monospacedSystemFont(ofSize: 11, weight: .medium)
+                key.widthAnchor.constraint(equalToConstant: 145).isActive = true
+                return row([key, label(entry[1], size: 12)])
+            }
+            body.addArrangedSubview(card([heading] + rows, width: 532, spacing: 6, inset: 12))
         }
-        shortcutState.textColor = .secondaryLabelColor; shortcutState.font = .systemFont(ofSize: 11); shortcutState.preferredMaxLayoutWidth = 532; body.addArrangedSubview(shortcutState)
         body.addArrangedSubview(button("Take Control", #selector(takeControlFromSettings)))
-        body.addArrangedSubview(note("E clicks without leaving control. Use Stop Task in the menu or journal to stop AI work; taking manual control also interrupts it."))
+        body.addArrangedSubview(note("Drag Jerry aside at any time. Taking control stops AI tasks."))
+        shortcutState.textColor = NotebookTheme.faded; shortcutState.font = .systemFont(ofSize: 11); shortcutState.preferredMaxLayoutWidth = 532; body.addArrangedSubview(shortcutState)
     }
     private func buildAdvanced(_ body: NSStackView) {
-        body.addArrangedSubview(note("A few tools for curious explorers and troubleshooting."))
-        body.addArrangedSubview(preference("Show terrain guides", key: "debugGuides"))
-        body.addArrangedSubview(note("Show the window edges, ledges and cracks Jerry can use."))
-        body.addArrangedSubview(preference("Show Developer Tools in the menu", key: "developerToolsEnabled"))
-        body.addArrangedSubview(note("Activity tests and the animation playground are kept out of the everyday menu."))
-        body.addArrangedSubview(button("Run Offline Connection Test…", #selector(selectOfflineTest)))
-        body.addArrangedSubview(note("The offline test checks the tool loop. It doesn’t plan or perform real computer tasks."))
+        body.addArrangedSubview(card([label("Troubleshooting", size: 14, weight: .semibold), preference("Show terrain guides", key: "debugGuides"), note("See the edges Jerry can use."), preference("Show developer tools", key: "developerToolsEnabled"), note("Adds activity tests to the menu.")], width: 532))
+        body.addArrangedSubview(button("Run Offline Test…", #selector(selectOfflineTest)))
+        body.addArrangedSubview(note("Checks the tool loop. No AI requests or clicks."))
     }
     private func refreshSettings() {
         for (key, control) in preferenceButtons {
@@ -261,12 +274,18 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         }
         loginSettingsButton.isHidden = SMAppService.mainApp.status != .requiresApproval
         if SMAppService.mainApp.status == .requiresApproval { generalState.stringValue = "Allow The Other Sock in System Settings → General → Login Items." }
+        generalState.isHidden = generalState.stringValue.isEmpty
         requestSettingsButton.title = requestField.stringValue.isEmpty ? "Ask Jerry…" : "Return to Request"
+        NotebookTheme.style(requestSettingsButton)
         paceChoice.selectItem(at: UserDefaults.standard.bool(forKey: "gentlePace") ? 0 : 1)
         computer.shareImages = UserDefaults.standard.bool(forKey: "agentShareImages")
-        accessState.stringValue = ExplorerDesktopClick.hasAccess ? "Allowed · ready for desktop interaction" : "Not allowed · exploring still works"
-        recordingState.stringValue = CGPreflightScreenCaptureAccess() ? "Allowed · local terrain detection is available" : "Not allowed · window borders still work. After granting access, return here; reopen the app if macOS asks."
-        shortcutState.stringValue = shortcutStatusProvider?() ?? "Global shortcuts work while The Other Sock is running."
+        accessState.stringValue = ExplorerDesktopClick.hasAccess ? "Allowed" : "Access needed"
+        recordingState.stringValue = CGPreflightScreenCaptureAccess() ? "Allowed" : "Access needed"
+        accessSettingsButton.title = ExplorerDesktopClick.hasAccess ? "Manage…" : "Open Settings…"
+        recordingSettingsButton.title = CGPreflightScreenCaptureAccess() ? "Manage…" : "Open Settings…"
+        NotebookTheme.style(accessSettingsButton); NotebookTheme.style(recordingSettingsButton)
+        shortcutState.stringValue = shortcutStatusProvider?() ?? ""
+        shortcutState.isHidden = !shortcutState.stringValue.contains("unavailable")
     }
     @objc private func settingsSectionChanged(_ sender: NSButton) { selectSettings(sender.title) }
     @objc private func preferenceChanged(_ sender: NSButton) {
@@ -438,14 +457,16 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     func comboBoxSelectionDidChange(_ notification: Notification) { DispatchQueue.main.async { [weak self] in self?.persistModel(); self?.updatePromptHint() } }
     private func updateConnection() {
         let source = provider.indexOfSelectedItem
-        signInButton.title = credentials.account == nil ? "Continue with ChatGPT" : "Reconnect…"
+        signInButton.title = credentials.account == nil ? "Sign in with ChatGPT" : "Sign in again…"
+        NotebookTheme.style(signInButton)
         signInButton.isEnabled = !credentials.isSigningIn
         cancelSignInButton.isHidden = !credentials.isSigningIn
+        chatGPTSection.isHidden = source != 1 || (credentials.account != nil && !credentials.isSigningIn)
         if source == 1 {
             if credentials.isSigningIn { connection.stringValue = credentials.status }
             else if let account = credentials.account { connection.stringValue = "Connected · " + account.email }
             else { connection.stringValue = credentials.status }
-        } else { connection.stringValue = source == 2 ? (credentials.hasAPIKey ? "API key saved in Keychain" : "No API key saved") : "Developer test connection" }
+        } else { connection.stringValue = source == 2 ? (credentials.hasAPIKey ? "Key saved" : "No key saved") : "Developer test connection" }
         disconnectButton.isHidden = source == 0 || (source == 1 ? credentials.account == nil : !credentials.hasAPIKey)
         updatePromptHint(); autoLoadModels()
     }
@@ -465,7 +486,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         }
         UserDefaults.standard.set(source, forKey: "agentProvider")
         chatGPTSection.isHidden = source != 1; keySection.isHidden = source != 2; modelsSection.isHidden = source == 0
-        status.stringValue = source == 0 ? "Offline test selected. Choose ChatGPT or an API key for real tasks." : "Connect to get started. Credentials stay in Keychain."
+        status.stringValue = source == 0 ? "Offline test selected. Choose ChatGPT or an API key for real tasks." : "Connect to continue."
         updateConnection()
     }
     private func autoLoadModels() {
@@ -513,10 +534,10 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
                 let saved = model.stringValue
                 model.removeAllItems(); model.addItems(withObjectValues: choices)
                 model.stringValue = choices.contains(saved) ? saved : choices.first ?? ""
-                status.stringValue = choices.isEmpty ? "No models returned. You can enter a model name manually." : "Ready to ask Jerry. \(choices.count) models available."
+                status.stringValue = choices.isEmpty ? "No models returned. You can enter a model name manually." : "Ready to ask Jerry."
                 if #unavailable(macOS 27.0) { status.stringValue = "AI tasks require macOS 27 or later. Exploring and manual control still work." }
                 persistModel(); updatePromptHint()
-            } catch is CancellationError { } catch { if self.catalogID == id { status.stringValue = "Needs attention · " + error.localizedDescription } }
+            } catch is CancellationError { } catch { if self.catalogID == id { status.stringValue = "Needs attention · " + error.localizedDescription; if source == 1 { self.chatGPTSection.isHidden = false } } }
         }
     }
     @objc private func imagesChanged(_ sender: NSButton) {
@@ -528,7 +549,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         let source = provider.indexOfSelectedItem, selectedModel = model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), prompt = requestField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { NSSound.beep(); return }
         guard (source != 0 || UserDefaults.standard.bool(forKey: "developerToolsEnabled")) && (source == 0 || (!selectedModel.isEmpty && (source == 1 ? credentials.account != nil : credentials.hasAPIKey))) else {
-            returningToPrompt = true; promptWindow.orderOut(nil); openSettings(section: "AI"); status.stringValue = "Your request is kept. Connect, then choose Return to Request."; return
+            returningToPrompt = true; promptWindow.orderOut(nil); openSettings(section: "AI"); status.stringValue = "Your request is saved here. Finish setup, then return to it."; return
         }
         stop()
         let id = UUID(); runID = id; computer.start()
@@ -595,6 +616,13 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         results.append(("settings contains five independently scrollable sections", settingsPages.count == 5 && settingsPages.values.allSatisfy { $0 is NSScrollView }))
         selectSettings("Privacy & Access")
         results.append(("settings navigation shows only the selected section", settingsPages.filter { !$0.value.isHidden }.map(\.key) == ["Privacy & Access"]))
+        selectSettings("Controls")
+        func visibleText(_ view: NSView) -> [String] {
+            guard !view.isHidden else { return [] }
+            return ((view as? NSTextField).map { [$0.stringValue] } ?? []) + view.subviews.flatMap(visibleText)
+        }
+        let controls = settingsPages["Controls"].map(visibleText) ?? []
+        results.append(("every documented control is visible without expanding a section", ExplorerControls.rows.allSatisfy { controls.contains($0[0]) }))
         results.append(("offline connection test is hidden from the ordinary connection picker", provider.item(at: 0)?.isHidden == true))
         results.append(("local terrain and AI image sharing have separate preferences", preferenceButtons["exploreInsideWindows"] !== preferenceButtons["agentShareImages"] && preferenceButtons["agentShareImages"] != nil))
         requestField.stringValue = "Keep this request"

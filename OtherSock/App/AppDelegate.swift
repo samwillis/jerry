@@ -197,7 +197,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             controller.onTaskStateChanged = { [weak self] in self?.updateMenu() }
             controller.shortcutStatusProvider = { [weak self] in
                 guard let self else { return "" }
-                return "Ask Jerry: \(self.askHotKey.isRegistered ? "available" : "shortcut unavailable; use the menu"). Take Control: \(self.hotKey.isRegistered ? "available" : "shortcut unavailable; use the menu")."
+                if self.askHotKey.isRegistered && self.hotKey.isRegistered { return "Global shortcuts work from any app." }
+                return "A shortcut is unavailable. Use Ask Jerry or Take Control in the menu."
             }
             controller.onStop = { [weak self] in
                 guard let self else { return }

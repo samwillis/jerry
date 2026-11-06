@@ -304,3 +304,14 @@ AI setup defaults to a live connection method, loads the catalog automatically, 
 - Live UI reviewed the welcome, General, AI, Privacy & Access, Controls and Advanced. ChatGPT loaded eight models automatically. A missing-model request opened setup; restoring the model returned the exact request to the bubble, then the model replied “My name is Jerry.” Stop was available during the pending request and disabled after completion.
 - Debug and packaged Release builds pass. Existing movement/core behaviour is unchanged; the baseline 163 core tests remain the prior validation.
 - Login registration, scoped real-account disconnection, fresh/denied/revoked OS permissions, expired/revoked sign-in and dark-mode rendering still need dedicated acceptance on a signed installation. No permissions were granted or revoked, credentials disconnected, or login item registered during UI verification.
+
+
+## Shared notebook styling and simpler Settings — 6 November 2026
+
+Welcome and Settings now share the journal’s paper/ink/leather palette, paper fibres, red margin, stitched spine and serif headings. Their borderless notebook windows retain keyboard focus, resizing where appropriate, draggable headers and accessible custom close controls. Button titles have explicit foreground colours for legible contrast. Sidebar navigation has 12-point internal text padding, a wider column and no duplicated branding beneath the single notebook header.
+
+The welcome illustration has a larger canvas and a small floor edge. Its drop shadow is masked behind the floor using the same occlusion logic as real window ledges, rather than clipped accidentally by the illustration bounds.
+
+Reviewed and shortened all five Settings sections. General contains preferences and a save-status note. AI combines connection/account state into one card and removes sign-in instructions after connection. Privacy uses concise permission rows and distinct local-terrain/AI-sharing copy. Controls presents every documented key in three compact, always-visible groups: From any app, Movement, and Tools & tasks. Advanced keeps only diagnostics and short explanations. Text wrapping uses each card’s actual inner width so descriptions cannot lose their final line.
+
+78 native and 25 agent checks pass, including a new regression that every documented control is visible without expanding a section. Debug and packaged Release builds pass. Live review covered the styled welcome, floor/shadow, all five Settings pages, close/reopen controls, sidebar padding, model loading and the complete controls reference. The final app is left running on Controls with the single top heading.
