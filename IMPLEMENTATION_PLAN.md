@@ -281,3 +281,20 @@ Added a registered Control–Option–Return system shortcut for Ask Explorer, i
 ## Patterned sock discoveries and Jerry — 6 November 2026
 
 The banana gag has been removed. SockMission now discovers the same patterned sock it spots, rotating stripes, spots, argyle and zigzags between completed expeditions. Both sleeves share the jacket palette. The shared AI system prompt names the explorer Jerry and separates conversational replies from computer tasks; live identity acceptance returned “My name is Jerry.”
+
+
+## Product interface and release preparation — 6 November 2026
+
+Implemented the compact Meet Jerry welcome, unified Settings sections, concise menu, contextual Stop Task, opt-in developer controls, per-connection AI setup/model loading, scoped disconnect, request-preserving setup recovery, permission status and distinct local/AI data-use copy. Login launch is available through SMAppService and reports approval/errors.
+
+Remaining publication gates:
+
+- [ ] Final app icon and release/version metadata.
+- [ ] Developer ID signing, hardened-runtime/entitlement review, notarisation and a distributable installer/archive.
+- [ ] Review the supported ChatGPT authentication/distribution arrangement before advertising plan sign-in publicly.
+- [ ] Verify minimum OS support, with AI availability clearly gated, plus Intel/Apple silicon distribution targets.
+- [ ] Fresh-install onboarding; permission denial/revocation and return from System Settings; cancelled/expired/revoked sign-in; unavailable models and network failure.
+- [ ] Signed-app login launch, credential isolation on disconnect, shortcut conflicts, small displays, dark mode, VoiceOver and keyboard-only navigation.
+- [ ] Public privacy/support documentation and an update strategy.
+
+These are release gates; the current package remains an unsigned local prototype.

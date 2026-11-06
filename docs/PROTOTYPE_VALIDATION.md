@@ -289,3 +289,18 @@ The renderer previously chose the design from the completion count, which advanc
 Reproduced with macOS Screenshot’s recording controls: its com.apple.screencaptureui overlay at level 24 and unbundled screencapture backdrop at level 1498 cover the display. They were treated as opaque occluders and removed all real edges, leaving only three screen-rescue segments. The terrain provider now excludes Screenshot UI and its exact unbundled helper owner, and does not treat the recorder’s foreground UI as an unsupported full-screen desktop. Ordinary QuickTime playback windows and unrelated unbundled windows retain their geometry.
 
 76 native checks pass; Debug and packaged Release builds pass. With the recording toolbar and selection overlays still open, the live app reports 13 windows and 12 exposed edges, remains RUNNING and continues rope climbing. The recorder controls are left open for the user; no recording was started by this verification.
+
+
+## Unified Settings and compact welcome — 6 November 2026
+
+Replaced the long first-run reference with a permission-free Meet Jerry introduction, the two global shortcuts, Start Exploring, Try Controls and optional AI setup. The full reference now lives in Settings → Controls. Settings has five independently scrollable sections: General, AI, Privacy & Access, Controls and Advanced. The window adapts its initial height to the display, resizes down to a scrollable layout, and uses native dynamic text colours and appearance-aware cards.
+
+Movement and exploration settings update UserDefaults and the running explorer immediately; menu changes refresh Settings. Login launch uses SMAppService with status/error reporting and an approval link when required. Accessibility and Screen Recording status refresh on returning to Settings. Local terrain analysis and optional AI image sharing have separate controls and explicit data-use copy.
+
+AI setup defaults to a live connection method, loads the catalog automatically, preserves model selections per connection and rejects stale catalog responses after a provider switch. Disconnect removes only the selected credential. Browser sign-in can be cancelled and provider changes invalidate pending sign-in. An unfinished request survives the setup detour and closing Settings. The ordinary menu opens Settings directly, exposes Stop Task while model work is running, and hides Developer Tools until enabled under Advanced. Terrain guides remain available in Advanced without enabling developer tools.
+
+- 78 native checks pass, including direct Settings navigation, two-level menu depth, Developer Tools opt-in and inactive Stop Task state.
+- 24 agent checks pass, including five scrollable sections, exclusive section selection, hidden offline picker entry, separate privacy preferences, preserved drafts and immediate preference callbacks.
+- Live UI reviewed the welcome, General, AI, Privacy & Access, Controls and Advanced. ChatGPT loaded eight models automatically. A missing-model request opened setup; restoring the model returned the exact request to the bubble, then the model replied “My name is Jerry.” Stop was available during the pending request and disabled after completion.
+- Debug and packaged Release builds pass. Existing movement/core behaviour is unchanged; the baseline 163 core tests remain the prior validation.
+- Login registration, scoped real-account disconnection, fresh/denied/revoked OS permissions, expired/revoked sign-in and dark-mode rendering still need dedicated acceptance on a signed installation. No permissions were granted or revoked, credentials disconnected, or login item registered during UI verification.

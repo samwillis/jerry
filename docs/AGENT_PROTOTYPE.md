@@ -1,10 +1,10 @@
 # Native computer tasks
 
-Press **Control–Option–Return** from any app, open **Ask Explorer…** from the hiking menu, or press **Return** in manual control. Type in the small bubble beside him; Return sends and Escape cancels. Idle wandering waits while you type. AI text and physical progress appear in the **Expedition journal** at the right of the screen. Stop or take manual control to interrupt; hiding the journal leaves the task running.
+Press **Control–Option–Return** from any app, open **Ask Jerry…** from the hiking menu, or press **Return** in manual control. Type in the small bubble beside him; Return sends and Escape cancels. Idle wandering waits while you type. AI text and physical progress appear in the **Expedition journal** at the right of the screen. Stop or take manual control to interrupt; hiding the journal leaves the task running.
 
 ## Connection and observation
 
-Use **Settings → AI Connection…** for ChatGPT browser sign-in or an OpenAI API key, and select a vision/tool-capable model from the loaded catalog. Credentials are stored in this app’s macOS Keychain items. **Forget saved connections** deletes local credentials, not the remote grant. Unsigned Debug and Release builds may have different Keychain access identities; production signing remains necessary.
+Use **Settings → AI** for ChatGPT browser sign-in or an OpenAI API key, and select a vision/tool-capable model from the loaded catalog. Credentials are stored in this app’s macOS Keychain items. **Disconnect** removes only the selected connection’s local credentials; it does not revoke the remote grant or remove the other saved connection. Models load automatically after connecting; selections are remembered per connection. Incomplete setup keeps the request intact and offers Return to Request. Unsigned Debug and Release builds may have different Keychain access identities; production signing remains necessary.
 
 The AI reads the active app’s accessible controls and text, plus the Dock and system menu controls. Secure text fields are excluded. **Also share active-window images with the AI** adds optional vision observations and requires Screen Recording permission. Images are bounded, sent only with an explicit inspection, and are not saved by the app. The checkbox is off by default. Accessibility permission is required for computer interaction.
 

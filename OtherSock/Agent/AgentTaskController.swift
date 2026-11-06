@@ -3,6 +3,7 @@ import FoundationModels
 import ExpeditionCore
 import UniformTypeIdentifiers
 import SwiftUI
+import ServiceManagement
 
 @MainActor
 private final class ExplorerFloatingPanel: NSPanel {
@@ -19,6 +20,15 @@ private final class PromptSurface: NSView {
         NSColor.separatorColor.setStroke(); shape.lineWidth = 1; shape.stroke()
     }
 }
+
+private final class SettingsCardView: NSView {
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.035).cgColor }
+    }
+}
+
+private final class SettingsDocumentView: NSView { override var isFlipped: Bool { true } }
 
 /// Owns connection settings, the task composer and the non-activating task journal.
 @MainActor
@@ -42,6 +52,30 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private let run = NSButton(title: "Send explorer", target: nil, action: nil)
     private let signInButton = NSButton(title: "Continue with ChatGPT", target: nil, action: nil)
     private let cancelSignInButton = NSButton(title: "Cancel sign-in", target: nil, action: nil)
+    private var settingsPages: [String: NSView] = [:]
+    private var navigation: [NSButton] = []
+    private var preferenceButtons: [String: NSButton] = [:]
+    private let paceChoice = NSPopUpButton()
+    private let accessState = NSTextField(wrappingLabelWithString: "")
+    private let recordingState = NSTextField(wrappingLabelWithString: "")
+    private let generalState = NSTextField(wrappingLabelWithString: "")
+    private let shortcutState = NSTextField(wrappingLabelWithString: "")
+    private let disconnectButton = NSButton(title: "Disconnect", target: nil, action: nil)
+    private let requestSettingsButton = NSButton(title: "Ask Jerry…", target: nil, action: nil)
+    private let loginSettingsButton = NSButton(title: "Open Login Items…", target: nil, action: nil)
+    private let refreshModelsButton = NSButton(title: "Refresh", target: nil, action: nil)
+    private var loadedConnection = ""
+    private var lastProvider = -1
+    private var catalogID = UUID()
+    private var returningToPrompt = false
+    private var settingsObserver: NSObjectProtocol?
+    var onPreferencesChanged: (() -> Void)?
+    var onResetExplorer: (() -> Void)?
+    var onWelcomeRequested: (() -> Void)?
+    var onTakeControlRequested: (() -> Void)?
+    var shortcutStatusProvider: (() -> String)?
+    var onTaskStateChanged: (() -> Void)?
+    var isTaskRunning: Bool { journalState.isRunning }
     private var chatGPTSection: NSView!
     private var keySection: NSView!
     private var modelsSection: NSView!
@@ -64,9 +98,9 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
 
     override init(window: NSWindow?) { super.init(window: window) }
     convenience init() {
-        let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 580, height: 620), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 760, height: min(580, max(420, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         self.init(window: window)
-        window.title = "Explorer Settings"; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
+        window.title = "The Other Sock — Settings"; window.minSize = .init(width: 760, height: 420); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
         buildSettings(); buildPrompt(); buildJournal()
         computer.progress = { [weak self] in self?.journalState.status = $0; self?.appendLog("Activity", $0) }
         computer.logResult = { [weak self] in self?.appendLog("Tool result", $0) }
@@ -74,11 +108,22 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         computer.afterInput = { [weak self] in self?.onAfterInput?(); self?.journal.orderFrontRegardless() }
         credentials.onChange = { [weak self] in self?.updateConnection() }
         let savedProvider = UserDefaults.standard.object(forKey: "agentProvider") as? Int
-        provider.selectItem(at: savedProvider.flatMap { (0...2).contains($0) ? $0 : nil } ?? (credentials.account == nil ? 0 : 1))
+        let selectedProvider = savedProvider.flatMap { (0...2).contains($0) ? $0 : nil } ?? (credentials.account == nil && credentials.hasAPIKey ? 2 : 1)
+        provider.selectItem(at: selectedProvider == 0 && !UserDefaults.standard.bool(forKey: "developerToolsEnabled") ? 1 : selectedProvider)
         providerChanged(); updateConnection()
     }
     required init?(coder: NSCoder) { fatalError("Use init()") }
-    func open() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
+    func open() { refreshSettings(); showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil); autoLoadModels() }
+    func openSettings(section: String = "General") { selectSettings(section); open() }
+    private func selectSettings(_ section: String) {
+        for (name, page) in settingsPages { page.isHidden = name != section }
+        for button in navigation {
+            let selected = button.title == section
+            button.state = selected ? .on : .off
+            button.layer?.backgroundColor = selected ? NSColor.controlAccentColor.withAlphaComponent(0.14).cgColor : NSColor.clear.cgColor
+            button.contentTintColor = selected ? .controlAccentColor : .labelColor
+        }
+    }
     func openPrompt(resumeControl: Bool = false) {
         resumeControlOnCancel = promptWindow.isVisible ? (resumeControlOnCancel || resumeControl) : resumeControl
         updatePromptHint(); onPromptOpened?(); updatePromptPosition(force: true)
@@ -97,7 +142,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         return stack
     }
     private func card(_ views: [NSView], width: CGFloat) -> NSView {
-        let box = NSView(); box.wantsLayer = true; box.layer?.cornerRadius = 12; box.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.035).cgColor
+        let box = SettingsCardView(); box.wantsLayer = true; box.layer?.cornerRadius = 12; box.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.035).cgColor
         let body = stack(in: box, inset: 16); body.spacing = 10
         for view in views { body.addArrangedSubview(view); view.widthAnchor.constraint(equalToConstant: width - 32).isActive = true }
         body.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -16).isActive = true
@@ -106,35 +151,147 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     }
     private func buildSettings() {
         guard let content = window?.contentView else { return }
-        let body = stack(in: content)
-        body.addArrangedSubview(label("A brain for the expedition", size: 24, weight: .bold))
-        body.addArrangedSubview(label("Choose how your explorer plans a task. Connections stay on this Mac.", size: 13))
-        provider.addItems(withTitles: ["Offline connection test", "ChatGPT", "OpenAI API key"])
+        let sidebar = NSVisualEffectView(); sidebar.material = .sidebar; sidebar.blendingMode = .behindWindow
+        sidebar.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(sidebar)
+        let links = stack(in: sidebar, inset: 14); links.spacing = 5
+        let brand = label("THE OTHER SOCK", size: 10, weight: .semibold); brand.textColor = .secondaryLabelColor; links.addArrangedSubview(brand)
+        links.addArrangedSubview(label("Jerry’s base camp", size: 13, weight: .medium))
+        links.setCustomSpacing(22, after: links.arrangedSubviews.last!)
+        let main = NSView(); main.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(main)
+        NSLayoutConstraint.activate([sidebar.leadingAnchor.constraint(equalTo: content.leadingAnchor), sidebar.topAnchor.constraint(equalTo: content.topAnchor), sidebar.bottomAnchor.constraint(equalTo: content.bottomAnchor), sidebar.widthAnchor.constraint(equalToConstant: 164), main.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), main.trailingAnchor.constraint(equalTo: content.trailingAnchor), main.topAnchor.constraint(equalTo: content.topAnchor), main.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
+        for name in ["General", "AI", "Privacy & Access", "Controls", "Advanced"] {
+            let button = NSButton(title: name, target: self, action: #selector(settingsSectionChanged(_:)))
+            button.isBordered = false; button.wantsLayer = true; button.layer?.cornerRadius = 6
+            button.setButtonType(.pushOnPushOff); button.alignment = .left; button.font = .systemFont(ofSize: 12)
+            button.heightAnchor.constraint(equalToConstant: 30).isActive = true
+            links.addArrangedSubview(button); button.widthAnchor.constraint(equalTo: links.widthAnchor).isActive = true; navigation.append(button)
+            let scroll = NSScrollView(); scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
+            scroll.translatesAutoresizingMaskIntoConstraints = false; main.addSubview(scroll)
+            NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo: main.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: main.trailingAnchor), scroll.topAnchor.constraint(equalTo: main.topAnchor), scroll.bottomAnchor.constraint(equalTo: main.bottomAnchor)])
+            let document = SettingsDocumentView(); document.translatesAutoresizingMaskIntoConstraints = false; scroll.documentView = document
+            document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
+            let body = stack(in: document); body.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24).isActive = true
+            settingsPages[name] = scroll
+            body.addArrangedSubview(label(name == "AI" ? "A little help thinking." : name, size: 23, weight: .semibold))
+            switch name {
+            case "General": buildGeneral(body)
+            case "AI": buildAI(body)
+            case "Privacy & Access": buildPrivacy(body)
+            case "Controls": buildControls(body)
+            default: buildAdvanced(body)
+            }
+        }
+        selectSettings("General")
+        settingsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshSettings() }
+        }
+    }
+    private func note(_ text: String) -> NSTextField { let field = label(text, size: 12); field.textColor = .secondaryLabelColor; field.preferredMaxLayoutWidth = 532; return field }
+    private func preference(_ title: String, key: String) -> NSButton {
+        let control = NSButton(checkboxWithTitle: title, target: self, action: #selector(preferenceChanged(_:)))
+        control.identifier = .init(key); preferenceButtons[key] = control; return control
+    }
+    private func buildGeneral(_ body: NSStackView) {
+        body.addArrangedSubview(note("One small adventurer, at home on your desktop. Changes are saved automatically."))
+        body.addArrangedSubview(card([label("Exploration", size: 14, weight: .semibold), preference("Enable idle exploration", key: "idleExploration"), note("Jerry looks for socks when you’re busy. Turn this off and he rests, watches your pointer and stays draggable.")], width: 532))
+        paceChoice.addItems(withTitles: ["Gentle", "Normal"]); paceChoice.target = self; paceChoice.action = #selector(paceChanged)
+        body.addArrangedSubview(card([label("Movement", size: 14, weight: .semibold), row([label("Movement pace"), paceChoice]), preference("Run when exploring", key: "runWhenExploring"), preference("Faster rope work", key: "fasterRopeWork"), note("Hold Shift while in control to move faster whenever you need to.")], width: 532))
+        body.addArrangedSubview(preference("Open The Other Sock at login", key: "launchAtLogin"))
+        loginSettingsButton.target = self; loginSettingsButton.action = #selector(openLoginItems)
+        body.addArrangedSubview(loginSettingsButton)
+        generalState.textColor = .secondaryLabelColor; generalState.font = .systemFont(ofSize: 11); body.addArrangedSubview(generalState)
+        body.addArrangedSubview(row([button("Bring Jerry Back", #selector(resetExplorer)), button("Meet Jerry…", #selector(showWelcome))]))
+    }
+    private func buildAI(_ body: NSStackView) {
+        body.addArrangedSubview(note("Connect an account when you want to give Jerry a task. Exploring and manual control work without AI."))
+        provider.addItems(withTitles: ["Offline connection test", "ChatGPT", "OpenAI API key"]); provider.item(at: 0)?.isHidden = true
         provider.target = self; provider.action = #selector(providerChanged)
-        body.addArrangedSubview(row([label("AI provider", weight: .semibold), provider]))
-        connection.textColor = .secondaryLabelColor; connection.font = .systemFont(ofSize: 12)
+        body.addArrangedSubview(row([label("Connect with", weight: .medium), provider]))
+        connection.textColor = .secondaryLabelColor; connection.font = .systemFont(ofSize: 12); connection.preferredMaxLayoutWidth = 532
         signInButton.target = self; signInButton.action = #selector(signIn)
         cancelSignInButton.target = self; cancelSignInButton.action = #selector(cancelSignIn)
-        chatGPTSection = card([label("Use your ChatGPT account", size: 15, weight: .semibold), label("Continue in your browser to connect your plan. Your password never enters this app.", size: 12), row([signInButton, cancelSignInButton])], width: 532)
-        keySection = card([label("Connect with an API key", size: 15, weight: .semibold), label("Paste a key below. It is stored securely in macOS Keychain.", size: 12), apiKey, row([button("Save API key", #selector(saveKey))])], width: 532)
-        apiKey.placeholderString = "API key"; apiKey.setAccessibilityLabel("OpenAI API key")
+        disconnectButton.target = self; disconnectButton.action = #selector(disconnectSelected)
+        chatGPTSection = card([label("Your ChatGPT account", size: 14, weight: .semibold), note("Sign in securely in your browser. Your password never enters The Other Sock."), row([signInButton, cancelSignInButton])], width: 532)
+        apiKey.placeholderString = "Paste an API key"; apiKey.setAccessibilityLabel("OpenAI API key")
+        keySection = card([label("Your OpenAI API key", size: 14, weight: .semibold), note("API usage is billed separately by your provider. Your key is saved in this Mac’s Keychain."), apiKey, row([button("Save Key", #selector(saveKey))])], width: 532)
         body.addArrangedSubview(chatGPTSection); body.addArrangedSubview(keySection)
-        body.addArrangedSubview(connection)
-        model.stringValue = UserDefaults.standard.string(forKey: "agentModelID") ?? ""
-        model.placeholderString = "Choose a model with images and tools"; model.isEditable = true; model.delegate = self
-        model.widthAnchor.constraint(equalToConstant: 350).isActive = true
-        modelsSection = card([label("Model", size: 15, weight: .semibold), row([model, button("Load models", #selector(loadModels))]), label("Load your account’s catalog, then choose a model that supports vision and tools.", size: 12)], width: 532)
+        body.addArrangedSubview(row([connection, disconnectButton]))
+        model.stringValue = UserDefaults.standard.string(forKey: "agentModelID") ?? ""; model.placeholderString = "Connect to choose a model"; model.isEditable = true; model.delegate = self
+        model.widthAnchor.constraint(equalToConstant: 360).isActive = true
+        refreshModelsButton.target = self; refreshModelsButton.action = #selector(loadModels)
+        modelsSection = card([label("Model", size: 14, weight: .semibold), row([model, refreshModelsButton]), note("Models load automatically after connecting. You can choose another model or enter its name.")], width: 532)
         body.addArrangedSubview(modelsSection)
-        let scope = label("The AI reads the active app’s visible controls and text. The explorer moves to controls before pressing them, and types through an onscreen keyboard. Stop or take manual control to interrupt.", size: 12)
-        scope.textColor = .secondaryLabelColor; scope.preferredMaxLayoutWidth = 532; scope.widthAnchor.constraint(equalToConstant: 532).isActive = true
-        body.addArrangedSubview(scope)
-        let images = NSButton(checkboxWithTitle: "Also share active-window images with the AI", target: self, action: #selector(imagesChanged))
-        images.state = UserDefaults.standard.bool(forKey: "agentShareImages") ? .on : .off
-        computer.shareImages = images.state == .on; body.addArrangedSubview(images)
-        status.textColor = .secondaryLabelColor; status.font = .systemFont(ofSize: 12); status.widthAnchor.constraint(equalToConstant: 532).isActive = true
-        body.addArrangedSubview(status)
-        body.addArrangedSubview(row([button("Forget saved connections", #selector(forget)), button("Done", #selector(doneSettings))]))
+        status.textColor = .secondaryLabelColor; status.font = .systemFont(ofSize: 12); status.preferredMaxLayoutWidth = 532; status.widthAnchor.constraint(equalToConstant: 532).isActive = true; body.addArrangedSubview(status)
+        body.addArrangedSubview(note("AI tasks send visible controls and text to your chosen connection. Image sharing is optional in Privacy & Access."))
+        requestSettingsButton.target = self; requestSettingsButton.action = #selector(returnToRequest)
+        body.addArrangedSubview(requestSettingsButton)
     }
+    private func buildPrivacy(_ body: NSStackView) {
+        body.addArrangedSubview(note("You decide what Jerry can do. Permission is requested only when you enable a feature."))
+        accessState.textColor = .secondaryLabelColor; recordingState.textColor = .secondaryLabelColor
+        body.addArrangedSubview(card([label("Desktop interaction", size: 14, weight: .semibold), note("Accessibility lets Jerry read controls and text during AI tasks and click real buttons. Basic exploring and movement don’t need it."), accessState, row([button("Open Accessibility Settings…", #selector(openAccessibility))])], width: 532))
+        body.addArrangedSubview(card([label("Explore inside windows", size: 14, weight: .semibold), preference("Find ledges and cracks inside windows", key: "exploreInsideWindows"), note("Uses Screen Recording access to analyse the working window and onscreen keyboard locally. Terrain images aren’t saved or sent to the AI."), recordingState, row([button("Open Screen Recording Settings…", #selector(openRecording))])], width: 532))
+        let images = NSButton(checkboxWithTitle: "Share active-window images with the AI", target: self, action: #selector(imagesChanged)); images.identifier = .init("agentShareImages"); preferenceButtons["agentShareImages"] = images
+        body.addArrangedSubview(card([label("AI image sharing · optional", size: 14, weight: .semibold), images, note("When enabled, AI inspection can send an image of the active window to your selected connection. This is separate from local terrain detection and also needs Screen Recording access.")], width: 532))
+        body.addArrangedSubview(note("Credentials are stored in macOS Keychain. Journal history remains in memory until you quit, unless you save a log. Saved logs can contain task text and observed screen content."))
+    }
+    private func buildControls(_ body: NSStackView) {
+        body.addArrangedSubview(note("Drag Jerry at any time. Keyboard controls are captured only after you take control."))
+        for entry in ExplorerControls.rows {
+            let key = label(entry[0], size: 11, weight: .medium); key.font = .monospacedSystemFont(ofSize: 11, weight: .medium); key.widthAnchor.constraint(equalToConstant: 145).isActive = true
+            body.addArrangedSubview(row([key, label(entry[1], size: 12)]))
+        }
+        shortcutState.textColor = .secondaryLabelColor; shortcutState.font = .systemFont(ofSize: 11); shortcutState.preferredMaxLayoutWidth = 532; body.addArrangedSubview(shortcutState)
+        body.addArrangedSubview(button("Take Control", #selector(takeControlFromSettings)))
+        body.addArrangedSubview(note("E clicks without leaving control. Use Stop Task in the menu or journal to stop AI work; taking manual control also interrupts it."))
+    }
+    private func buildAdvanced(_ body: NSStackView) {
+        body.addArrangedSubview(note("A few tools for curious explorers and troubleshooting."))
+        body.addArrangedSubview(preference("Show terrain guides", key: "debugGuides"))
+        body.addArrangedSubview(note("Show the window edges, ledges and cracks Jerry can use."))
+        body.addArrangedSubview(preference("Show Developer Tools in the menu", key: "developerToolsEnabled"))
+        body.addArrangedSubview(note("Activity tests and the animation playground are kept out of the everyday menu."))
+        body.addArrangedSubview(button("Run Offline Connection Test…", #selector(selectOfflineTest)))
+        body.addArrangedSubview(note("The offline test checks the tool loop. It doesn’t plan or perform real computer tasks."))
+    }
+    private func refreshSettings() {
+        for (key, control) in preferenceButtons {
+            let enabled = key == "launchAtLogin" ? SMAppService.mainApp.status == .enabled : (UserDefaults.standard.object(forKey: key) as? Bool ?? (key == "idleExploration"))
+            control.state = enabled ? .on : .off
+        }
+        loginSettingsButton.isHidden = SMAppService.mainApp.status != .requiresApproval
+        if SMAppService.mainApp.status == .requiresApproval { generalState.stringValue = "Allow The Other Sock in System Settings → General → Login Items." }
+        requestSettingsButton.title = requestField.stringValue.isEmpty ? "Ask Jerry…" : "Return to Request"
+        paceChoice.selectItem(at: UserDefaults.standard.bool(forKey: "gentlePace") ? 0 : 1)
+        computer.shareImages = UserDefaults.standard.bool(forKey: "agentShareImages")
+        accessState.stringValue = ExplorerDesktopClick.hasAccess ? "Allowed · ready for desktop interaction" : "Not allowed · exploring still works"
+        recordingState.stringValue = CGPreflightScreenCaptureAccess() ? "Allowed · local terrain detection is available" : "Not allowed · window borders still work. After granting access, return here; reopen the app if macOS asks."
+        shortcutState.stringValue = shortcutStatusProvider?() ?? "Global shortcuts work while The Other Sock is running."
+    }
+    @objc private func settingsSectionChanged(_ sender: NSButton) { selectSettings(sender.title) }
+    @objc private func preferenceChanged(_ sender: NSButton) {
+        guard let key = sender.identifier?.rawValue else { return }
+        if key == "launchAtLogin" {
+            do { if sender.state == .on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }; generalState.stringValue = "Login setting updated." }
+            catch { generalState.stringValue = "Couldn’t update login setting: " + error.localizedDescription }
+        } else {
+            UserDefaults.standard.set(sender.state == .on, forKey: key)
+            if key == "exploreInsideWindows", sender.state == .on, !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+            onPreferencesChanged?()
+        }
+        refreshSettings()
+    }
+    @objc private func paceChanged() { UserDefaults.standard.set(paceChoice.indexOfSelectedItem == 0, forKey: "gentlePace"); onPreferencesChanged?() }
+    @objc private func resetExplorer() { onResetExplorer?() }
+    @objc private func showWelcome() { close(); onWelcomeRequested?() }
+    @objc private func takeControlFromSettings() { close(); onTakeControlRequested?() }
+    @objc private func openLoginItems() { SMAppService.openSystemSettingsLoginItems() }
+    @objc private func openAccessibility() { openPrivacy("Privacy_Accessibility") }
+    @objc private func openRecording() { openPrivacy("Privacy_ScreenCapture") }
+    private func openPrivacy(_ pane: String) { if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?" + pane) { NSWorkspace.shared.open(url) } }
+    @objc private func selectOfflineTest() { UserDefaults.standard.set(true, forKey: "developerToolsEnabled"); onPreferencesChanged?(); provider.selectItem(at: 0); providerChanged(); selectSettings("AI") }
+    @objc private func returnToRequest() { returningToPrompt = false; close(); openPrompt(resumeControl: resumeControlOnCancel) }
+    func windowDidBecomeKey(_ notification: Notification) { if notification.object as? NSWindow === window { refreshSettings(); onPreferencesChanged?() } }
     private func buildPrompt() {
         promptWindow = ExplorerFloatingPanel(contentRect: .init(x: 0, y: 0, width: 360, height: 52), styleMask: [.borderless], backing: .buffered, defer: false)
         promptWindow.title = "Ask explorer"; promptWindow.isReleasedWhenClosed = false; promptWindow.delegate = self; promptWindow.level = .floating
@@ -272,69 +429,106 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         let resume = resumeControlOnCancel; resumeControlOnCancel = false
         if resume { onPromptCancelled?() }
     }
-    private func persistModel() { UserDefaults.standard.set(model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "agentModelID") }
+    private func persistModel() {
+        let value = model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(value, forKey: "agentModelID")
+        UserDefaults.standard.set(value, forKey: "agentModelID.\(provider.indexOfSelectedItem)")
+    }
     func controlTextDidEndEditing(_ notification: Notification) { if notification.object as? NSComboBox === model { persistModel(); updatePromptHint() } }
     func comboBoxSelectionDidChange(_ notification: Notification) { DispatchQueue.main.async { [weak self] in self?.persistModel(); self?.updatePromptHint() } }
     private func updateConnection() {
-        signInButton.title = credentials.account == nil ? "Continue with ChatGPT" : "Reconnect ChatGPT"
+        let source = provider.indexOfSelectedItem
+        signInButton.title = credentials.account == nil ? "Continue with ChatGPT" : "Reconnect…"
         signInButton.isEnabled = !credentials.isSigningIn
         cancelSignInButton.isHidden = !credentials.isSigningIn
-        if let account = credentials.account { connection.stringValue = credentials.isSigningIn ? credentials.status : "Connected to ChatGPT · \(account.email)" }
-        else { connection.stringValue = credentials.status + (credentials.hasAPIKey ? " · API key saved" : "") }
-        updatePromptHint()
+        if source == 1 {
+            if credentials.isSigningIn { connection.stringValue = credentials.status }
+            else if let account = credentials.account { connection.stringValue = "Connected · " + account.email }
+            else { connection.stringValue = credentials.status }
+        } else { connection.stringValue = source == 2 ? (credentials.hasAPIKey ? "API key saved in Keychain" : "No API key saved") : "Developer test connection" }
+        disconnectButton.isHidden = source == 0 || (source == 1 ? credentials.account == nil : !credentials.hasAPIKey)
+        updatePromptHint(); autoLoadModels()
     }
     private func updatePromptHint() {
         let source = provider.indexOfSelectedItem
-        promptHint.stringValue = source == 0 ? "Offline connection test · choose a live provider to run tasks." : "\(source == 1 ? "ChatGPT" : "OpenAI API") · \(model.stringValue.isEmpty ? "Choose a model in AI Settings" : model.stringValue)"
+        promptHint.stringValue = source == 0 ? "Offline test · no real tasks" : "\(source == 1 ? "ChatGPT" : "OpenAI API") · \(model.stringValue.isEmpty ? "Connect in Settings → AI" : model.stringValue)"
         requestField.toolTip = promptHint.stringValue + " · Return to send · Escape to cancel"
     }
     @objc private func providerChanged() {
-        catalogTask?.cancel()
+        catalogID = UUID(); catalogTask?.cancel(); refreshModelsButton.isEnabled = true
         let source = provider.indexOfSelectedItem
+        if source != 1 { credentials.cancelSignIn() }
+        if lastProvider != source {
+            model.removeAllItems()
+            model.stringValue = UserDefaults.standard.string(forKey: "agentModelID.\(source)") ?? (lastProvider < 0 ? UserDefaults.standard.string(forKey: "agentModelID") ?? "" : "")
+            loadedConnection = ""; lastProvider = source
+        }
         UserDefaults.standard.set(source, forKey: "agentProvider")
         chatGPTSection.isHidden = source != 1; keySection.isHidden = source != 2; modelsSection.isHidden = source == 0
-        status.stringValue = source == 0 ? "The offline connection test checks the native tool loop. It does not plan or perform computer tasks." : "Keys and sign-in tokens are stored in macOS Keychain."
-        window?.setContentSize(.init(width: 580, height: source == 0 ? 500 : 640))
-        updatePromptHint()
+        status.stringValue = source == 0 ? "Offline test selected. Choose ChatGPT or an API key for real tasks." : "Connect to get started. Credentials stay in Keychain."
+        updateConnection()
+    }
+    private func autoLoadModels() {
+        guard window?.isVisible == true else { return }
+        let source = provider.indexOfSelectedItem
+        let identity = source == 1 ? credentials.account?.subject : (source == 2 && credentials.hasAPIKey ? "api-key" : nil)
+        guard let identity, !credentials.isSigningIn else { return }
+        let key = "\(source):\(identity)"
+        guard loadedConnection != key else { return }; loadedConnection = key
+        loadModels()
     }
     @objc private func signIn() { credentials.signIn() }
-    @objc private func cancelSignIn() { credentials.cancelSignIn(); updateConnection(); status.stringValue = "Sign-in cancelled. You can connect again whenever you’re ready." }
-    @objc private func forget() { stop(); catalogTask?.cancel(); credentials.disconnect(); model.removeAllItems(); model.stringValue = "" }
+    @objc private func cancelSignIn() { credentials.cancelSignIn(); updateConnection(); status.stringValue = "Sign-in cancelled. You can try again whenever you’re ready." }
+    @objc private func disconnectSelected() {
+        stop(); catalogID = UUID(); catalogTask?.cancel(); loadedConnection = ""
+        let source = provider.indexOfSelectedItem
+        UserDefaults.standard.removeObject(forKey: "agentModelID.\(source)")
+        model.removeAllItems(); model.stringValue = ""; persistModel()
+        if source == 1 { credentials.disconnectChatGPT() } else { credentials.removeAPIKey() }
+        status.stringValue = "Disconnected. Jerry can still explore and you can still take control."
+    }
     @objc private func saveKey() {
-        do { try credentials.saveAPIKey(apiKey.stringValue); apiKey.stringValue = ""; provider.selectItem(at: 2); providerChanged() }
-        catch { connection.stringValue = error.localizedDescription }
+        do { loadedConnection = ""; try credentials.saveAPIKey(apiKey.stringValue); apiKey.stringValue = ""; provider.selectItem(at: 2); providerChanged() }
+        catch { status.stringValue = error.localizedDescription }
     }
     @objc private func loadModels() {
-        catalogTask?.cancel()
+        catalogTask?.cancel(); let id = UUID(); catalogID = id
         let source = provider.indexOfSelectedItem
-        guard source != 0 else { status.stringValue = "The offline model needs no credentials or model catalog."; return }
+        guard source != 0 else { return }
+        refreshModelsButton.isEnabled = false; status.stringValue = "Loading models…"
         catalogTask = Task { [weak self] in
             guard let self else { return }
+            defer { if self.catalogID == id { self.refreshModelsButton.isEnabled = true } }
             do {
                 let token = source == 1 ? try await credentials.accessToken() : try credentials.apiKey()
                 var request = URLRequest(url: URL(string: "https://api.openai.com/v1/models")!)
                 request.timeoutInterval = 30; request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 let (data, response) = try await URLSession.shared.data(for: request)
                 try Task.checkCancellation()
-                guard (response as? HTTPURLResponse)?.statusCode == 200, let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw AgentConnectionError(message: "Could not load models for this connection.") }
+                guard self.catalogID == id else { return }
+                guard (response as? HTTPURLResponse)?.statusCode == 200, let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw AgentConnectionError(message: "Couldn’t load models. Check your connection and try Refresh.") }
                 let choices: [String]
                 if let models = json["models"] as? [[String: Any]] { choices = models.filter { ($0["visibility"] as? String ?? "list") == "list" }.compactMap { $0["slug"] as? String } }
-                else { choices = (json["data"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String }.sorted() }
+                else { choices = (json["data"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String }.filter { $0.hasPrefix("gpt-") || $0.hasPrefix("o") }.filter { !$0.contains("audio") && !$0.contains("realtime") && !$0.contains("transcri") && !$0.contains("tts") && !$0.contains("image") }.sorted() }
+                let saved = model.stringValue
                 model.removeAllItems(); model.addItems(withObjectValues: choices)
-                if model.stringValue.isEmpty, let first = choices.first { model.stringValue = first }
-                status.stringValue = "Loaded \(choices.count) models. Choose one with images and tools."; persistModel(); updatePromptHint()
-            } catch is CancellationError { } catch { status.stringValue = error.localizedDescription }
+                model.stringValue = choices.contains(saved) ? saved : choices.first ?? ""
+                status.stringValue = choices.isEmpty ? "No models returned. You can enter a model name manually." : "Ready to ask Jerry. \(choices.count) models available."
+                if #unavailable(macOS 27.0) { status.stringValue = "AI tasks require macOS 27 or later. Exploring and manual control still work." }
+                persistModel(); updatePromptHint()
+            } catch is CancellationError { } catch { if self.catalogID == id { status.stringValue = "Needs attention · " + error.localizedDescription } }
         }
     }
     @objc private func imagesChanged(_ sender: NSButton) {
         computer.shareImages = sender.state == .on; UserDefaults.standard.set(computer.shareImages, forKey: "agentShareImages")
         if computer.shareImages && !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+        refreshSettings()
     }
     @objc private func plan() {
         let source = provider.indexOfSelectedItem, selectedModel = model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), prompt = requestField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { NSSound.beep(); return }
-        guard source == 0 || (!selectedModel.isEmpty && (source == 1 ? credentials.account != nil : credentials.hasAPIKey)) else {
-            promptHint.stringValue = "Connect an account and choose a model in AI Settings first."; open(); return
+        guard (source != 0 || UserDefaults.standard.bool(forKey: "developerToolsEnabled")) && (source == 0 || (!selectedModel.isEmpty && (source == 1 ? credentials.account != nil : credentials.hasAPIKey))) else {
+            returningToPrompt = true; promptWindow.orderOut(nil); openSettings(section: "AI"); status.stringValue = "Your request is kept. Connect, then choose Return to Request."; return
         }
         stop()
         let id = UUID(); runID = id; computer.start()
@@ -343,10 +537,10 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         assistantRows = [:]; lastResponseRow = nil
         appendLog("Your request", prompt)
         appendLog("Model request", "Provider: \(provider.titleOfSelectedItem ?? "AI")\nModel: \(selectedModel.isEmpty ? "Offline connection test" : selectedModel)\n" + Self.computerInstructions)
-        journalState.taskTitle = prompt; journalState.status = "Planning the expedition…"; journalState.isRunning = true; showJournal(); onSubmitted?()
+        journalState.taskTitle = prompt; journalState.status = "Planning the expedition…"; journalState.isRunning = true; showJournal(); onTaskStateChanged?(); onSubmitted?()
         task = Task { [weak self] in
             guard let self else { return }
-            defer { if self.runID == id { self.task = nil; self.journalState.isRunning = self.missionActive } }
+            defer { if self.runID == id { self.task = nil; self.journalState.isRunning = self.missionActive; self.onTaskStateChanged?() } }
             do {
                 guard #available(macOS 27.0, *) else { throw AgentConnectionError(message: "The Foundation Models provider prototype needs macOS 27 or later.") }
                 guard !prompt.isEmpty else { throw AgentConnectionError(message: "Give the explorer a task.") }
@@ -385,14 +579,35 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         let wasActive = task != nil || missionActive
         if wasActive { appendLog("Task stopped", "Cancelled the model request and pending physical actions.") }
         runID = UUID(); computer.stop(); task?.cancel(); task = nil; missionActive = false; journalState.isRunning = false; onStop?()
-        journalState.status = "Stopped."
+        journalState.status = "Stopped."; onTaskStateChanged?()
     }
     func windowWillClose(_ notification: Notification) {
         if notification.object as? NSWindow === promptWindow { finishPromptCancellation() }
-        if notification.object as? NSWindow === window { apiKey.stringValue = ""; credentials.cancelSignIn(); updateConnection() }
+        if notification.object as? NSWindow === window {
+            apiKey.stringValue = ""; credentials.cancelSignIn(); updateConnection()
+            if returningToPrompt { returningToPrompt = false; DispatchQueue.main.async { [weak self] in self?.openPrompt(resumeControl: self?.resumeControlOnCancel ?? false) } }
+        }
     }
-    func closeAll() { stop(); catalogTask?.cancel(); credentials.cancelSignIn(); resumeControlOnCancel = false; promptWindow.close(); journal.close(); close() }
+    func closeAll() { returningToPrompt = false; if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }; settingsObserver = nil; stop(); catalogTask?.cancel(); credentials.cancelSignIn(); resumeControlOnCancel = false; promptWindow.close(); journal.close(); close() }
     #if DEBUG
+    func debugCheckSettings() -> [(String, Bool)] {
+        var results: [(String, Bool)] = []
+        results.append(("settings contains five independently scrollable sections", settingsPages.count == 5 && settingsPages.values.allSatisfy { $0 is NSScrollView }))
+        selectSettings("Privacy & Access")
+        results.append(("settings navigation shows only the selected section", settingsPages.filter { !$0.value.isHidden }.map(\.key) == ["Privacy & Access"]))
+        results.append(("offline connection test is hidden from the ordinary connection picker", provider.item(at: 0)?.isHidden == true))
+        results.append(("local terrain and AI image sharing have separate preferences", preferenceButtons["exploreInsideWindows"] !== preferenceButtons["agentShareImages"] && preferenceButtons["agentShareImages"] != nil))
+        requestField.stringValue = "Keep this request"
+        selectSettings("AI"); selectSettings("General")
+        results.append(("changing settings sections preserves the drafted request", requestField.stringValue == "Keep this request"))
+        let previous = UserDefaults.standard.object(forKey: "gentlePace")
+        defer { if let previous { UserDefaults.standard.set(previous, forKey: "gentlePace") } else { UserDefaults.standard.removeObject(forKey: "gentlePace") } }
+        var changes = 0; onPreferencesChanged = { changes += 1 }
+        paceChoice.selectItem(at: 0); paceChanged(); refreshSettings()
+        results.append(("movement changes save immediately and notify the running explorer", changes == 1 && UserDefaults.standard.bool(forKey: "gentlePace") && paceChoice.indexOfSelectedItem == 0))
+        onPreferencesChanged = nil
+        return results
+    }
     func debugCheckJournal() -> (Bool, Bool, Bool) {
         appendLog("Your request", "First task")
         let streamed = appendLog("Explorer response", "Hel")

@@ -57,6 +57,7 @@ enum AgentPrototypeChecks {
             check(!ExplorerComputer.windowIsFrontmost(at: keyPoint, pid: 101, ignoring: 303, in: [covering, keyboard]), "covered keyboard keys cannot receive physical presses")
             check(ExplorerComputer.windowIsFrontmost(at: keyPoint, pid: 101, ignoring: 202, in: [covering, keyboard]), "only the explorer's own withdrawn overlay is ignored")
             let journal = AgentTaskController()
+            for (name, passed) in journal.debugCheckSettings() { check(passed, name) }
             let journalChecks = journal.debugCheckJournal()
             check(journalChecks.0, "streaming Unicode response updates preserve subsequent tool log entries")
             check(journalChecks.1, "the journal preserves requests across tasks")

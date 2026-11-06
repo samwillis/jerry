@@ -41,6 +41,12 @@ final class AgentCredentials {
         guard let data = try read("api-key"), let key = String(data: data, encoding: .utf8) else { throw AgentConnectionError(message: "Add an API key or continue with ChatGPT.") }
         return key
     }
+    func disconnectChatGPT() {
+        cancelSignIn(); refreshTask?.cancel(); refreshTask = nil
+        SecItemDelete(query("chatgpt") as CFDictionary)
+        status = "ChatGPT disconnected"; onChange?()
+    }
+    func removeAPIKey() { SecItemDelete(query("api-key") as CFDictionary); status = "API key removed"; onChange?() }
     func disconnect() {
         cancelSignIn(); refreshTask?.cancel(); refreshTask = nil
         for name in ["chatgpt", "api-key"] { SecItemDelete(query(name) as CFDictionary) }
@@ -73,6 +79,7 @@ final class AgentCredentials {
         return Data(bytes).base64URL
     }
     func cancelSignIn() {
+        if attempt != nil { status = "Sign-in cancelled" }
         attempt = nil; listener?.cancel(); listener = nil; loginTimeout?.cancel(); loginTimeout = nil
     }
     func signIn() {

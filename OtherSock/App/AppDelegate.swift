@@ -12,13 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
     private var askItem: NSMenuItem!
-    private var runningItem: NSMenuItem!
-    private var ropePaceItem: NSMenuItem!
+    private var stopTaskItem: NSMenuItem?
     private var runWhenExploring = UserDefaults.standard.bool(forKey: "runWhenExploring")
     private var fasterRopeWork = UserDefaults.standard.bool(forKey: "fasterRopeWork")
-    private var paceItem: NSMenuItem!
     private var debugItem: NSMenuItem?
-    private var interiorItem: NSMenuItem?
     private var exploreInsideWindows = UserDefaults.standard.bool(forKey: "exploreInsideWindows")
     private var developerMenu: NSMenu!
     private let hotKey = ExplorerControlHotKey()
@@ -83,10 +80,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if NSApp.mainMenu == nil {
             let bar = NSMenu()
             let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu
-            let ask = appMenu.addItem(withTitle: "Ask Explorer…", action: #selector(openTasks), keyEquivalent: "\r")
+            let ask = appMenu.addItem(withTitle: "Ask Jerry…", action: #selector(openTasks), keyEquivalent: "\r")
             ask.target = self; ask.keyEquivalentModifierMask = [.control, .option]
             appMenu.addItem(withTitle: "Expedition Journal…", action: #selector(showAgentActivity), keyEquivalent: "").target = self
             appMenu.addItem(.separator())
+            appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
             appMenu.addItem(withTitle: "Quit The Other Sock", action: #selector(quit), keyEquivalent: "q").target = self
             bar.addItem(appItem)
             let edit = NSMenu(title: "Edit"); let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: ""); editItem.submenu = edit; bar.addItem(editItem)
@@ -103,27 +101,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.autoenablesItems = false; menu.delegate = self
         let heading = NSMenuItem(title: "The Other Sock", action: nil, keyEquivalent: "")
         heading.isEnabled = false; menu.addItem(heading); menu.addItem(.separator())
-        askItem = add("Ask Explorer…", action: #selector(openTasks), to: menu)
+        askItem = add("Ask Jerry…", action: #selector(openTasks), to: menu)
         askItem.keyEquivalent = "\r"; askItem.keyEquivalentModifierMask = [.control, .option]
         _ = add("Expedition Journal…", action: #selector(showAgentActivity), to: menu)
         menu.addItem(.separator())
         keyboardItem = add("Take Control", action: #selector(toggleKeyboard), to: menu)
         keyboardItem.keyEquivalent = " "; keyboardItem.keyEquivalentModifierMask = [.control, .option]
         idleItem = add("Enable Idle Exploration", action: #selector(toggleIdle), to: menu)
+        stopTaskItem = add("Stop Task", action: #selector(stopTask), to: menu)
         menu.addItem(.separator())
 
-        let settings = NSMenu(title: "Settings"); settings.autoenablesItems = false
-        _ = add("AI Connection…", action: #selector(openAISettings), to: settings)
-        interiorItem = add("Explore Inside Windows…", action: #selector(toggleInterior), to: settings)
-        settings.addItem(.separator())
-        runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: settings)
-        ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: settings)
-        paceItem = add("Slow Movement", action: #selector(togglePace), to: settings)
-        settings.addItem(.separator())
-        _ = add("Desktop Click Access…", action: #selector(allowClicks), to: settings)
-        _ = add("Bring Explorer Back to Desktop", action: #selector(resetExpedition), to: settings)
-        let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: ""); settingsItem.submenu = settings; menu.addItem(settingsItem)
+        _ = add("Settings…", action: #selector(openSettings), to: menu)
         _ = add("Controls & Tips…", action: #selector(showTips), to: menu)
+        _ = add("About The Other Sock", action: #selector(showAbout), to: menu)
 
         developerMenu = NSMenu(title: "Developer Tools"); developerMenu.autoenablesItems = false; developerMenu.delegate = self
         let developmentItem = NSMenuItem(title: "Developer Tools", action: nil, keyEquivalent: ""); developmentItem.submenu = developerMenu; menu.addItem(developmentItem)
@@ -191,47 +181,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay.setKeyboardControl(enabled, restoreFocus: !enabled)
         updateMenu()
     }
-    @objc private func allowClicks() { overlay?.requestClickAccess() }
     private func setPaused(_ paused: Bool) { isPaused = paused; overlay?.setPaused(paused); updateMenu() }
     @objc private func resetExpedition() { overlay?.resetExpedition() }
     @objc private func toggleDebug() {
         showsDebug.toggle(); UserDefaults.standard.set(showsDebug, forKey: "debugGuides")
         overlay?.setDebugVisible(showsDebug); updateMenu()
     }
-    @objc private func toggleInterior() {
-        if exploreInsideWindows {
-            exploreInsideWindows = false
-        } else if CGPreflightScreenCaptureAccess() {
-            exploreInsideWindows = true
-        } else {
-            let alert = NSAlert()
-            alert.messageText = "Let him explore inside windows?"
-            alert.informativeText = "The Other Sock needs Screen Recording access to find ledges and cracks in window content. It analyses one window at a time on this Mac. Images are never saved or sent anywhere.\n\nAfter granting access in System Settings, turn this option on again."
-            alert.addButton(withTitle: "Allow Screen Recording")
-            alert.addButton(withTitle: "Cancel")
-            NSApp.activate(ignoringOtherApps: true)
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-            if CGRequestScreenCaptureAccess() { exploreInsideWindows = true }
-            else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") { NSWorkspace.shared.open(url) }
-        }
-        UserDefaults.standard.set(exploreInsideWindows, forKey: "exploreInsideWindows")
-        overlay?.setExploreInsideWindows(exploreInsideWindows); updateMenu()
-    }
-    @objc private func togglePace() {
-        gentlePace.toggle(); UserDefaults.standard.set(gentlePace, forKey: "gentlePace")
-        overlay?.setGentlePace(gentlePace); updateMenu()
-    }
-    @objc private func toggleRunning() {
-        runWhenExploring.toggle(); UserDefaults.standard.set(runWhenExploring, forKey: "runWhenExploring")
-        overlay?.setRunWhenExploring(runWhenExploring); updateMenu()
-    }
-    @objc private func toggleRopePace() {
-        fasterRopeWork.toggle(); UserDefaults.standard.set(fasterRopeWork, forKey: "fasterRopeWork")
-        overlay?.setFasterRopeWork(fasterRopeWork); updateMenu()
-    }
     private func prepareTasks() {
         if taskController == nil {
             let controller = AgentTaskController()
+            controller.onPreferencesChanged = { [weak self] in self?.applySettings() }
+            controller.onResetExplorer = { [weak self] in self?.resetExpedition() }
+            controller.onWelcomeRequested = { [weak self] in self?.showWelcome(markSeen: true) }
+            controller.onTakeControlRequested = { [weak self] in self?.toggleKeyboard() }
+            controller.onTaskStateChanged = { [weak self] in self?.updateMenu() }
+            controller.shortcutStatusProvider = { [weak self] in
+                guard let self else { return "" }
+                return "Ask Jerry: \(self.askHotKey.isRegistered ? "available" : "shortcut unavailable; use the menu"). Take Control: \(self.hotKey.isRegistered ? "available" : "shortcut unavailable; use the menu")."
+            }
             controller.onStop = { [weak self] in
                 guard let self else { return }
                 self.overlay?.stopAgent(); self.overlay?.setIdleExploration(self.idleExploration)
@@ -261,9 +228,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showAgentActivity() { prepareTasks(); taskController?.showActivity() }
     @objc private func openAISettings() {
         overlay?.setKeyboardControl(false)
-        prepareTasks(); taskController?.open()
+        prepareTasks(); taskController?.openSettings(section: "AI")
     }
-    @objc private func showTips() { showWelcome(markSeen: true) }
+    @objc private func openSettings() { overlay?.setKeyboardControl(false); prepareTasks(); taskController?.openSettings() }
+    @objc private func showTips() { overlay?.setKeyboardControl(false); prepareTasks(); taskController?.openSettings(section: "Controls") }
+    @objc private func stopTask() { taskController?.stop() }
+    @objc private func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "The Other Sock", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "", .credits: NSAttributedString(string: "Jerry. One small adventurer. One missing sock.")])
+    }
+    private func applySettings() {
+        let defaults = UserDefaults.standard
+        idleExploration = defaults.object(forKey: "idleExploration") as? Bool ?? idleExploration
+        runWhenExploring = defaults.bool(forKey: "runWhenExploring"); fasterRopeWork = defaults.bool(forKey: "fasterRopeWork")
+        gentlePace = defaults.bool(forKey: "gentlePace"); exploreInsideWindows = defaults.bool(forKey: "exploreInsideWindows"); showsDebug = defaults.bool(forKey: "debugGuides")
+        overlay?.setIdleExploration(idleExploration); overlay?.setRunWhenExploring(runWhenExploring); overlay?.setFasterRopeWork(fasterRopeWork)
+        overlay?.setGentlePace(gentlePace); overlay?.setExploreInsideWindows(exploreInsideWindows); overlay?.setDebugVisible(showsDebug)
+        updateMenu()
+    }
     private func showWelcome(markSeen: Bool) {
         overlay?.setKeyboardControl(false)
         if welcome == nil {
@@ -271,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guide.onIdleChanged = { [weak self] enabled in
                 guard let self, enabled != self.idleExploration else { return }; self.toggleIdle()
             }
-            guide.onAllowClicks = { [weak self] in self?.overlay?.requestClickAccess() }
+            guide.onSetupAI = { [weak self] in self?.openAISettings() }
             guide.onTakeControl = { [weak self] in
                 self?.setPaused(false); self?.overlay?.setKeyboardControl(true); self?.updateMenu()
             }
@@ -280,7 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         welcome?.onClose = { [weak self] in
             if markSeen { UserDefaults.standard.set(1, forKey: "welcomeVersion") }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.overlay?.keyboardControlEnabled != true else { return }
+                guard let self, self.overlay?.keyboardControlEnabled != true, self.taskController?.window?.isVisible != true else { return }
                 self.overlay?.restoreExternalFocus()
             }
         }
@@ -291,13 +273,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func frontAppChanged() { overlay?.recordFrontApp(); overlay?.checkDesktop() }
     @objc private func spaceChanged() { overlay?.desktopChanged() }
     private func updateMenu() {
+        stopTaskItem?.isHidden = taskController?.isTaskRunning != true
+        statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.isHidden = !UserDefaults.standard.bool(forKey: "developerToolsEnabled")
         idleItem?.state = idleExploration ? .on : .off
         debugItem?.state = showsDebug ? .on : .off
-        interiorItem?.state = exploreInsideWindows ? .on : .off
-        interiorItem?.toolTip = overlay?.windowExplorationStatus
-        paceItem?.state = gentlePace ? .on : .off
-        runningItem?.state = runWhenExploring ? .on : .off
-        ropePaceItem?.state = fasterRopeWork ? .on : .off
         keyboardItem?.state = overlay?.keyboardControlEnabled == true ? .on : .off
         keyboardItem?.title = overlay?.keyboardControlEnabled == true ? "Release Control" : "Take Control"
         askItem?.toolTip = askHotKey.isRegistered ? "Control–Option–Return opens a prompt from any app." : "The shortcut is unavailable; use this menu item."
@@ -327,8 +306,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         check(developer?.items.contains { $0.title == "Show Terrain Guides" && $0.action == #selector(toggleDebug) } == true && statusItem?.menu?.items.contains { $0.action == #selector(toggleDebug) } == false, "terrain guides are available inside Developer Tools")
         check(developerMenu === developer && developer?.items.contains { $0.action == #selector(triggerActivity(_:)) } == true, "activity tests are directly inside Developer Tools")
         check(statusItem?.menu?.items.allSatisfy { $0.submenu?.items.allSatisfy { $0.submenu == nil } ?? true } == true, "status menu has at most two levels")
+        check(statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.isHidden == !UserDefaults.standard.bool(forKey: "developerToolsEnabled"), "developer menu follows the Advanced opt-in")
+        check(stopTaskItem?.isHidden == true, "Stop Task is hidden when no task is running")
         check(askItem.keyEquivalent == "\r" && askItem.keyEquivalentModifierMask == [.control, .option], "Ask Explorer advertises Control Option Return")
-        check(interiorItem?.title == "Explore Inside Windows…", "window pixel exploration has an explicit opt-in setting")
+        check(statusItem?.menu?.items.contains { $0.title == "Settings…" && $0.submenu == nil && $0.action == #selector(openSettings) } == true, "Settings opens a unified window without nested preferences")
         let commands = developerMenu.items.filter { $0.action == #selector(triggerActivity(_:)) }
         check(commands.count == ExplorerActivity.allCases.count - 1, "Actions contains explicit activities without duplicate automatic mode")
         let rope = commands.first { $0.tag == ExplorerActivity.allCases.firstIndex(of: .abseil) }
