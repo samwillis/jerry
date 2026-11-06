@@ -244,3 +244,12 @@ Debug and packaged Release builds pass; 63 native and 11 agent checks pass. Live
 Movement preferences now sit directly in Settings. Activity commands sit directly in Developer Tools below a section heading, alongside terrain guides and the Debug animation playground. Neither submenu contains another submenu. Dynamic activity availability and checkbox states still refresh on opening.
 
 64 native checks pass, including the two-level depth limit, direct developer activity commands, reachable-route availability and dispatch to the simulation. Debug and packaged Release builds pass; the updated Debug app is running.
+
+
+## Hidden onscreen keyboard rejection — 6 November 2026
+
+The keyboard process can outlive its visible window while retaining AX key geometry. The computer tool previously treated that geometry as visible and could click the app underneath. Inspection now prunes hidden subtrees and rejects keyboard windows absent from WindowServer’s onscreen list, including minimized/transparent or stale window geometry. Typing searches all actually visible keyboard windows rather than the first running keyboard process.
+
+Immediately before a physical keyboard click (including direct tool clicks and a missed-character retry), the tool refreshes window visibility/stacking and AX hit-tests the point back to the intended control. If the keyboard is dismissed or covered during travel, it sends no click and returns a recovery message. Only the explorer’s own panels, withdrawn before input, are excluded from the stacking check.
+
+18 agent checks pass, including seven cases for visible, hidden, transparent, wrong-process, moved and covered keyboard windows and the explorer-overlay exception. Debug and packaged Release builds pass. A live typing round trip with the new hit-test gate remains to be acceptance-tested; no external app input was sent during this repair.
