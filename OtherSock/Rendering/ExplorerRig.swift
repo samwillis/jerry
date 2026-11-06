@@ -88,8 +88,14 @@ private final class RigLimb: SKNode {
         let path = CGMutablePath()
         path.move(to: .zero)
         path.addLine(to: CGPoint(x: solution.joint.x - root.x, y: solution.joint.y - root.y))
+        // Rounded stroke caps extend beyond their endpoint. Tuck the sleeve cap
+        // into the palm without moving the hand or changing its contact target.
+        let forearm = hypot(solution.end.x - solution.joint.x, solution.end.y - solution.joint.y)
+        let inset = isFoot ? 0 : min(1.6, forearm)
+        let endX = solution.end.x + (solution.joint.x - solution.end.x) * inset / max(0.001, forearm)
+        let endY = solution.end.y + (solution.joint.y - solution.end.y) * inset / max(0.001, forearm)
         // Leave the rounded shin cap inside the boot rather than below its sole.
-        path.addLine(to: CGPoint(x: solution.end.x - root.x, y: solution.end.y - root.y + (isFoot ? 1 : 0)))
+        path.addLine(to: CGPoint(x: endX - root.x, y: endY - root.y + (isFoot ? 1 : 0)))
         outline.path = path
         mask.path = path
     }

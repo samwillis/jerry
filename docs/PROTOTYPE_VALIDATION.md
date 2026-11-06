@@ -329,3 +329,8 @@ Removed the separate scene-level binocular prop from idle sock spotting. Both id
 Added a 1024-pixel Jerry portrait on the warm paper tile, preserving his original idle hand pose and keeping the entire hat clear of the tile edge. The icon uses the real rig, with high-resolution material textures and magnification baked into every sprite, shape and crop-mask geometry. This avoids enlarged low-resolution SpriteKit stroke/mask caches. Desktop material rendering retains its existing 4× scale and cache sizes.
 
 The reproducible scripts/render-app-icon.sh exporter creates the PNG master and all ten standard macOS iconset representations, then packages AppIcon.icns. Debug and Release bundle the ICNS and reference it through the explicit Info.plist icon key. Verified all ten PNG dimensions, matching bundled ICNS bytes and preserved bundle identity/menu-bar-only metadata in both products. Both builds and 78 native checks pass. Large and 128-pixel previews were visually reviewed.
+
+
+## Sleeve caps inside the hands — 6 November 2026
+
+Retracted each sleeve’s rounded stroke endpoint 1.6 points along the forearm, so its cap ends inside the palm rather than protruding past it. Hand placement, IK/contact targets and boots are unchanged. Regenerated the icon from the corrected rig and visually reviewed both wrists. Debug/Release builds and 78 native checks pass.
