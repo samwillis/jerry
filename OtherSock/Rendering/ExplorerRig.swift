@@ -258,8 +258,8 @@ final class ExplorerRig: SKNode {
             let t = min(1, ropeBlendTime / 0.04)
             pose = jumpPose.blended(from: ropeBlendFrom, fraction: t * t * (3 - 2 * t))
         }
-        grappleGun.isHidden = motion != .grappling
-        if motion == .grappling {
+        grappleGun.isHidden = motion != .grappling && grappleAim == nil
+        if motion == .grappling || grappleAim != nil {
             let aim = grappleAim ?? .init(x: 80, y: 130)
             let angle = atan2(aim.y - 46, aim.x - 8)
             grappleGun.position = .init(x: 8, y: 46); grappleGun.zRotation = angle

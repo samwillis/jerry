@@ -158,3 +158,14 @@ Automated equivalents and native observations are in [prototype validation](PROT
 - [ ] Developer fixture `TerrainFixture --click-target` exposes a counter button. Check AXPress on that button, and check fallback mouse clicking on an appropriate custom canvas control.
 - [ ] After clicking a text field that takes focus, type in the target app normally. Re-enter keyboard control explicitly to move again.
 - [x] Native checks verify denied permission sends no click. Granted-permission clicks remain unverified in the current context.
+
+
+### Manual control and idle exploration follow-up
+
+- [x] E presses the disposable native fixture button without ending control, both on the floor and on a rope.
+- [x] The custom fixture canvas receives a fallback mouse click and the control window regains focus; repeated the check while swinging.
+- [x] G press/release fires a suggested aimed rim; arrow input and E still work on the attached line.
+- [ ] Move the pointer during G aim to choose a different exposed top rim, including while jumping or attached to a rope.
+- [ ] Physically press Control–Option–Space from another app to take/release control. The native test verifies registration, event callback dispatch, repeat suppression and cleanup; computer-use targeted key injection did not exercise the OS-wide shortcut path.
+- [ ] Disable Enable Idle Exploration: leave him alone, drag/drop him onto a window, move the window, and bring the pointer near. He should settle and watch, without starting a sock hunt.
+- [ ] Re-enable exploration and verify wandering/sock hunting returns. Disable it before manual control and verify Escape leaves him resting afterward.

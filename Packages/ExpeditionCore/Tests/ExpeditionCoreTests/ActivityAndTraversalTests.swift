@@ -12,6 +12,7 @@ final class ActivityAndTraversalTests: XCTestCase {
     func testEveryMenuActivityCanRunAndManualActivitiesStop() {
         for activity in [ExplorerActivity.walk, .climb, .abseil, .parachute] {
             var subject = explorer(at: .init(x: 450, y: 370))
+            subject.setIdleExploration(false)
             XCTAssertTrue(subject.availableActivities.contains(activity), activity.title)
             XCTAssertTrue(subject.requestActivity(activity))
             var states = Set<ExplorerInteraction.State>(), edgeMotions = Set<ExplorerMotion>()

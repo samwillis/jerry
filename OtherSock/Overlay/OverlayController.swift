@@ -93,7 +93,14 @@ final class OverlayController {
         }
         keyboard.onDirection = { [weak self] x, y in self?.scene.setControlDirection(x, y) }
         keyboard.onJump = { [weak self] in self?.scene.controlJump() }
-        keyboard.onGrapple = { [weak self] in self?.scene.controlGrapple() }
+        keyboard.onAimChanged = { [weak self] active in
+            self?.scene.setGrappleAiming(active)
+            if active { self?.keyboard.showMessage("Aim the pointer at a window's top rim. Release G to fire. Left/right still pumps the swing.") }
+        }
+        keyboard.onGrapple = { [weak self] in
+            guard let self else { return }
+            self.keyboard.showMessage(self.scene.fireAimedGrapple() ? "Hook fired. Up climbs, Down descends; left/right pumps the swing." : "No reachable top rim there. Hold G and aim at a window's top edge.")
+        }
         keyboard.onInteract = { [weak self] in self?.clickAtExplorer() }
         keyboard.onStop = { [weak self] in
             self?.scene.setKeyboardControl(false)
@@ -152,14 +159,14 @@ final class OverlayController {
     }
 
     var keyboardControlEnabled: Bool { keyboard.isControlling }
-    func setKeyboardControl(_ enabled: Bool) {
+    func setKeyboardControl(_ enabled: Bool, restoreFocus: Bool = false) {
         if enabled {
             guard policy.shouldShow else { return }
             setPaused(false)
             scene.setKeyboardControl(true)
             keyboard.start()
             onKeyboardControlChanged?(true)
-        } else { keyboard.stop() }
+        } else { keyboard.stop(restoreFocus: restoreFocus) }
     }
     func requestClickAccess() {
         ExplorerDesktopClick.requestAccess()
@@ -175,7 +182,7 @@ final class OverlayController {
         }
         let point = ExplorerDesktopClick.quartzPoint(cocoa, primaryTop: screen.frame.maxY)
         clickPending = true
-        keyboard.clearDirections()
+        keyboard.beginClick()
         panel.orderOut(nil); inputPanel.orderOut(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
             guard let self else { return }
@@ -183,10 +190,13 @@ final class OverlayController {
                 self.keyboard.showMessage(ExplorerDesktopClick.press(at: point))
             }
             self.clickPending = false
+            self.keyboard.finishClick()
             if self.policy.shouldShow { self.show() }
         }
     }
 
+    func setIdleExploration(_ enabled: Bool) { scene.setIdleExploration(enabled) }
+    var idleExplorationEnabled: Bool { scene.idleExplorationEnabled }
     var activityStatus: String { scene.activityStatus }
     var availableActivities: Set<ExplorerActivity> { scene.availableActivities }
     func requestActivity(_ activity: ExplorerActivity) { setKeyboardControl(false); refreshTerrain(); scene.requestActivity(activity) }
@@ -310,11 +320,13 @@ final class OverlayController {
         resetExpedition()
         check(NSWorkspace.shared.frontmostApplication?.processIdentifier == focus, "launch/reset/lifecycle preserve frontmost app")
         let previousApp = NSWorkspace.shared.frontmostApplication
-        var direction = CGPoint.zero, jumps = 0, clicks = 0
+        var direction = CGPoint.zero, jumps = 0, clicks = 0, shots = 0, aiming = false
         let tester = ExplorerKeyboardController()
         tester.onDirection = { x, y in direction = .init(x: x, y: y) }
         tester.onJump = { jumps += 1 }
         tester.onInteract = { clicks += 1 }
+        tester.onAimChanged = { aiming = $0 }
+        tester.onGrapple = { shots += 1 }
         tester.start()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.08))
         check(tester.isControlling && tester.panel.canBecomeKey && !panel.canBecomeKey, "keyboard mode has its own key-capable window")
@@ -330,6 +342,13 @@ final class OverlayController {
         _ = tester.routeKey(key(14)); _ = tester.routeKey(key(14, repeatKey: true))
         check(jumps == 1 && clicks == 1, "jump and click fire once rather than on key repeat")
         check(tester.routeKey(key(14, flags: .command)) != nil && clicks == 1, "command shortcuts pass through without clicking")
+        _ = tester.routeKey(key(5)); _ = tester.routeKey(key(5, repeatKey: true))
+        check(aiming && shots == 0, "holding G aims without firing or repeating")
+        _ = tester.routeKey(key(5, down: false))
+        check(!aiming && shots == 1, "releasing G fires one aimed shot")
+        tester.beginClick()
+        tester.windowDidResignKey(Notification(name: NSWindow.didResignKeyNotification, object: tester.panel))
+        check(tester.isControlling && tester.isPerformingClick, "click-induced focus loss preserves keyboard session")
         _ = tester.routeKey(key(53))
         check(!tester.isControlling && !tester.panel.isVisible && direction == .zero, "Escape ends capture and clears held directions")
         tester.close()

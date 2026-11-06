@@ -125,3 +125,10 @@ The crouch, fully extended take-off, airborne tuck and landing compression were 
 ### Rope-climbing elbows — 6 November 2026
 
 116 core tests pass. New coverage sweeps two complete pulls at every five degrees from −80° to +80°: arm reach, shoulder-side constraints, fixed bend signs, and frame-to-frame joint continuity. Vertical loaded grips also remain fixed in world space against the shared reeling clock. Debug/Release builds and all applicable native checks pass. Native playground inspection checked opposite pulls and mirrored facing, both with zero clamped contacts.
+
+
+### Idle exploration, aimed grapples and retained control — 6 November 2026
+
+126 core tests pass, including resuming idle exploration after an explicit action, a single explicit sock search while idle exploration is off, disabling idle exploration mid-walk, passive drop/landing while idle exploration is off, respecting the preference after manual control, selecting/rejecting aimed rims, firing in flight, preserving momentum when replacing an attached line, and pumping/braking a swing tangentially. 35 native checks pass, covering G hold/release, click-induced focus loss, the simplified menu, idle checkbox behavior, and registering/dispatching/unregistering the system hotkey with repeat suppression.
+
+Real disposable fixture runs received native AXPress clicks and custom-canvas fallback clicks, both from the floor and while attached to a rope. The control HUD remained active with focus after each click; G produced firing→swinging and arrows continued movement/climbing. Accessibility was already granted; no new permission was granted by these checks. The global shortcut registered successfully; native dispatch invokes its callback. Targeted computer-use keyboard injection did not trigger the OS-wide shortcut path, so physical cross-app shortcut use remains a manual acceptance check. Both Debug and packaged Release builds pass.

@@ -121,6 +121,7 @@ public struct RopeSession {
     private var takeUp = 0.0
     public var climbsAfterSwing = true
     public var modeAfterLatch: Mode?
+    public var freeFlightWhileFiring = false
     public var isTakingUp: Bool { takeUp > 0 }
 
     public init(anchor: RopeAnchor, guide: AbseilRope, feet: WorldPoint, mode: Mode, velocity: WorldPoint = .zero) {
@@ -166,9 +167,13 @@ public struct RopeSession {
         if supportMotionAge > 0.15 { supportVelocity = .zero }
         age += dt
         if mode == .firing {
+            if freeFlightWhileFiring {
+                body.translate(by: .init(x: body.velocity.x * dt, y: body.velocity.y * dt - RopeDynamics.gravity * dt * dt / 2))
+                body.addImpulse(.init(x: 0, y: -RopeDynamics.gravity * dt))
+            }
             if age >= shotDuration {
                 let feet = self.feet
-                body = .init(position: .init(x: feet.x, y: feet.y + Self.harnessHeight), velocity: .init(x: 0, y: 140), length: guide.length(to: body.position))
+                body = .init(position: .init(x: feet.x, y: feet.y + Self.harnessHeight), velocity: freeFlightWhileFiring ? body.velocity : .init(x: 0, y: 140), length: guide.length(to: body.position))
                 switchMode(modeAfterLatch ?? .swinging)
                 let safeLength = max(minimumLength, guide.wrappedLength + guide.anchor.y - feet.y - Self.harnessHeight - 40)
                 takeUp = mode == .descending ? 0 : max(24, body.length - safeLength)
@@ -197,6 +202,20 @@ public struct RopeSession {
         if tangent.x * outward < 0 { tangent.x *= -1; tangent.y *= -1 }
         let speed = body.velocity.x * tangent.x + body.velocity.y * tangent.y
         if abs(speed) < 40 { body.addImpulse(.init(x: tangent.x * 130, y: tangent.y * 130)) }
+    }
+    public mutating func steerSwing(horizontal: Double, elapsed: Double, guide: AbseilRope) {
+        let contact = guide.taut(toward: body.position).sideTangent
+        let dx = body.position.x - contact.x, dy = body.position.y - contact.y
+        let radius = max(1, hypot(dx, dy))
+        let tangent = WorldPoint(x: -dy / radius, y: dx / radius)
+        let speed = body.velocity.x * tangent.x + body.velocity.y * tangent.y
+        let acceleration = min(1, max(-1, horizontal)) * tangent.x * 320
+        guard acceleration * speed <= 0 || abs(speed) < 260 else { return }
+        let change = acceleration * elapsed
+        let permitted = acceleration * speed > 0
+            ? min(abs(change), max(0, 260 - abs(speed))) * (change < 0 ? -1.0 : 1.0)
+            : change
+        body.addImpulse(.init(x: tangent.x * permitted, y: tangent.y * permitted))
     }
     public mutating func addImpulse(_ impulse: WorldPoint) { body.addImpulse(impulse) }
     public mutating func contact(feet: WorldPoint, horizontal: Bool = false, vertical: Bool = false) {

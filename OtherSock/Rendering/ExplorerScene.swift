@@ -10,6 +10,11 @@ final class ExplorerScene: SKScene {
     private let hook = SKShapeNode()
     private let props = ExpeditionProps()
     private let controlMarker = SKShapeNode()
+    private let aimGuide = SKShapeNode()
+    private var grappleAiming = false
+    private var aimPoint: CGPoint?
+    private var lastAimPointer: CGPoint?
+    private(set) var idleExplorationEnabled = true
     private var startedOnWindow = false
     private var startedRopeDemo = false
     private var startedActivityDemo = false
@@ -55,6 +60,8 @@ final class ExplorerScene: SKScene {
         controlMarker.strokeColor = .systemPink; controlMarker.lineWidth = 1.5
         controlMarker.zPosition = 100; controlMarker.isHidden = true
         addChild(controlMarker)
+        aimGuide.lineWidth = 1; aimGuide.zPosition = 90; aimGuide.isHidden = true
+        addChild(aimGuide)
         addChild(debug)
         debug.isHidden = true
     }
@@ -74,7 +81,8 @@ final class ExplorerScene: SKScene {
             interaction?.updateBounds(safeOrigins)
         }
         interaction?.autonomous = true
-        interaction?.runsMission = true
+        interaction?.runsMission = idleExplorationEnabled
+        interaction?.setIdleExploration(idleExplorationEnabled)
         applyPlacement()
     }
 
@@ -90,7 +98,39 @@ final class ExplorerScene: SKScene {
         guard let interaction, interaction.keyboardControlEnabled else { return nil }
         return .init(x: interaction.position.x + interaction.facing * 32, y: interaction.position.y + 44)
     }
-    func setKeyboardControl(_ enabled: Bool) { interaction?.setKeyboardControl(enabled); applyPlacement() }
+    func setKeyboardControl(_ enabled: Bool) {
+        interaction?.setKeyboardControl(enabled)
+        if !enabled { setGrappleAiming(false) }
+        applyPlacement()
+    }
+    func setIdleExploration(_ enabled: Bool) {
+        idleExplorationEnabled = enabled; interaction?.setIdleExploration(enabled); applyPlacement()
+    }
+    func setGrappleAiming(_ enabled: Bool) {
+        grappleAiming = enabled; aimGuide.isHidden = !enabled
+        lastAimPointer = nil
+        updateGrappleAim(); applyPlacement()
+    }
+    private func updateGrappleAim() {
+        guard grappleAiming, let view, let window = view.window else { return }
+        let pointer = NSEvent.mouseLocation
+        let location = view.convert(window.convertPoint(fromScreen: pointer), from: nil)
+        let raw = convertPoint(fromView: location)
+        if lastAimPointer == nil {
+            let underPointer = interaction?.aimedGrappleTarget(toward: .init(x: raw.x, y: raw.y))
+            let suggestion = underPointer ?? interaction?.suggestedGrappleAim()
+            aimPoint = suggestion.map { .init(x: $0.x, y: $0.y) } ?? raw
+            lastAimPointer = pointer
+        } else if let previous = lastAimPointer, hypot(pointer.x - previous.x, pointer.y - previous.y) > 1 {
+            aimPoint = raw; lastAimPointer = pointer
+        }
+    }
+    @discardableResult func fireAimedGrapple() -> Bool {
+        updateGrappleAim()
+        guard let aimPoint else { return false }
+        let result = interaction?.fireGrapple(toward: .init(x: aimPoint.x, y: aimPoint.y)) ?? false
+        applyPlacement(); return result
+    }
     func setControlDirection(_ x: Double, _ y: Double) { interaction?.setControlDirection(horizontal: x, vertical: y) }
     func controlJump() { interaction?.controlJump(); applyPlacement() }
     func controlGrapple() { interaction?.controlGrapple(); applyPlacement() }
@@ -186,6 +226,7 @@ final class ExplorerScene: SKScene {
         let elapsed = min(rawElapsed, 0.25)
         previousUpdateTime = currentTime
         guard !expeditionPaused else { return }
+        updateGrappleAim()
         let previousState = interaction?.state
         let previousLandingCount = interaction?.landingCount
         interaction?.advance(by: elapsed * playbackRate)
@@ -259,7 +300,17 @@ final class ExplorerScene: SKScene {
         explorer.footTargets = nil
         explorer.ropePose = nil
         explorer.usesHarnessPivot = false
-        explorer.grappleAim = interaction.grappleTarget.map { .init(x: ($0.x - interaction.position.x) * facing, y: $0.y - interaction.position.y) }
+        let aimedTarget = grappleAiming ? aimPoint.map { interaction.aimedGrappleTarget(toward: .init(x: $0.x, y: $0.y)) } ?? nil : nil
+        let gunTarget = interaction.grappleTarget ?? (grappleAiming ? (aimedTarget ?? aimPoint.map { WorldPoint(x: $0.x, y: $0.y) }) : nil)
+        if grappleAiming, let aimPoint {
+            let target = aimedTarget ?? .init(x: aimPoint.x, y: aimPoint.y)
+            let path = CGMutablePath()
+            path.move(to: .init(x: interaction.position.x, y: interaction.position.y + 46))
+            path.addLine(to: .init(x: target.x, y: target.y))
+            path.addEllipse(in: .init(x: target.x - 7, y: target.y - 7, width: 14, height: 14))
+            aimGuide.path = path; aimGuide.strokeColor = aimedTarget == nil ? .systemOrange : .systemGreen
+        }
+        explorer.grappleAim = gunTarget.map { .init(x: ($0.x - interaction.position.x) * facing, y: $0.y - interaction.position.y) }
         if let session = interaction.ropeSession, let guide = interaction.ropeGuide, session.mode != .supported && session.mode != .firing {
             let path = guide.taut(toward: session.body.position)
             let dx = (path.sideTangent.x - session.body.position.x) * facing, dy = path.sideTangent.y - session.body.position.y

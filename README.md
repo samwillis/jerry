@@ -4,19 +4,21 @@ A tiny, deeply unqualified desktop expedition searching for the other sock.
 
 ## Current prototype: phases one to seven
 
-The native macOS shell draws one articulated, approximately 74-point shape explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle, sways when held, and displays a parachute during controlled recovery. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Reset Expedition**, **Activities**, **Gentle Pace**, **Show Debug Guides**, **Animation Playground…** (Debug builds), and **Quit The Other Sock**. Pause, pace, and guide preferences survive relaunch.
+The macOS app draws one articulated, approximately 74-point explorer above normal windows. The hiking menu provides **Enable Idle Exploration**, **Take Control**, **Actions**, **Settings**, **Controls & Tips…**, and **Quit The Other Sock**. Debug builds add **Developer Tools** for guides and the animation playground. Idle exploration and movement-speed preferences survive relaunch.
+
+With **Enable Idle Exploration** checked, he wanders, explores windows and looks for the sock. Uncheck it and he stays where he is, watches a nearby pointer, and remains draggable. Gravity, window-edge landing and parachute recovery keep working. This does not freeze the simulation. Leaving manual control respects the idle preference. A legacy paused preference starts with idle exploration disabled.
 
 The rendering overlay ignores mouse events and cannot become the key or main window. A separate 48 × 76 point, non-activating panel over the explorer accepts dragging. Grab anywhere inside that small character area, drag it aside, and release. The grab offset is preserved, and the explorer remains inside the primary display's usable area. All other overlay space passes mouse events through. Autonomous/dragging mode uses no keyboard monitor or permission prompts. Optional keyboard control uses a local event monitor only while its control window has focus. Optional desktop clicks require Accessibility permission; neither feature captures screen images.
 
-While held, idle movement stops. Release carries recent drag momentum, so quick sideways or upward motions produce an arc. Holding still before release gives a normal drop. The explorer initially falls faster; its chute emerges from behind the backpack, opens overhead, and slows the descent and drift. It lands on the first suitable exposed top below its trajectory. Gentle placement within 16 points of a top snaps it directly onto the edge. It needs its full body width on the platform and 76 points of clear space above it. It follows that window when moved or resized. Losing support starts another recovery. It autonomously walks exposed tops, climbs reachable window sides, abseils from a window-relative rope, and steers parachutes towards safe landing areas. Window changes revalidate each transition; losing support or an invalid route starts recovery. A new grab cancels its route and mission immediately.
+While held, idle movement stops. Release carries recent drag momentum, so quick sideways or upward motions produce an arc. Holding still before release gives a normal drop. The explorer initially falls faster; its chute emerges from behind the backpack, opens overhead, and slows the descent and drift. It lands on the first suitable exposed top below its trajectory. Gentle placement within 16 points of a top snaps it directly onto the edge. It needs its full body width on the platform and 76 points of clear space above it. It follows that window when moved or resized. Losing support starts another recovery. When idle exploration is enabled, it walks exposed tops, climbs reachable window sides, abseils from a window-relative rope, and steers parachutes towards safe landing areas. Window changes revalidate each transition; losing support or an invalid route starts recovery. A new grab cancels its route and mission immediately.
 
-On landing, the explorer briefly crouches with planted feet and then rises. A settling interval prevents immediate autonomous movement. Occasional blinks have a tiny timing offset between the eyes. Dragging is still available when paused; pausing freezes visual clocks, settling, recovery, and automatic terrain polling. Resume refreshes geometry immediately. Releasing a dragged explorer refreshes geometry even while paused.
+On landing, the explorer briefly crouches with planted feet and then rises. A settling interval prevents immediate autonomous movement. Occasional blinks have a tiny timing offset between the eyes. The developer-only simulation pause freezes visual clocks, recovery and polling; it is separate from the user-facing idle-exploration setting.
 
 Bring the pointer near him and he notices it: his eyes follow first, with a small, slower head turn. Attention fades smoothly beyond about 220 points and returns to his normal expression. Blinking continues while he watches. This samples the current pointer position without capturing mouse events.
 
 ## Play with the keyboard
 
-Choose hiking menu → **Control Explorer with Keyboard…**. A small control window takes focus and shows the keys. The explorer stops choosing adventures until you leave control mode.
+Press **Control–Option–Space** from any app while The Other Sock is open, or choose hiking menu → **Take Control**. The same shortcut releases control. A small control window takes focus and shows the keys. The explorer stops choosing adventures until you leave control mode.
 
 | Key | Action |
 | --- | --- |
@@ -25,19 +27,21 @@ Choose hiking menu → **Control Explorer with Keyboard…**. A small control wi
 | ↓ / S | Lower over a nearby window edge and abseil, or descend the attached rope |
 | Space | Jump; jump off/release a rope |
 | ↓ + Space | Drop through the current platform |
-| G | Fire the hook from a supported position; Up then climbs its rope |
+| Hold G, release G | Aim with the pointer at a window’s top rim, then fire; works from a platform, in the air, or on a rope |
 | E | Click the crosshair beside his hand |
 | Esc | End control and return focus to the previous app |
 
 Releasing Up/Down holds the current rope length, allowing a natural swing. Walking uses twice the normal cadence and matches its foot motion. A ground jump has a short, planted crouch and leg push before take-off, then tucks and reaches for landing. Air steering accelerates smoothly and retains sideways momentum on release. Landings compress the knees before moving on. There are no mid-air double jumps. Changing apps, pausing, dragging, resetting, sleeping, or leaving the desktop stops keyboard capture and clears held directions. Movement needs no Accessibility or Input Monitoring permission.
 
-**E** targets the visible crosshair, first using an accessible control's Press action and otherwise sending one ordinary left click there. Choose **Allow Explorer Clicks…** in the hiking menu (or press E once), then enable The Other Sock under **System Settings → Privacy & Security → Accessibility**. Return to keyboard control afterward. Without that permission E performs no click. Native/custom controls that take focus end control mode, so you can type into the target app normally. Buttons and toggles can be pressed; this first version does not route text typing, double-clicks, right-clicks, or drag gestures through the explorer.
+**E** targets the visible crosshair, first using an accessible control's Press action and otherwise sending one ordinary left click there. Choose **Settings → Allow Clicks in Other Apps…** in the hiking menu (or press E once), then enable The Other Sock under **System Settings → Privacy & Security → Accessibility**. Return to keyboard control afterward. Without that permission E performs no click. Clicks keep the manual session and rope active. After an action takes focus, the control window regains it. E works while hanging, climbing or swinging; held movement is reconciled afterward to prevent stuck keys. Use Esc if you want to type in the target app normally. Buttons and toggles can be pressed; this first version does not route text typing, double-clicks, right-clicks, or drag gestures through the explorer.
 
 ## Trigger an activity
 
-Use the hiking menu → **Activities** → **Walk**, **Climb a window**, **Grappling hook**, **Abseil**, **Climb rope**, **Swing on rope**, **Release rope**, **Parachute**, or **Find the sock**. The explorer approaches suitable real terrain first, then performs the activity and rests. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Automatic adventures** restores normal mission selection. Choosing an activity resumes a paused expedition.
+Use hiking menu → **Actions** for walking, climbing, grappling, rope actions, parachuting or looking for the sock. The explorer approaches suitable real terrain first, then performs the activity and returns to the idle-exploration setting. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Enable Idle Exploration** controls automatic wandering after the action finishes.
 
 Climbs now pull over the lip into a planted-foot standing pose; rope descents crouch and back over the lip; parachute trips crouch and jump clear before deploying. The rope pins on the top edge, follows an estimated 10-point rounded window corner, and leaves along the mathematical tangent towards the hands. Both straight-to-curve joins remain tangent as the explorer descends.
+
+Aiming shows a green snapped rim when it is reachable, or an orange marker when no valid anchor is selected. Starting aim suggests a nearby rim if the pointer is not already over one; moving the pointer takes over precise aim. Refiring from a rope releases the old anchor and preserves momentum while the new hook flies. Left/right applies force along the rope tangent, with a 260 pt/s drive cap; opposite input brakes the swing.
 
 ## Connected rope activities
 
@@ -57,7 +61,7 @@ Movement uses a fixed 120 Hz simulation with at most 0.25 seconds of catch-up af
 
 ## Animation playground
 
-Open **Animation Playground…** from the hiking menu, or quit the current app and run its executable with `--playground`. Preview every motion (including Landing), switch facing and background, pause/restart, slow playback, show joints, and tune stride, cadence, and bounce. **Preview time (pauses)** freezes an exact frame for inspection. Drag climbing handholds, the rope anchor, the grab pivot, or the body. A small actual-size explorer appears alongside the enlarged version. See [animation workflow and rig details](docs/ANIMATION_WORKFLOW.md).
+Open **Developer Tools → Animation Playground…** from the hiking menu, or quit the current app and run its executable with `--playground`. Preview every motion (including Landing), switch facing and background, pause/restart, slow playback, show joints, and tune stride, cadence, and bounce. **Preview time (pauses)** freezes an exact frame for inspection. Drag climbing handholds, the rope anchor, the grab pivot, or the body. A small actual-size explorer appears alongside the enlarged version. See [animation workflow and rig details](docs/ANIMATION_WORKFLOW.md).
 
 The desktop and playground share the same articulated rig and animation controller. Knees bend towards the toes; elbow poles favour the back of the body. The desktop now drives those same movement poses from real surface routes. Final character artwork remains a later refinement.
 

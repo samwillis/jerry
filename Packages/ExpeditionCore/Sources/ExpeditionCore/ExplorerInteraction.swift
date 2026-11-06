@@ -40,6 +40,7 @@ public struct ExplorerInteraction {
         return JumpAnimation.airborne(elapsed: jumpAirElapsed, verticalSpeed: controlVelocity.y, landingDistance: max(0, position.y - landingY))
     }
     private var dropThroughRemaining = 0.0
+    public private(set) var idleExplorationEnabled = true
     public var autonomous = false
     public var runsMission = false
     public private(set) var mission = BananaMission()
@@ -122,6 +123,7 @@ public struct ExplorerInteraction {
             return true
         }
         if activity == .automatic || activity == .bananaAdventure {
+            if activity == .automatic { idleExplorationEnabled = true }
             if let source = currentSupport { attachment = source }
             route.removeAll(); afterLanding.removeAll(); ropeSession = nil
             requestedActivity = nil; pendingActivity = nil
@@ -275,13 +277,18 @@ public struct ExplorerInteraction {
                 advancePhysics(by: dt)
                 if state == .idle && !runsMission {
                     if let pendingActivity { _ = requestActivity(pendingActivity) }
-                    else if requestedActivity == nil { advanceAutonomy(by: dt) }
+                    else if requestedActivity != nil && idleExplorationEnabled {
+                        idleRemaining -= dt
+                        if idleRemaining <= 0 { requestedActivity = nil; runsMission = true }
+                    } else if requestedActivity == nil && idleExplorationEnabled { advanceAutonomy(by: dt) }
                 }
             }
             if runsMission, let terrain {
                 var nextMission = mission
                 nextMission.advance(by: dt, explorer: &self, terrain: terrain)
+                let completedSearch = nextMission.completedExpeditions > mission.completedExpeditions
                 mission = nextMission
+                if completedSearch && !idleExplorationEnabled { runsMission = false }
             }
         }
     }
@@ -592,7 +599,7 @@ public struct ExplorerInteraction {
         session.advance(by: dt, guide: guide, minimumLength: minimum)
         var next = session.feet
         if wasFiring && session.mode != .firing { attachment = nil }
-        if !wasFiring {
+        if !wasFiring || session.freeFlightWhileFiring {
             // Feet brace against the host wall. A swing may pass below its bottom,
             // but cannot tunnel through the window while the body overlaps its side.
             var sideContact = false
@@ -681,6 +688,56 @@ public struct ExplorerInteraction {
         settlingRemaining = 0.8
     }
 
+    public mutating func setIdleExploration(_ enabled: Bool) {
+        idleExplorationEnabled = enabled
+        guard !keyboardControlEnabled else { return }
+        mission.cancel(); runsMission = enabled
+        requestedActivity = nil; pendingActivity = nil
+        afterLanding.removeAll(); flightContinuation.removeAll()
+        if enabled { idleRemaining = 0.8; return }
+        if state == .traversingEdge { route = Array(route.prefix(1)); return }
+        if ropeSession != nil {
+            ropeContinuation.removeAll(); route.removeAll()
+            ropeSession?.climbsAfterSwing = false
+            if ropeSession?.mode == .climbing || ropeSession?.mode == .descending { ropeSession?.switchMode(.swinging) }
+            return
+        }
+        if state == .walking || state == .climbing, let terrain, let support = currentSupport,
+           let point = TerrainSupport.resolve(support, in: terrain) {
+            attachment = support; position = point; route.removeAll(); state = .idle
+        }
+    }
+
+    public func suggestedGrappleAim() -> Point? {
+        guard keyboardControlEnabled, let terrain else { return nil }
+        return terrain.surfaces.filter { $0.id.edge == .top && $0.end.x - $0.start.x >= 48 }
+            .compactMap { surface -> Point? in
+                let point = Point(x: min(max(position.x, surface.start.x + 24), surface.end.x - 24), y: surface.start.y + 1)
+                return aimedGrappleTarget(toward: point)
+            }.min { hypot($0.x - position.x, $0.y - position.y) < hypot($1.x - position.x, $1.y - position.y) }
+    }
+    public func aimedGrappleTarget(toward point: Point) -> Point? {
+        guard keyboardControlEnabled, let terrain, let anchor = graph?.aimedGrapple(from: position, toward: point) else { return nil }
+        return anchor.resolve(in: terrain)?.anchor
+    }
+    @discardableResult public mutating func fireGrapple(toward point: Point) -> Bool {
+        guard keyboardControlEnabled, state != .held, state != .traversingEdge,
+              let terrain, let graph, let anchor = graph.aimedGrapple(from: position, toward: point),
+              let guide = anchor.resolve(in: terrain), let offset = anchor.offset else { return false }
+        let velocity = ropeSession?.releaseVelocity ?? (state == .jumping ? controlVelocity : .zero)
+        let airborne = attachment == nil || ropeSession.map { $0.mode != .supported && $0.mode != .firing } == true
+        var session = RopeSession(anchor: anchor, guide: guide, feet: position, mode: .firing, velocity: velocity)
+        session.freeFlightWhileFiring = airborne
+        session.climbsAfterSwing = false
+        let lip = TerrainAttachment(owner: .window(anchor.windowID), edge: .front, offset: offset)
+        ropeContinuation = graph.frontMantle(from: lip).map { [$0] } ?? []
+        route.removeAll(); afterLanding.removeAll(); flightContinuation.removeAll()
+        flightGoal = nil; ropeSession = session
+        facing = guide.anchor.x >= position.x ? 1 : -1
+        applyRopeState()
+        return true
+    }
+
     /// Local keyboard input belongs to an explicit play session, never a global hook.
     public mutating func setKeyboardControl(_ enabled: Bool) {
         guard keyboardControlEnabled != enabled else { return }
@@ -694,7 +751,7 @@ public struct ExplorerInteraction {
         }
         keyboardControlEnabled = enabled
         controlHorizontal = 0; controlVertical = 0
-        mission.cancel(); runsMission = !enabled
+        mission.cancel(); runsMission = !enabled && idleExplorationEnabled
         requestedActivity = nil; pendingActivity = nil
         route.removeAll(); afterLanding.removeAll(); flightContinuation.removeAll(); ropeContinuation.removeAll()
         flightGoal = nil
@@ -775,8 +832,8 @@ public struct ExplorerInteraction {
             session.climbsAfterSwing = false
             if session.mode == .firing { session.modeAfterLatch = mode }
             else if session.mode != mode { session.switchMode(mode) }
-            if session.mode != .firing, abs(session.body.velocity.x) < 220 {
-                session.addImpulse(.init(x: controlHorizontal * 100 * dt, y: 0))
+            if session.mode != .firing, let guide = session.anchor.resolve(in: terrain) {
+                session.steerSwing(horizontal: controlHorizontal, elapsed: dt, guide: guide)
             }
             ropeSession = session
             advanceRope(by: dt)

@@ -181,6 +181,38 @@ public struct NavigationGraph {
         return result
     }
 
+    /// A manual shot can originate in mid-air or on an existing rope. The pointer
+    /// selects a visible top-rim contact; it never invents a floating anchor.
+    public func aimedGrapple(from feet: WorldPoint, toward aim: WorldPoint) -> RopeAnchor? {
+        var choices: [(RopeAnchor, Double)] = []
+        for surface in terrain.surfaces where surface.id.edge == .top && surface.end.x - surface.start.x >= 48 {
+            guard case .window(let id) = surface.id.owner,
+                  let window = terrain.windows.first(where: { $0.id == id }) else { continue }
+            let x = min(max(aim.x, surface.start.x + 24), surface.end.x - 24)
+            let anchor = RopeAnchor(windowID: id, edge: .front, offset: x - window.frame.minX)
+            guard let guide = anchor.resolve(in: terrain) else { continue }
+            let error = hypot(guide.anchor.x - aim.x, guide.anchor.y - aim.y)
+            let muzzle = RopeSession.muzzle(feet: feet, target: guide.anchor)
+            guard error <= 70, guide.anchor.y - feet.y - RopeSession.harnessHeight >= 30,
+                  hypot(guide.anchor.x - muzzle.x, guide.anchor.y - muzzle.y) <= RopeDynamics.maximumLength - 100 else { continue }
+            var clear = true
+            var previous = muzzle
+            for sample in 1...24 {
+                let next = RopeSession.hook(from: muzzle, to: guide.anchor, fraction: Double(sample) / 24)
+                if next.y < previous.y {
+                    for other in terrain.surfaces where other.id.owner != surface.id.owner && (other.id.edge == .top || other.id.edge == .floor) && other.start.y <= previous.y && other.start.y >= next.y {
+                        let fraction = (previous.y - other.start.y) / max(0.00001, previous.y - next.y)
+                        let hitX = previous.x + (next.x - previous.x) * fraction
+                        if hitX >= other.start.x && hitX <= other.end.x { clear = false }
+                    }
+                }
+                previous = next
+            }
+            if clear { choices.append((anchor, error)) }
+        }
+        return choices.min { $0.1 < $1.1 }?.0
+    }
+
     public func frontMantle(from lip: TerrainAttachment) -> TravelStep? {
         guard lip.edge == .front else { return nil }
         let step = TravelStep(from: lip, to: .init(owner: lip.owner, edge: .top, offset: lip.offset), kind: .mantling)

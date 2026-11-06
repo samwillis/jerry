@@ -78,26 +78,30 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     private var monitor: Any?
     private var held: Set<UInt16> = []
     private var previousApp: NSRunningApplication?
+    private var clickRestore: DispatchWorkItem?
+    private(set) var isPerformingClick = false
+    private var aiming = false
     var onDirection: ((Double, Double) -> Void)?
     var onJump: (() -> Void)?
+    var onAimChanged: ((Bool) -> Void)?
     var onGrapple: (() -> Void)?
     var onInteract: (() -> Void)?
     var onStop: (() -> Void)?
     private(set) var isControlling = false
 
     override init() {
-        panel = ExplorerControlPanel(contentRect: .init(x: 0, y: 0, width: 640, height: 76), styleMask: [.titled], backing: .buffered, defer: false)
+        panel = ExplorerControlPanel(contentRect: .init(x: 0, y: 0, width: 760, height: 76), styleMask: [.titled], backing: .buffered, defer: false)
         super.init()
         panel.title = "Control the explorer — Esc to return to your computer"
         panel.level = .floating
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.delegate = self
-        let instructions = NSTextField(labelWithString: "← → / A D move · ↑ ↓ / W S climb/descend · Space jump · G hook · E click")
+        let instructions = NSTextField(labelWithString: "← → / A D move · ↑ ↓ / W S climb/descend · Space jump · Hold G aim, release fire · E click")
         instructions.font = .systemFont(ofSize: 12)
-        instructions.frame = .init(x: 12, y: 48, width: 620, height: 18)
+        instructions.frame = .init(x: 12, y: 48, width: 740, height: 18)
         panel.contentView?.addSubview(instructions)
-        message.frame = .init(x: 12, y: 8, width: 615, height: 34)
+        message.frame = .init(x: 12, y: 8, width: 735, height: 34)
         message.font = .systemFont(ofSize: 11)
         message.maximumNumberOfLines = 2
         message.lineBreakMode = .byWordWrapping
@@ -143,9 +147,14 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
             updateDirection()
             return nil
         }
-        guard [UInt16(49), 5, 14].contains(event.keyCode) else { return event }
+        if event.keyCode == 5 {
+            if event.type == .keyDown, !event.isARepeat { aiming = true; onAimChanged?(true) }
+            if event.type == .keyUp, aiming { aiming = false; onGrapple?(); onAimChanged?(false) }
+            return nil
+        }
+        guard [UInt16(49), 14].contains(event.keyCode) else { return event }
         if event.type == .keyDown, !event.isARepeat {
-            switch event.keyCode { case 49: onJump?(); case 5: onGrapple?(); default: onInteract?() }
+            switch event.keyCode { case 49: onJump?(); default: onInteract?() }
         }
         return nil
     }
@@ -159,6 +168,8 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     func stop(restoreFocus: Bool = false) {
         guard isControlling else { return }
         isControlling = false
+        clickRestore?.cancel(); clickRestore = nil; isPerformingClick = false
+        aiming = false; onAimChanged?(false)
         clearDirections()
         if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
         panel.orderOut(nil)
@@ -166,7 +177,33 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
         if restoreFocus, previousApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp?.activate(options: []) }
         previousApp = nil
     }
-    func windowDidResignKey(_ notification: Notification) { stop() }
+    func beginClick() { isPerformingClick = true }
+    func finishClick() {
+        guard isControlling, isPerformingClick else { return }
+        // AX actions and ordinary clicks can activate the destination app. Keep
+        // the play session alive and return its key window after event delivery.
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isControlling, self.isPerformingClick else { return }
+                NSApp.activate(ignoringOtherApps: true)
+                self.panel.makeKeyAndOrderFront(nil)
+                self.held = Set([UInt16(0), 1, 2, 13, 123, 124, 125, 126].filter {
+                    CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0))
+                })
+                self.updateDirection()
+                if self.aiming && !CGEventSource.keyState(.combinedSessionState, key: 5) {
+                    self.aiming = false; self.onAimChanged?(false)
+                }
+                self.isPerformingClick = false
+                self.clickRestore = nil
+            }
+        }
+        clickRestore?.cancel(); clickRestore = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+    func windowDidResignKey(_ notification: Notification) {
+        if !isPerformingClick { stop() }
+    }
     func close() { stop(); panel.delegate = nil; panel.close() }
 }
 
@@ -201,12 +238,12 @@ final class ExplorerDesktopClick {
             }
         }
         // Canvas/custom controls may not expose AXPress. Send exactly one ordinary
-        // left click at the same marker, allowing the target app to take focus.
+        // left click at the same marker. The controller restores its key window.
         guard let down = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left),
               let up = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else { return "Could not create the click." }
         down.setIntegerValueField(.mouseEventClickState, value: 1)
         up.setIntegerValueField(.mouseEventClickState, value: 1)
         down.post(tap: .cghidEventTap); up.post(tap: .cghidEventTap)
-        return "Clicked at the hand marker. If the app takes focus, keyboard control ends."
+        return "Clicked at the hand marker. Explorer control stays active."
     }
 }

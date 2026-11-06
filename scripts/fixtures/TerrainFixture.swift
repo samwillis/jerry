@@ -1,6 +1,18 @@
 import AppKit
 
 @MainActor
+final class FixtureClickCanvas: NSView {
+    var count = 0
+    var onClick: (() -> Void)?
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { count += 1; onClick?(); needsDisplay = true }
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill(); bounds.fill()
+        ("Custom clicks: \(count)" as NSString).draw(at: .init(x: 16, y: 24), withAttributes: [.font: NSFont.systemFont(ofSize: 20), .foregroundColor: NSColor.labelColor])
+    }
+}
+
+@MainActor
 final class Fixture: NSObject, NSApplicationDelegate {
     private var windows: [NSWindow] = []
     private var support: NSWindow!
@@ -10,11 +22,22 @@ final class Fixture: NSObject, NSApplicationDelegate {
         guard let screen = NSScreen.screens.first else { return }
         let base = screen.visibleFrame.minY
         if ProcessInfo.processInfo.arguments.contains("--click-target") {
-            let target = NSWindow(contentRect: .init(x: 830, y: base, width: 220, height: 70), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            let rope = ProcessInfo.processInfo.arguments.contains("--rope-click-target")
+            let target = NSWindow(contentRect: .init(x: rope ? 700 : 830, y: base, width: rope ? 350 : 220, height: rope ? 500 : 70), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             target.title = "Explorer click target"; target.isReleasedWhenClosed = false
-            let button = NSButton(title: "Clicks: 0", target: self, action: #selector(countClick(_:)))
-            button.frame = .init(x: 0, y: 0, width: 220, height: 70)
-            target.contentView?.addSubview(button)
+            if ProcessInfo.processInfo.arguments.contains("--custom-click-target") {
+                let canvas = FixtureClickCanvas(frame: target.contentView!.bounds)
+                canvas.setAccessibilityElement(true); canvas.setAccessibilityRole(.group)
+                canvas.setAccessibilityLabel("Custom click test canvas")
+                canvas.onClick = { [weak self] in
+                    self?.clickCount += 1; print("FIXTURE custom clicks: \(self?.clickCount ?? 0)"); fflush(stdout)
+                }
+                target.contentView = canvas
+            } else {
+                let button = NSButton(title: "Clicks: 0", target: self, action: #selector(countClick(_:)))
+                button.frame = target.contentView!.bounds
+                target.contentView?.addSubview(button)
+            }
             windows.append(target); target.orderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
