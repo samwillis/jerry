@@ -144,3 +144,8 @@ Debug and packaged Release builds pass, with all 35 applicable native checks pas
 Debug and packaged Release builds and all 42 applicable native checks pass. The checks cover arrow/diagonal aiming while G is held, movement suppression during aim, firing once on release, restoring held movement, the transparent mouse-ignoring input target, and first-run guide presentation/completion with preference restoration. The real guide was inspected after layout refinement: all key rows, idle checkbox, permission state and footer buttons are visible at the tested display size. Take Control closed it; real Right input moved the explorer without a controls window. A combined G+Right computer-use injection could not be completed reliably; native input-routing checks cover that chord.
 
 Manual mode now uses a 1×1 transparent, borderless keyboard target rather than the previous instructions panel. The welcome guide is shown on the first normal launch and remains available through Controls & Tips. Debug `--welcome` previews it without consuming first-run completion. No permission is requested just by opening the guide.
+
+
+### Explorer shadow — 6 November 2026
+
+The animated silhouette shadow was inspected against the welcome screen's light background. An initial compound-path render showed overlap artifacts; the final version uses opaque individual shapes composited through a blur, producing a clean, soft shadow. Debug and packaged Release builds and all 42 applicable native checks pass. This changes presentation only; the character's input area remains unchanged. With both the welcome illustration and desktop explorer rendering, a development frame report measured approximately 27–28 fps during inspection; this is not a claim of unchanged rendering cost.

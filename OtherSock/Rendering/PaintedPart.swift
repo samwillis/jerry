@@ -20,6 +20,7 @@ enum ExplorerMaterial: String {
 @MainActor
 final class PaintedPart: SKSpriteNode {
     private let silhouette: CGPath
+    var silhouettePath: CGPath { silhouette }
     private let material: ExplorerMaterial
     private let base: NSColor
     private let bounds: CGRect

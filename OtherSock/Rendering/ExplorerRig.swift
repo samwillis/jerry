@@ -1,6 +1,16 @@
 import AppKit
 import SpriteKit
+import CoreImage
 import ExpeditionCore
+
+@MainActor
+private func appendSilhouette(_ shape: CGPath, from node: SKNode, to target: SKNode, into result: CGMutablePath) {
+    let origin = node.convert(.zero, to: target)
+    let x = node.convert(.init(x: 1, y: 0), to: target)
+    let y = node.convert(.init(x: 0, y: 1), to: target)
+    let transform = CGAffineTransform(a: x.x - origin.x, b: x.y - origin.y, c: y.x - origin.x, d: y.y - origin.y, tx: origin.x, ty: origin.y)
+    result.addPath(shape, transform: transform)
+}
 
 @MainActor
 private final class RigLimb: SKNode {
@@ -53,6 +63,21 @@ private final class RigLimb: SKNode {
         outline.lineWidth = width + (painted ? 1.4 : 2)
     }
 
+    func shadowPaths(in target: SKNode) -> [CGPath] {
+        var paths: [CGPath] = []
+        if let line = outline.path {
+            let path = CGMutablePath()
+            appendSilhouette(line.copy(strokingWithWidth: width + 1.4, lineCap: .round, lineJoin: .round, miterLimit: 2), from: self, to: target, into: path)
+            paths.append(path)
+        }
+        for case let part as PaintedPart in endNode.children {
+            let path = CGMutablePath()
+            appendSilhouette(part.silhouettePath, from: part, to: target, into: path)
+            paths.append(path)
+        }
+        return paths
+    }
+
     func place(root: WorldPoint, solution: LimbSolution) {
         position = CGPoint(x: root.x, y: root.y)
         let a = atan2(solution.joint.y - root.y, solution.joint.x - root.x) + .pi / 2
@@ -73,6 +98,8 @@ private final class RigLimb: SKNode {
 /// Shared by the desktop and playground. Visual offsets never change the simulation origin.
 @MainActor
 final class ExplorerRig: SKNode {
+    private let shadow = SKEffectNode()
+    private var shadowPieces: [SKShapeNode] = []
     private let pivot = SKNode()
     private let body = SKNode()
     private let torso = SKNode()
@@ -118,6 +145,12 @@ final class ExplorerRig: SKNode {
 
     override init() {
         super.init()
+        shadow.zPosition = -20
+        shadow.alpha = 0.22
+        shadow.filter = CIFilter(name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.5])
+        shadow.shouldEnableEffects = true
+        shadow.shouldRasterize = true
+        addChild(shadow)
         addChild(pivot)
         pivot.addChild(body)
         body.addChild(backpack)
@@ -304,6 +337,40 @@ final class ExplorerRig: SKNode {
         place(rightArm, root: .init(x: pose.hips.x + 10, y: pose.hips.y + 20), target: pose.rightHand, knee: false, elbowPole: pose.elbowPole, elbowBend: pose.rightElbowBend)
         place(leftLeg, root: .init(x: pose.hips.x - 7, y: pose.hips.y), target: pose.leftFoot, knee: true)
         place(rightLeg, root: .init(x: pose.hips.x + 7, y: pose.hips.y), target: pose.rightFoot, knee: true)
+        updateShadow()
+    }
+
+    private func updateShadow() {
+        var paths: [CGPath] = []
+        for group in [torso, head, backpack] {
+            for case let part as PaintedPart in group.children {
+                let path = CGMutablePath()
+                appendSilhouette(part.silhouettePath, from: part, to: self, into: path)
+                paths.append(path)
+            }
+        }
+        for limb in [leftArm, rightArm, leftLeg, rightLeg] { paths += limb.shadowPaths(in: self) }
+        if !grappleGun.isHidden {
+            for case let part as SKShapeNode in grappleGun.children {
+                if let shape = part.path {
+                    let path = CGMutablePath()
+                    appendSilhouette(shape, from: part, to: self, into: path)
+                    paths.append(path)
+                }
+            }
+        }
+        // Opaque pieces form a single mask before blur/opacity. Keeping separate
+        // paths avoids overlapping contours confusing SpriteKit's triangulator.
+        while shadowPieces.count < paths.count {
+            let piece = SKShapeNode()
+            piece.fillColor = .black; piece.strokeColor = .clear
+            shadow.addChild(piece); shadowPieces.append(piece)
+        }
+        for (index, piece) in shadowPieces.enumerated() {
+            piece.isHidden = index >= paths.count
+            if index < paths.count { piece.path = paths[index] }
+        }
+        shadow.position = .init(x: xScale < 0 ? -2.5 : 2.5, y: -2.5)
     }
 
     /// Sample the current pointer, without capturing mouse events or keyboard focus.

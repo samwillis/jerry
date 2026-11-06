@@ -124,3 +124,8 @@ Climbing uses explicit near/far arm hinge directions instead of a shared pole wh
 ## Rope foreground layers — 6 November 2026
 
 During rope climbing, swinging and abseiling, both arms draw above the torso. The active rope draws in front of the jacket and below the arm/grip layers. Other motions restore the ordinary far-arm ordering. Playground abseiling uses the same foreground rope order.
+
+
+## Explorer drop shadow — 6 November 2026
+
+A low-opacity silhouette follows the posed head/hat, torso, backpack, limbs, boots, hands and visible launcher. Opaque per-part paths are flattened and Gaussian-blurred before applying 22% opacity, avoiding overlap seams. It sits behind the explorer with a 2.5-point lower-right offset that keeps its screen direction when facing is mirrored. Canopy and world ropes are excluded. No input bounds or simulation positions change.
