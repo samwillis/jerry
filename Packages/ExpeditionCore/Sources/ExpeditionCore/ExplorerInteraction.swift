@@ -521,7 +521,7 @@ public struct ExplorerInteraction {
         guard let terrain,
               case .window(let id) = (mode == .firing ? step.to.owner : step.from.owner) else { recover(); return }
         let edge = mode == .firing ? step.to.edge : step.from.edge
-        let anchor = RopeAnchor(windowID: id, edge: edge)
+        let anchor = RopeAnchor(windowID: id, edge: edge, offset: edge == .front ? step.to.offset : nil)
         guard let guide = anchor.resolve(in: terrain) else { recover(); return }
         var session = RopeSession(anchor: anchor, guide: guide, feet: position, mode: mode)
         session.climbsAfterSwing = requestedActivity != .swing
@@ -560,7 +560,7 @@ public struct ExplorerInteraction {
             return
         }
         let edge = session.anchor.edge
-        let lip = TerrainAttachment(owner: .window(window.id), edge: edge, offset: window.frame.height - EdgeTraversal.lipHeight)
+        let lip = TerrainAttachment(owner: .window(window.id), edge: edge, offset: edge == .front ? (session.anchor.offset ?? window.frame.width / 2) : window.frame.height - EdgeTraversal.lipHeight)
         guard let lipPoint = TerrainSupport.resolve(lip, in: terrain) else { releaseRope(velocity: session.releaseVelocity); return }
         let lipHarness = Point(x: lipPoint.x, y: lipPoint.y + RopeSession.harnessHeight)
         let minimum = guide.length(to: lipHarness)
@@ -577,8 +577,17 @@ public struct ExplorerInteraction {
                 if edge == .left && next.x > window.frame.minX - 24 { next.x = window.frame.minX - 24; sideContact = true }
                 if edge == .right && next.x < window.frame.maxX + 24 { next.x = window.frame.maxX + 24; sideContact = true }
             }
+            // Hands brace below the front rim until the pull-over animation takes
+            // over. This also stops a fast reeled-in swing orbiting above the pin.
+            let rimContact = edge == .front && session.mode == .climbing && next.y > lipPoint.y
+            if rimContact {
+                next.y = lipPoint.y
+                let horizontalReach = sqrt(max(0, session.body.length * session.body.length - minimum * minimum))
+                next.x = min(max(next.x, lipPoint.x - horizontalReach), lipPoint.x + horizontalReach)
+                sideContact = true
+            }
             let bounded = Point(x: min(max(next.x, bounds.minimum.x), bounds.maximum.x), y: min(max(next.y, bounds.minimum.y), bounds.maximum.y))
-            session.contact(feet: bounded, horizontal: sideContact || bounded.x != next.x, vertical: bounded.y != next.y)
+            session.contact(feet: bounded, horizontal: sideContact || bounded.x != next.x, vertical: rimContact || bounded.y != next.y)
             next = bounded
             if let (landed, point) = TerrainSupport.landing(from: previous, to: next, in: terrain), previous.y >= point.y {
                 session.contact(feet: point, vertical: true)
@@ -615,7 +624,7 @@ public struct ExplorerInteraction {
             ropeContinuation.removeAll()
             if let first = continuation.first, first.from == lip {
                 route = continuation
-            } else if let mantle = graph?.steps.first(where: { $0.kind == .mantling && $0.from == lip }) {
+            } else if let mantle = graph?.frontMantle(from: lip) ?? graph?.steps.first(where: { $0.kind == .mantling && $0.from == lip }) {
                 route = [mantle]
             } else { recover(); return }
             travelFraction = 0

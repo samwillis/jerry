@@ -87,9 +87,17 @@ public struct RopeDynamics {
 public struct RopeAnchor: Equatable, Sendable {
     public let windowID: UInt32
     public let edge: TerrainEdge
-    public init(windowID: UInt32, edge: TerrainEdge) { self.windowID = windowID; self.edge = edge }
+    public let offset: Double?
+    public init(windowID: UInt32, edge: TerrainEdge, offset: Double? = nil) {
+        self.windowID = windowID; self.edge = edge; self.offset = offset
+    }
     public func resolve(in terrain: TerrainSnapshot) -> AbseilRope? {
-        guard let window = terrain.windows.first(where: { $0.id == windowID }), edge == .left || edge == .right else { return nil }
+        guard let window = terrain.windows.first(where: { $0.id == windowID }) else { return nil }
+        if edge == .front, let offset {
+            guard TerrainSupport.resolve(.init(owner: .window(windowID), edge: .front, offset: offset), in: terrain) != nil else { return nil }
+            return .init(window: window.frame, frontOffset: offset)
+        }
+        guard edge == .left || edge == .right else { return nil }
         let pin = edge == .left ? AbseilRope.anchorInset : window.frame.width - AbseilRope.anchorInset
         guard TerrainSupport.resolve(.init(owner: .window(windowID), edge: .top, offset: pin), in: terrain) != nil,
               TerrainSupport.resolve(.init(owner: .window(windowID), edge: edge, offset: window.frame.height - EdgeTraversal.lipHeight), in: terrain) != nil else { return nil }

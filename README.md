@@ -20,13 +20,13 @@ Climbs now pull over the lip into a planted-foot standing pose; rope descents cr
 
 ## Connected rope activities
 
-**Grappling hook** aims a small spool launcher, fires a hook over a reachable window lip, takes up the line, swings under gravity, then climbs and mantles onto the destination. It can reach exposed windows that have no climbable route from the floor. Automatic adventures occasionally consider these grapple routes as well.
+**Grappling hook** aims a small spool launcher, fires a hook over a reachable window lip, takes up the line, swings under gravity, then climbs and mantles onto the destination. Shots reach up to 2,300 points (with a 2,400-point spool). He can hook the middle of an exposed top rim and climb vertically up the window's front, including windows whose side edges are off-screen. An aligned shot uses his current horizontal position; angled shots still swing naturally. At the rim he pulls himself over to stand on top. It can reach exposed windows that have no climbable route from the floor. Automatic adventures occasionally consider these grapple routes as well.
 
 While attached, **Swing on rope**, **Climb rope**, and **Abseil** change the motor/holding mode of that same rope; they preserve the anchor, deployed length, position and existing momentum. Swing pushes off if the explorer is resting against the wall. A completed abseil keeps its line attached, so Climb rope can take him back up without refiring. **Release rope** keeps his current velocity and uses parachute recovery. Grabbing always cancels the line immediately.
 
 The physical rope has gravity, tension, slack, damping, a controlled reel/payout rate, corner contact and window/floor contact. Swinging is simulated rather than played as a looping animation. Rendering keeps the rounded corner's tangent joins and shows slack in the free line. The body hangs from its harness and hands follow the line. Rope climbing lifts in time with the hand pulls.
 
-The prototype models one massless line and one rounded corner guide on its supporting window. It does not yet wrap rope around arbitrary intervening windows, collide ropes with each other, or simulate rope elasticity. A missing/covered anchor releases into recovery. The 2,400-point spool covers supported descent routes; reaching its end also releases safely.
+The prototype models one massless line with either a straight front-rim attachment or one rounded corner guide on its supporting window. It does not yet wrap rope around arbitrary intervening windows, collide ropes with each other, or simulate rope elasticity. A missing/covered anchor releases into recovery. The 2,400-point spool covers supported descent routes; reaching its end also releases safely.
 
 ## The banana adventure
 

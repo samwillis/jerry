@@ -197,7 +197,7 @@ extension RopePhysicsTests {
     func testMirroredGrappleCompletesFromTheRight() {
         var value = explorer(.init(x: 850, y: 0))
         XCTAssertTrue(value.requestActivity(.grapple))
-        XCTAssertEqual(value.ropeSession?.anchor.edge, .right)
+        XCTAssertTrue([TerrainEdge.right, .front].contains(value.ropeSession!.anchor.edge))
         for _ in 0..<18000 { value.advance(by: 1.0 / 120); if value.state == .idle && !value.hasPendingTravel { break } }
         XCTAssertEqual(value.attachment?.owner, .window(1))
         XCTAssertEqual(value.attachment?.edge, .top)
@@ -256,5 +256,50 @@ extension RopePhysicsTests {
         let fastRope = fast.ropeSession!, resumedRope = resumed.ropeSession!
         XCTAssertEqual(fastRope.releaseVelocity.x - fastRope.body.velocity.x, 200, accuracy: 0.000001)
         XCTAssertEqual(resumedRope.releaseVelocity.x - resumedRope.body.velocity.x, 2, accuracy: 0.000001)
+    }
+}
+
+
+extension RopePhysicsTests {
+    func testHighAlignedGrappleClimbsTheMiddleAndStandsOnTheRoof() {
+        let layout = TerrainSnapshot(windows: [.init(id: 10, frame: .init(x: 200, y: 50, width: 600, height: 950))], viewport: .init(x: 0, y: 0, width: 1200, height: 1400))
+        var value = ExplorerInteraction(position: .init(x: 487, y: 0), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 1176, y: 1324)))
+        value.autonomous = true; value.updateTerrain(layout)
+        XCTAssertTrue(value.requestActivity(.grapple))
+        XCTAssertEqual(value.ropeSession?.anchor.edge, .front)
+        XCTAssertEqual(value.grappleTarget?.x ?? 0, 487, accuracy: 0.01)
+        XCTAssertEqual(value.grappleTarget?.y ?? 0, 1001, accuracy: 0.01)
+        var climbed = false, mantled = false
+        for _ in 0..<24000 {
+            value.advance(by: 1.0 / 120)
+            climbed = climbed || value.state == .ropeClimbing
+            mantled = mantled || value.state == .traversingEdge
+            if value.state == .idle && !value.hasPendingTravel { break }
+        }
+        XCTAssertTrue(climbed); XCTAssertTrue(mantled)
+        XCTAssertEqual(value.attachment?.owner, .window(10))
+        XCTAssertEqual(value.attachment?.edge, .top)
+        XCTAssertEqual(value.position.x, 487, accuracy: 1)
+        XCTAssertEqual(value.position.y, 1000, accuracy: 0.01)
+    }
+    func testFrontAnchorMovesWithWindowAndKeepsStraightRope() {
+        let anchor = RopeAnchor(windowID: 1, edge: .front, offset: 150)
+        let before = anchor.resolve(in: terrain())!
+        let after = anchor.resolve(in: terrain(x: 340, y: 50))!
+        XCTAssertEqual(after.anchor.x - before.anchor.x, 40)
+        XCTAssertEqual(after.anchor.y - before.anchor.y, 30)
+        XCTAssertEqual(before.wrappedLength, 0)
+        XCTAssertEqual(before.sideTangent, before.anchor)
+        XCTAssertEqual(before.length(to: .init(x: 450, y: 100)), 271, accuracy: 0.01)
+    }
+    func testGrappleAtDisplayEdgeDoesNotNeedAnExposedSide() {
+        let layout = TerrainSnapshot(windows: [.init(id: 1, frame: .init(x: 0, y: 20, width: 1000, height: 600))], viewport: viewport)
+        let graph = NavigationGraph(terrain: layout)
+        let floor = TerrainAttachment(owner: .screen, edge: .floor, offset: 500)
+        let plan = graph.activityRoute(.grapple, from: floor)
+        XCTAssertEqual(plan?.first?.kind, .grappling)
+        XCTAssertEqual(plan?.first?.to.edge, .front)
+        XCTAssertEqual(plan?.last?.to.edge, .top)
+        XCTAssertTrue(plan?.allSatisfy { graph.isValid($0) } ?? false)
     }
 }

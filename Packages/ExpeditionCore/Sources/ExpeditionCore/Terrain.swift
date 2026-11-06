@@ -37,7 +37,7 @@ public struct DesktopWindow: Equatable, Sendable {
 }
 
 public enum SurfaceOwner: Equatable, Sendable { case window(UInt32), screen }
-public enum TerrainEdge: String, Equatable, Sendable { case top, left, right, floor }
+public enum TerrainEdge: String, Equatable, Sendable { case top, left, right, floor, front }
 
 public struct TerrainSurface: Equatable, Sendable {
     public struct ID: Equatable, Sendable {
@@ -158,6 +158,15 @@ public enum TerrainSupport {
         guard case .window(let id) = anchor.owner,
               let index = terrain.windows.firstIndex(where: { $0.id == id }) else { return nil }
         let frame = terrain.windows[index].frame
+        if anchor.edge == .front {
+            let top = TerrainAttachment(owner: anchor.owner, edge: .top, offset: anchor.offset)
+            guard let roof = resolve(top, in: terrain) else { return nil }
+            let point = WorldPoint(x: roof.x, y: roof.y - 58)
+            let body = WorldRect(x: point.x - 23, y: point.y + 1, width: 46, height: 74)
+            guard point.y >= terrain.viewport.minY,
+                  !terrain.windows[..<index].contains(where: { $0.frame.intersects(body) }) else { return nil }
+            return point
+        }
         if anchor.edge == .left || anchor.edge == .right {
             let y = frame.minY + anchor.offset
             let x = anchor.edge == .left ? frame.minX - 24 : frame.maxX + 24

@@ -138,3 +138,11 @@ Updated walking and climbing to follow stance/pull clocks, fixed climbing knee b
 - Move/cover/close the anchor window; remove a landing window while the line remains attached: the line follows, catches or releases appropriately.
 
 Automated equivalents and native observations are in [prototype validation](PROTOTYPE_VALIDATION.md#grapple-and-unified-rope-simulation--6-november-2026). These checks supplement earlier user-confirmed focus/dragging behaviour; no new input hooks or permissions are introduced.
+
+### Front-rim grappling
+
+- From below the middle of a window, trigger Grappling hook: fire upward, climb in front of the window, pull over its top, and stand at the same horizontal position.
+- Repeat on a top more than 550 points above him, and on a window touching both display edges.
+- While hanging in front, switch between Abseil, Climb rope and Swing on rope; retain the same attachment and momentum. Move/close the supporting window.
+- A side approach must still preserve tangent joins around its rounded corner.
+- Developer fixture: `TerrainFixture --front-only` shows one high window for the upward-shot check.

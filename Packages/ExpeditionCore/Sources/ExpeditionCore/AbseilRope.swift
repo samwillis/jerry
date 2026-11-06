@@ -14,8 +14,17 @@ public struct AbseilRope {
     private let window: WorldRect
     private let edge: TerrainEdge
 
+    private let frontOffset: Double?
+    /// A hook over the front rim has one straight free span, without a side corner.
+    public init(window: WorldRect, frontOffset: Double) {
+        self.window = window; edge = .front; self.frontOffset = frontOffset
+        let pin = WorldPoint(x: window.minX + frontOffset, y: window.maxY + 1)
+        anchor = pin; topTangent = pin; sideTangent = pin
+        control1 = pin; control2 = pin; wrappedLength = 0
+    }
+
     public init(window: WorldRect, edge: TerrainEdge, grip: WorldPoint? = nil) {
-        self.window = window; self.edge = edge
+        self.window = window; self.edge = edge; frontOffset = nil
         let inward = edge == .left ? 1.0 : -1.0
         let cornerX = edge == .left ? window.minX : window.maxX
         let radius = Self.cornerRadius
@@ -44,5 +53,8 @@ public struct AbseilRope {
         let path = taut(toward: grip)
         return path.wrappedLength + hypot(grip.x - path.sideTangent.x, grip.y - path.sideTangent.y)
     }
-    public func taut(toward grip: WorldPoint) -> AbseilRope { .init(window: window, edge: edge, grip: grip) }
+    public func taut(toward grip: WorldPoint) -> AbseilRope {
+        if let frontOffset { return .init(window: window, frontOffset: frontOffset) }
+        return .init(window: window, edge: edge, grip: grip)
+    }
 }

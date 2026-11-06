@@ -21,7 +21,12 @@ public struct NavigationGraph {
         for platform in platforms where platform.end.x - platform.start.x >= 48 {
             let inset = min(56.0, (platform.end.x - platform.start.x) / 2)
             for x in [platform.start.x + 24, platform.start.x + inset, (platform.start.x + platform.end.x) / 2, platform.end.x - inset, platform.end.x - 24] {
-                add(horizontalAnchor(platform, x: x))
+                let roof = horizontalAnchor(platform, x: x)
+                add(roof)
+                if platform.id.edge == .top {
+                    let front = TerrainAttachment(owner: roof.owner, edge: .front, offset: roof.offset)
+                    if add(front) { connect(front, roof, .mantling) }
+                }
             }
         }
         for wall in terrain.surfaces where wall.id.owner != .screen && wall.id.edge != .top {
@@ -46,7 +51,7 @@ public struct NavigationGraph {
                 guard let p = TerrainSupport.resolve(a, in: terrain), let q = TerrainSupport.resolve(b, in: terrain) else { continue }
                 if a.edge == .top || a.edge == .floor {
                     if clear(a, b) { connect(a, b, .walking) }
-                } else if abs(p.y - q.y) <= 1200, clear(a, b) {
+                } else if a.edge != .front, abs(p.y - q.y) <= 1200, clear(a, b) {
                     connect(a, b, q.y > p.y ? .climbing : .abseiling)
                 }
             }
@@ -61,7 +66,10 @@ public struct NavigationGraph {
             }
         }
         for source in nodes where source.edge == .top || source.edge == .floor {
-            for step in grappleSteps(from: source) { connect(step.from, step.to, .grappling) }
+            for step in grappleSteps(from: source) {
+                if let mantle = frontMantle(from: step.to) { add(mantle.from); add(mantle.to); connect(mantle.from, mantle.to, .mantling) }
+                connect(step.from, step.to, .grappling)
+            }
         }
     }
 
@@ -114,7 +122,12 @@ public struct NavigationGraph {
         case .climbing: guard abs(q.x - p.x) < 0.1, q.y > p.y, q.y - p.y <= 1200 else { return false }
         case .abseiling: guard abs(q.x - p.x) < 0.1, q.y < p.y, p.y - q.y <= 1200, validRope(step.from) else { return false }
         case .mantling:
-            guard step.from.owner == step.to.owner, step.to.edge == .top, [.left, .right].contains(step.from.edge), abs(q.y - p.y - EdgeTraversal.lipHeight) < 0.1, abs(abs(q.x - p.x) - 48) < 0.1 else { return false }
+            guard step.from.owner == step.to.owner, step.to.edge == .top else { return false }
+            if step.from.edge == .front {
+                guard abs(q.y - p.y - 58) < 0.1, abs(q.x - p.x) < 0.1 else { return false }
+            } else {
+                guard [.left, .right].contains(step.from.edge), abs(q.y - p.y - EdgeTraversal.lipHeight) < 0.1, abs(abs(q.x - p.x) - 48) < 0.1 else { return false }
+            }
         case .lowering:
             guard step.from.owner == step.to.owner, step.from.edge == .top, [.left, .right].contains(step.to.edge), abs(p.y - q.y - EdgeTraversal.lipHeight) < 0.1, abs(abs(q.x - p.x) - 48) < 0.1, validRope(step.to) else { return false }
         case .grappling: return grappleSteps(from: step.from).contains(step)
@@ -130,16 +143,26 @@ public struct NavigationGraph {
     public func grappleSteps(from source: TerrainAttachment) -> [TravelStep] {
         guard source.edge == .top || source.edge == .floor, let point = TerrainSupport.resolve(source, in: terrain) else { return [] }
         var result: [TravelStep] = []
-        for mantle in steps where mantle.kind == .mantling && mantle.from.owner != source.owner {
+        // Include an aligned shot from the actor's actual x, rather than forcing a
+        // walk to one of the graph's precomputed stand points.
+        var mantles = steps.filter { $0.kind == .mantling && $0.from.owner != source.owner }
+        for surface in terrain.surfaces where surface.id.edge == .top && surface.id.owner != source.owner && surface.end.x - surface.start.x >= 48 {
+            let x = min(max(point.x, surface.start.x + 24), surface.end.x - 24)
+            let roof = horizontalAnchor(surface, x: x)
+            let front = TerrainAttachment(owner: roof.owner, edge: .front, offset: roof.offset)
+            let mantle = TravelStep(from: front, to: roof, kind: .mantling)
+            if isValid(mantle), !mantles.contains(mantle) { mantles.append(mantle) }
+        }
+        for mantle in mantles {
             guard case .window(let id) = mantle.from.owner,
-                  let anchor = RopeAnchor(windowID: id, edge: mantle.from.edge).resolve(in: terrain),
+                  let anchor = RopeAnchor(windowID: id, edge: mantle.from.edge, offset: mantle.from.edge == .front ? mantle.from.offset : nil).resolve(in: terrain),
                   let window = terrain.windows.first(where: { $0.id == id }) else { continue }
-            let outside = mantle.from.edge == .left ? point.x <= window.frame.minX - 24 : point.x >= window.frame.maxX + 24
+            let outside = mantle.from.edge == .front || (mantle.from.edge == .left ? point.x <= window.frame.minX - 24 : point.x >= window.frame.maxX + 24)
             let muzzle = RopeSession.muzzle(feet: point, target: anchor.anchor)
             let harness = WorldPoint(x: point.x, y: point.y + RopeSession.harnessHeight)
             guard outside, anchor.anchor.y - muzzle.y >= 65,
-                  hypot(anchor.anchor.x - muzzle.x, anchor.anchor.y - muzzle.y) <= 550,
-                  anchor.length(to: harness) <= 600 else { continue }
+                  hypot(anchor.anchor.x - muzzle.x, anchor.anchor.y - muzzle.y) <= RopeDynamics.maximumLength - 100,
+                  anchor.length(to: harness) <= RopeDynamics.maximumLength else { continue }
             var clear = true
             var previous = muzzle
             for sample in 1...24 {
@@ -156,6 +179,12 @@ public struct NavigationGraph {
             if clear { result.append(.init(from: source, to: mantle.from, kind: .grappling)) }
         }
         return result
+    }
+
+    public func frontMantle(from lip: TerrainAttachment) -> TravelStep? {
+        guard lip.edge == .front else { return nil }
+        let step = TravelStep(from: lip, to: .init(owner: lip.owner, edge: .top, offset: lip.offset), kind: .mantling)
+        return isValid(step) ? step : nil
     }
 
     public func launchPoint(from anchor: TerrainAttachment) -> WorldPoint? {

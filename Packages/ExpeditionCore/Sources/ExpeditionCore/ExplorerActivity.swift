@@ -34,7 +34,10 @@ extension NavigationGraph {
             let prefix = hypot(origin.x - start.x, origin.y - start.y) < 0.1 ? [] : route(from: source, to: step.from, seed: 0, allowParachute: false)
             if prefix.isEmpty && hypot(origin.x - start.x, origin.y - start.y) >= 0.1 { continue }
             var plan = prefix + [step]
-            if step.to.edge == .left || step.to.edge == .right {
+            if step.to.edge == .front {
+                guard let finish = frontMantle(from: step.to) else { continue }
+                plan.append(finish)
+            } else if step.to.edge == .left || step.to.edge == .right {
                 guard let finish = steps.first(where: { $0.from == step.to && ($0.to.edge == .top || $0.to.edge == .floor) }) else { continue }
                 plan.append(finish)
             }
@@ -43,7 +46,7 @@ extension NavigationGraph {
                 guard let a = TerrainSupport.resolve(leg.from, in: terrain), let b = TerrainSupport.resolve(leg.to, in: terrain) else { return Double.infinity }
                 switch leg.kind {
                 case .mantling, .lowering: return cost + 1.35
-                case .grappling: return cost + 3.5 + max(0, b.y - a.y) / 24
+                case .grappling: return cost + 3.5 + hypot(b.x - a.x, b.y - a.y) / 24
                 case .parachuting: return cost + 1 + RecoveryAnimation.duration(for: max(0, a.y - b.y))
                 default: return cost + hypot(a.x - b.x, a.y - b.y) / (leg.kind == .walking ? 40 : (leg.kind == .climbing ? 24 : 48))
                 }
