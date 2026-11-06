@@ -6,6 +6,12 @@ import ExpeditionCore
 final class WindowProvider {
     private(set) var frontWindowID: UInt32?
     private(set) var keyboardWindowID: UInt32?
+    /// Screenshot's selection/dimming windows and its unbundled screencapture
+    /// helper are recording UI, never terrain or opaque desktop occluders.
+    static func isScreenRecorder(bundle: String?, owner: String?) -> Bool {
+        ["com.apple.screencaptureui", "com.apple.screenshot.launcher"].contains(bundle ?? "") ||
+            (bundle == nil && owner == "screencapture")
+    }
     /// Accessibility Keyboard keeps screen-sized highlight/capture backdrops at
     /// very high levels. Their WindowServer alpha is 1 despite transparent pixels.
     /// Keep the real keyboard panel as an occluder; exclude only these backdrops.
@@ -26,6 +32,7 @@ final class WindowProvider {
               front.processIdentifier != ProcessInfo.processInfo.processIdentifier,
               let primary = NSScreen.screens.first,
               let records = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return true }
+        if Self.isScreenRecorder(bundle: front.bundleIdentifier, owner: front.localizedName) { return true }
         for record in records {
             guard (record[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == front.processIdentifier,
                   (record[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
@@ -64,6 +71,7 @@ final class WindowProvider {
             guard converted.intersects(worldViewport) else { continue }
             let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
             if bundle == Bundle.main.bundleIdentifier { continue }
+            if Self.isScreenRecorder(bundle: bundle, owner: record[kCGWindowOwnerName as String] as? String) { continue }
             if Self.isKeyboardBackdrop(bundle: bundle, layer: layer,
                                        frame: CGRect(x: converted.minX, y: converted.minY, width: converted.width, height: converted.height),
                                        display: CGRect(origin: .zero, size: screen.frame.size)) { continue }

@@ -394,6 +394,10 @@ final class OverlayController {
             print("NATIVE \(condition ? "PASS" : "FAIL") \(name)")
             passed = passed && condition
         }
+        check(WindowProvider.isScreenRecorder(bundle: "com.apple.screencaptureui", owner: "Screenshot"), "Screenshot selection windows and toolbar are excluded from terrain")
+        check(WindowProvider.isScreenRecorder(bundle: nil, owner: "screencapture"), "the unbundled recording backdrop is excluded from terrain")
+        check(!WindowProvider.isScreenRecorder(bundle: "com.apple.QuickTimePlayerX", owner: "QuickTime Player"), "normal QuickTime playback windows retain their edges")
+        check(!WindowProvider.isScreenRecorder(bundle: nil, owner: "another helper"), "unrelated unbundled windows are not excluded")
         let display = CGRect(x: 0, y: 0, width: 1710, height: 1107)
         check(WindowProvider.isKeyboardBackdrop(bundle: "com.apple.inputmethod.AssistiveControl", layer: 2997, frame: display, display: display), "transparent accessibility keyboard backdrops do not occlude terrain")
         check(!WindowProvider.isKeyboardBackdrop(bundle: "com.apple.inputmethod.AssistiveControl", layer: 101, frame: CGRect(x: 1000, y: 690, width: 600, height: 323), display: display), "the actual floating keyboard still occludes terrain")

@@ -282,3 +282,10 @@ Both arms now use the same jacket colour/material; the separate darker far-sleev
 The renderer previously chose the design from the completion count, which advances before the sock disappears during the resting beat. The mission now selects and retains a pattern when it selects a target. Rendering and the discovery message use that retained pattern; only a new discovery advances the design.
 
 163 core tests pass. A regression follows five successive discoveries, verifies a constant design throughout each visible mission including rest, and checks the stripes/spots/argyle/zigzags rotation and wraparound. Debug and packaged Release builds pass.
+
+
+## Screen recorder overlays do not erase terrain — 6 November 2026
+
+Reproduced with macOS Screenshot’s recording controls: its com.apple.screencaptureui overlay at level 24 and unbundled screencapture backdrop at level 1498 cover the display. They were treated as opaque occluders and removed all real edges, leaving only three screen-rescue segments. The terrain provider now excludes Screenshot UI and its exact unbundled helper owner, and does not treat the recorder’s foreground UI as an unsupported full-screen desktop. Ordinary QuickTime playback windows and unrelated unbundled windows retain their geometry.
+
+76 native checks pass; Debug and packaged Release builds pass. With the recording toolbar and selection overlays still open, the live app reports 13 windows and 12 exposed edges, remains RUNNING and continues rope climbing. The recorder controls are left open for the user; no recording was started by this verification.
