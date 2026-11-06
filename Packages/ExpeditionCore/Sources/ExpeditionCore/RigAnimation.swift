@@ -127,6 +127,8 @@ public struct ExplorerPose: Sendable {
     public var backpackTilt: Double = 0
     public var sway: Double = 0
     public var elbowPole = WorldPoint(x: -24, y: -6)
+    public var leftElbowBend: Double?
+    public var rightElbowBend: Double?
 
     public func blended(from other: ExplorerPose, fraction: Double) -> ExplorerPose {
         let f = min(max(fraction, 0), 1)
@@ -142,6 +144,8 @@ public struct ExplorerPose: Sendable {
         pose.backpackTilt = value(other.backpackTilt, backpackTilt)
         pose.sway = value(other.sway, sway)
         pose.elbowPole = point(other.elbowPole, elbowPole)
+        pose.leftElbowBend = f < 0.5 ? other.leftElbowBend : leftElbowBend
+        pose.rightElbowBend = f < 0.5 ? other.rightElbowBend : rightElbowBend
         return pose
     }
 
@@ -401,19 +405,38 @@ public enum RopeAnimation {
         pose.sway = min(0.4, max(-0.4, -atan2(direction.x, max(0.1, direction.y)) * 0.35))
         let c = cos(pose.sway), s = sin(pose.sway)
         let u = WorldPoint(x: c * direction.x + s * direction.y, y: -s * direction.x + c * direction.y)
-        func distance(_ upper: Double, offset: Double) -> Double {
+        func distance(_ upper: Double, offset: Double, shoulderX: Double, handX: Double) -> Double {
             guard mode == .climbing else { return upper }
-            let cycle = (ClimbingGait.height(at: pullTime) + offset) / 24, phase = cycle - floor(cycle)
-            let swing = min(1, max(0, (phase - 0.65) / 0.35))
-            return upper - phase * 24 + swing * swing * (3 - 2 * swing) * 24
+            // Keep the far glove inside its shoulder as the line leans: crossing
+            // that shoulder would reverse the arm's hinge during each hand swap.
+            let sideLimit = u.x * shoulderX > 0 ? (abs(shoulderX - handX) - 1) / max(0.001, abs(u.x)) : 30
+            let base = WorldPoint(x: shoulderX - handX, y: pose.hips.y + 20 - RopeSession.harnessHeight)
+            let along = base.x * u.x + base.y * u.y
+            let perpendicularSquared = base.x * base.x + base.y * base.y - along * along
+            let reachLimit = along + sqrt(max(0, 23.5 * 23.5 - perpendicularSquared))
+            let high = min(22, sideLimit, reachLimit)
+            let low = max(4, high - 12)
+            let cycle = (ClimbingGait.height(at: pullTime) + offset) / 24
+            let part = (cycle - floor(cycle)) * 24
+            let stroke = high - low
+            // During a loaded pull the glove drops by exactly the distance reeled
+            // in, keeping its world contact fixed until the other hand takes over.
+            if part < stroke { return high - part }
+            let t = (part - stroke) / (24 - stroke)
+            return low + stroke * t * t * (3 - 2 * t)
         }
         let leftHigh = u.x < 0
-        let left = distance(leftHigh ? 22 : 12, offset: 0), right = distance(leftHigh ? 12 : 22, offset: 12)
+        let left = distance(leftHigh ? 22 : 12, offset: 0, shoulderX: -10, handX: -2)
+        let right = distance(leftHigh ? 12 : 22, offset: 12, shoulderX: 10, handX: 2)
         pose.leftHand = .init(x: u.x * left - 2, y: RopeSession.harnessHeight + u.y * left)
         pose.rightHand = .init(x: u.x * right + 2, y: RopeSession.harnessHeight + u.y * right)
         pose.elbowPole = .init(x: 24, y: -16)
         pose.headTilt = min(0.15, max(-0.15, direction.x * 0.12))
         if mode == .climbing {
+            // Explicit anatomical hinges avoid pole-target sign changes as a
+            // glove passes shoulder height. Mirroring the rig mirrors these too.
+            pose.leftElbowBend = -1
+            pose.rightElbowBend = 1
             let phase = pullTime * 2 * Double.pi
             pose.leftFoot = .init(x: -4 + sin(phase) * 3, y: max(0, sin(phase)) * 8)
             pose.rightFoot = .init(x: 5 - sin(phase) * 3, y: max(0, -sin(phase)) * 8)

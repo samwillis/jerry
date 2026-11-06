@@ -114,3 +114,8 @@ The shared rig samples the current pointer during rendering, converts it through
 `JumpAnimation` shares a 120 ms ground preparation (65 ms compression, then extension) between the player physics and poses. Feet stay on their support until the legs extend; a 285 pt/s impulse and 600 pt/s² gravity give a roughly 68-point jump. Airborne poses blend from extension into a tuck and reach toward a real landing surface. A landing counter fires the existing impact compression exactly once, even when several simulation steps happen in a rendered frame. Steering accelerates at 400 pt/s² and coasts down at 120 pt/s². The first 80 ms of landing permits impact absorption before walking resumes.
 
 The playground's **Jumping** motion uses the same preparation, ballistic height, airborne poses and landing compression, at full and actual desktop scale. Useful paused times: 0.065 s crouch, 0.12 s full extension, 0.59 s near apex, and 1.15 s impact compression. This replaces the player's fixed 0.8 s sample of the parachute-launch clip. Automatic edge launches retain their separate corner choreography.
+
+
+## Rope-climbing elbow stability — 6 November 2026
+
+Climbing uses explicit near/far arm hinge directions instead of a shared pole whose cross product could change sign mid-stroke. Grips stay inside their respective shoulder boundaries, within a 23.5-point reach allowance, and above the harness. Each loaded grip drops by the distance reeled in, keeping its world contact fixed until the next reach; horizontal line angles shorten strokes to stay reachable. Fixed hinges mirror with the rig. Abseiling retains its existing arm setup.

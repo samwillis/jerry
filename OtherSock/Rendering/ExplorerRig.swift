@@ -295,8 +295,8 @@ final class ExplorerRig: SKNode {
         joints.removeAllChildren()
         joints.isHidden = !showsJoints
         clampedContacts = 0
-        place(leftArm, root: .init(x: pose.hips.x - 10, y: pose.hips.y + 20), target: pose.leftHand, knee: false, elbowPole: pose.elbowPole)
-        place(rightArm, root: .init(x: pose.hips.x + 10, y: pose.hips.y + 20), target: pose.rightHand, knee: false, elbowPole: pose.elbowPole)
+        place(leftArm, root: .init(x: pose.hips.x - 10, y: pose.hips.y + 20), target: pose.leftHand, knee: false, elbowPole: pose.elbowPole, elbowBend: pose.leftElbowBend)
+        place(rightArm, root: .init(x: pose.hips.x + 10, y: pose.hips.y + 20), target: pose.rightHand, knee: false, elbowPole: pose.elbowPole, elbowBend: pose.rightElbowBend)
         place(leftLeg, root: .init(x: pose.hips.x - 7, y: pose.hips.y), target: pose.leftFoot, knee: true)
         place(rightLeg, root: .init(x: pose.hips.x + 7, y: pose.hips.y), target: pose.rightFoot, knee: true)
     }
@@ -341,12 +341,12 @@ final class ExplorerRig: SKNode {
         }
     }
 
-    private func place(_ limb: RigLimb, root: WorldPoint, target: WorldPoint, knee: Bool, elbowPole: WorldPoint = .init(x: -24, y: -6)) {
+    private func place(_ limb: RigLimb, root: WorldPoint, target: WorldPoint, knee: Bool, elbowPole: WorldPoint = .init(x: -24, y: -6), elbowBend: Double? = nil) {
         // Toe direction is +x. Mirroring the whole rig flips feet and poles together.
         let pole = WorldPoint(x: root.x + (knee ? 24 : elbowPole.x), y: root.y + (knee ? -6 : elbowPole.y))
         // Foot targets mark the sole; the shin ends at an ankle three points inside the boot.
         let jointTarget = WorldPoint(x: target.x, y: target.y + (knee ? ExpeditionConfiguration.ankleHeight : 0))
-        let solution = TwoBoneIK.solve(root: root, target: jointTarget, upper: limb.upperLength, lower: limb.lowerLength, pole: knee ? nil : pole)
+        let solution = TwoBoneIK.solve(root: root, target: jointTarget, upper: limb.upperLength, lower: limb.lowerLength, bend: elbowBend ?? 1, pole: knee || elbowBend != nil ? nil : pole)
         limb.place(root: root, solution: solution)
         if solution.isClamped { clampedContacts += 1 }
         guard showsJoints else { return }

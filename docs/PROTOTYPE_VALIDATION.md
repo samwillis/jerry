@@ -120,3 +120,8 @@ Debug/Release builds and all 27 applicable native checks pass (the denied-permis
 114 core tests pass. New jump checks cover planted soles through preparation, lift beginning after extension, continuity into the airborne pose, reachable limbs throughout the full preview, coasting on release, one landing event, moving/removed support during preparation, and ceiling contact without hovering. All 27 applicable native checks pass (the denied-Accessibility case is skipped when permission is granted). Debug and packaged Release builds pass.
 
 The crouch, fully extended take-off, airborne tuck and landing compression were inspected in the native playground at 3× and actual desktop scale. All inspected frames reported zero clamped contacts. Preparation remains a short fixed delay rather than a charged jump; jump height stays close to the previous height, with a slightly quicker airborne arc. Overall feel still benefits from the user's hands-on assessment.
+
+
+### Rope-climbing elbows — 6 November 2026
+
+116 core tests pass. New coverage sweeps two complete pulls at every five degrees from −80° to +80°: arm reach, shoulder-side constraints, fixed bend signs, and frame-to-frame joint continuity. Vertical loaded grips also remain fixed in world space against the shared reeling clock. Debug/Release builds and all applicable native checks pass. Native playground inspection checked opposite pulls and mirrored facing, both with zero clamped contacts.

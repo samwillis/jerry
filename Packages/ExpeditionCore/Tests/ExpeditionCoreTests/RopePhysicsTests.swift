@@ -303,3 +303,44 @@ extension RopePhysicsTests {
         XCTAssertTrue(plan?.allSatisfy { graph.isValid($0) } ?? false)
     }
 }
+
+extension RopePhysicsTests {
+    func testClimbingElbowsKeepTheirHingeThroughHandSwapsAtEveryRopeAngle() {
+        for degrees in stride(from: -80.0, through: 80, by: 5) {
+            let angle = degrees * .pi / 180
+            var previous: [WorldPoint] = []
+            for tick in 0...480 {
+                let pose = RopeAnimation.pose(mode: .climbing, direction: .init(x: sin(angle), y: cos(angle)), velocity: .zero, pullTime: Double(tick) / 240)
+                XCTAssertGreaterThan(pose.leftHand.x, -10)
+                XCTAssertLessThan(pose.rightHand.x, 10)
+                var joints: [WorldPoint] = []
+                for (root, hand, bend) in [(WorldPoint(x: -10, y: pose.hips.y + 20), pose.leftHand, pose.leftElbowBend), (.init(x: 10, y: pose.hips.y + 20), pose.rightHand, pose.rightElbowBend)] {
+                    XCTAssertNotNil(bend)
+                    let arm = TwoBoneIK.solve(root: root, target: hand, upper: 12, lower: 12, bend: bend ?? 1)
+                    XCTAssertFalse(arm.isClamped)
+                    let cross = (hand.x - root.x) * (arm.joint.y - root.y) - (hand.y - root.y) * (arm.joint.x - root.x)
+                    XCTAssertEqual(cross < 0 ? -1.0 : 1.0, bend)
+                    joints.append(arm.joint)
+                }
+                if previous.count == 2 {
+                    for i in 0..<2 { XCTAssertLessThan(hypot(joints[i].x - previous[i].x, joints[i].y - previous[i].y), 1.5, "Elbow snap at \(degrees)° / \(tick)") }
+                }
+                previous = joints
+            }
+        }
+    }
+}
+
+
+extension RopePhysicsTests {
+    func testVerticalRopeGripsStayPlantedDuringTheirLoadedPulls() {
+        for tick in 0...60 {
+            let t = Double(tick) / 120
+            let left = RopeAnimation.pose(mode: .climbing, direction: .init(x: 0, y: 1), velocity: .zero, pullTime: t)
+            XCTAssertEqual(ClimbingGait.height(at: t) + left.leftHand.y, 56, accuracy: 0.0001)
+            let rightTime = t + 0.5
+            let right = RopeAnimation.pose(mode: .climbing, direction: .init(x: 0, y: 1), velocity: .zero, pullTime: rightTime)
+            XCTAssertEqual(ClimbingGait.height(at: rightTime) + right.rightHand.y, 68, accuracy: 0.0001)
+        }
+    }
+}
