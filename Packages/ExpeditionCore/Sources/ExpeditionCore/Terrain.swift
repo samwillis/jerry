@@ -239,11 +239,17 @@ public enum TerrainSupport {
             return point
         }
         if anchor.edge == .front {
-            let top = TerrainAttachment(owner: anchor.owner, edge: .top, offset: anchor.offset)
-            guard let roof = resolve(top, in: terrain) else { return nil }
-            let point = WorldPoint(x: roof.x, y: roof.y - 58)
+            // A visible hook pin does not need standing room above the roof.
+            // Keep the hanging body on screen when a window touches the menu bar.
+            let x = frame.minX + anchor.offset
+            guard terrain.surfaces.contains(where: {
+                $0.id.owner == anchor.owner && $0.id.edge == .top
+                    && x - 24 >= $0.start.x && x + 24 <= $0.end.x
+            }) else { return nil }
+            let point = WorldPoint(x: x, y: min(frame.maxY - 58, terrain.viewport.maxY - 76))
             let body = WorldRect(x: point.x - 23, y: point.y + 1, width: 46, height: 74)
-            guard point.y >= terrain.viewport.minY,
+            guard point.x - 24 >= terrain.viewport.minX, point.x + 24 <= terrain.viewport.maxX,
+                  point.y >= terrain.viewport.minY,
                   !terrain.windows[..<index].contains(where: { $0.frame.intersects(body) }) else { return nil }
             return point
         }

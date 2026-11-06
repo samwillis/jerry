@@ -58,6 +58,62 @@ final class ManualControlFollowupTests: XCTestCase {
         empty.updateTerrain(.init(windows: [cover] + layout.windows, viewport: layout.viewport))
         XCTAssertFalse(empty.fireGrapple(toward: .init(x: 780, y: 600)))
     }
+    func testHookCanAttachToRoofWithoutStandingRoomAndHangAtTheRim() {
+        let roof = DesktopWindow(id: 7, frame: .init(x: 100, y: 100, width: 600, height: 700))
+        let viewport = WorldRect(x: 0, y: 0, width: 1000, height: 800)
+        let terrain = TerrainSnapshot(windows: [roof], viewport: viewport)
+        XCTAssertNil(TerrainSupport.resolve(.init(owner: .window(7), edge: .top, offset: 250), in: terrain))
+        var value = ExplorerInteraction(position: .init(x: 350, y: 0), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 976, y: 724)))
+        value.autonomous = true; value.updateTerrain(terrain); value.setKeyboardControl(true)
+        XCTAssertEqual(value.aimedGrappleTarget(toward: .init(x: 350, y: 800)), .init(x: 350, y: 801))
+        XCTAssertTrue(value.fireGrapple(toward: .init(x: 350, y: 800)))
+        advance(&value, 1)
+        value.setControlDirection(horizontal: 0, vertical: 1); advance(&value, 30)
+        XCTAssertNotNil(value.ropeSession, "No room to mantle must leave the hook attached")
+        XCTAssertEqual(value.ropeSession?.anchor.windowID, 7)
+        XCTAssertGreaterThan(value.position.y, 710)
+        XCTAssertLessThanOrEqual(value.position.y, 724)
+        XCTAssertNil(value.attachment)
+        // Once the window is lower, the same attached rope can finish its mantle.
+        let lower = DesktopWindow(id: 7, frame: .init(x: 100, y: 0, width: 600, height: 700))
+        value.updateTerrain(.init(windows: [lower], viewport: viewport))
+        advance(&value, 20)
+        XCTAssertEqual(value.attachment?.edge, .top)
+        XCTAssertEqual(value.position.y, 700)
+    }
+    func testSwitchingCaptureAwayFromDepartureLedgeDoesNotCancelShot() {
+        let ledge = WindowFeature(id: 9, windowID: 1, edge: .ledge, start: .init(x: 30, y: 150), end: .init(x: 270, y: 150))
+        let sourceTerrain = TerrainSnapshot(windows: layout.windows, viewport: layout.viewport, features: [ledge])
+        var value = ExplorerInteraction(position: .init(x: 450, y: 170), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 1176, y: 824)))
+        value.autonomous = true; value.updateTerrain(sourceTerrain); value.setKeyboardControl(true)
+        XCTAssertEqual(value.attachment?.featureID, 9)
+        XCTAssertTrue(value.fireGrapple(toward: .init(x: 780, y: 600)))
+        advance(&value, 0.1)
+        // The capture prioritiser now supplies the destination window's data,
+        // removing the source window's internal holds from the snapshot.
+        value.updateTerrain(layout, sampleElapsed: 0.05)
+        XCTAssertEqual(value.ropeSession?.mode, .firing)
+        XCTAssertTrue(value.ropeSession?.freeFlightWhileFiring == true)
+        XCTAssertNil(value.attachment)
+        advance(&value, 1)
+        XCTAssertNotNil(value.ropeSession)
+        XCTAssertNotEqual(value.ropeSession?.mode, .firing)
+        XCTAssertEqual(value.ropeSession?.anchor.windowID, 2)
+    }
+    func testNearbyInternalHoldCannotCancelAnInFlightGrapple() {
+        let feature = WindowFeature(id: 1, windowID: 1, edge: .horizontalCrack,
+                                    start: .init(x: 30, y: 100), end: .init(x: 270, y: 100))
+        let terrain = TerrainSnapshot(windows: layout.windows, viewport: layout.viewport, features: [feature])
+        var value = actor(); value.setKeyboardControl(true)
+        value.beginDrag(at: value.position); value.drag(to: .init(x: 450, y: 62)); value.endDrag(on: terrain)
+        value.updateTerrain(terrain)
+        XCTAssertTrue(value.fireGrapple(toward: .init(x: 450, y: 370)))
+        XCTAssertFalse(value.transferToWindowHold())
+        value.setControlDirection(horizontal: 0, vertical: 1)
+        advance(&value, 0.15)
+        XCTAssertEqual(value.ropeSession?.mode, .firing)
+        XCTAssertEqual(value.ropeSession?.anchor.windowID, 1)
+    }
     func testCanFireWhileJumpingAndContinueBallisticFlightUntilLatch() {
         var value = actor(); value.setKeyboardControl(true); value.controlJump(); advance(&value, 0.3)
         XCTAssertEqual(value.state, .jumping)

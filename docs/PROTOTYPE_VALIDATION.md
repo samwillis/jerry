@@ -180,3 +180,12 @@ Increased window capture from half-point resolution capped at 480 × 360 to poin
 A local Vision fast text request runs on changed frames in the capture worker. Its recognised strings are discarded immediately; padded text rectangles exclude candidate edges and underlines. A positive text match also invalidates a previously tracked hold immediately, bypassing missed-frame grace. If text analysis fails, that frame publishes no holds rather than unfiltered text. Unchanged frames reuse the previous result without rerunning recognition or detection.
 
 143 core tests pass, including faint single-pixel rules, low-contrast blocks, exclusion of a long text underline without excluding a nearby divider, immediate removal of a previously tracked text hold, and gradient rejection. The live capture harness now has ten checks: it identifies the actual rendered text region, accepts a faint one-point line and low-contrast block, rejects underlined text, and retains the existing scrolling/attachment checks. Native lifecycle/menu/rig checks and Debug/Release builds are also verified for this revision.
+
+
+## Grapple attachment after internal-window exploration — 6 November 2026
+
+Fixed a departure-support regression: capture prioritises the hook’s destination window, which can remove the source window’s detected ledge while a shot is still flying. Losing that source attachment now enables ballistic free flight while preserving the valid hook/target, rather than cancelling the shot. Hold transfers are also blocked during firing and for the first 250 ms after a rope mode change, so an internal hold cannot interrupt the latch.
+
+A front-rim pin now validates its exposed window top and hanging-body clearance independently of standing room above the roof. Windows near the top of the usable display can be hooked. Reeling in keeps the body on screen; if there is no safe mantle, the explorer hangs on the attached line instead of discarding it. Moving that window lower permits the same rope to finish its mantle normally. Covered rims remain rejected.
+
+146 core tests and 51 native checks pass; Debug and packaged Release builds pass. Three new regression cases exercise capture switching away from a departure ledge during firing, prevention of an in-flight transfer, and a hook/climb/hang/move-window/mantle sequence with no initial standing room above the roof.

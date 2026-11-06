@@ -427,8 +427,15 @@ public struct ExplorerInteraction {
             if let guide = session.anchor.resolve(in: terrain) {
                 session.followSupport(guide, sampleElapsed: sampleElapsed)
                 if session.mode == .firing, let attachment {
-                    guard let support = TerrainSupport.resolve(attachment, in: terrain) else { releaseRope(velocity: .zero); return }
-                    session.contact(feet: support, horizontal: true, vertical: true)
+                    if let support = TerrainSupport.resolve(attachment, in: terrain) {
+                        session.contact(feet: support, horizontal: true, vertical: true)
+                    } else {
+                        // Capture may switch to the target window as soon as the
+                        // shot starts. Losing its departure hold must not cancel
+                        // an otherwise valid flying hook: continue in free flight.
+                        self.attachment = nil
+                        session.freeFlightWhileFiring = true
+                    }
                 }
                 if session.mode != .supported {
                     position = session.feet
@@ -717,7 +724,13 @@ public struct ExplorerInteraction {
                 route = continuation
             } else if let mantle = graph?.frontMantle(from: lip) ?? graph?.steps.first(where: { $0.kind == .mantling && $0.from == lip }) {
                 route = [mantle]
-            } else { recover(); return }
+            } else {
+                // The pin can be usable even when there is no standing room
+                // above this window. Stay on the rope beneath the rim.
+                session.switchMode(.swinging); session.climbsAfterSwing = false
+                ropeSession = session; attachment = nil; state = .swinging
+                return
+            }
             travelFraction = 0
             startTravel()
         }
@@ -877,7 +890,10 @@ public struct ExplorerInteraction {
     /// slow autonomous rope work; it never grabs a crack during a fast swing.
     @discardableResult public mutating func transferToWindowHold() -> Bool {
         guard let terrain, state != .held, state != .transferringHold, let (anchor, _) = TerrainSupport.grip(at: position, in: terrain, reach: ropeSession == nil && attachment != nil ? 68 : 24, excluding: attachment, direction: ropeSession == nil ? .init(x: controlHorizontal, y: controlVertical) : .zero) else { return false }
-        if let session = ropeSession, hypot(session.releaseVelocity.x, session.releaseVelocity.y) > 220 { return false }
+        if let session = ropeSession {
+            guard session.mode != .firing, session.age >= 0.25,
+                  hypot(session.releaseVelocity.x, session.releaseVelocity.y) <= 220 else { return false }
+        }
         ropeSession = nil; ropeContinuation.removeAll(); route.removeAll(); afterLanding.removeAll()
         flightGoal = nil; holdTransferStart = position; holdTransferElapsed = 0
         attachment = anchor; state = .transferringHold; climbingTime = 0
