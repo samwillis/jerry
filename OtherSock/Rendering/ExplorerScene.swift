@@ -187,6 +187,7 @@ final class ExplorerScene: SKScene {
         previousUpdateTime = currentTime
         guard !expeditionPaused else { return }
         let previousState = interaction?.state
+        let previousLandingCount = interaction?.landingCount
         interaction?.advance(by: elapsed * playbackRate)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--freeze-grapple"), interaction?.state == .grappling, (interaction?.ropeSession?.age ?? 0) > 0.15 { setExpeditionPaused(true) }
@@ -197,7 +198,9 @@ final class ExplorerScene: SKScene {
             setExpeditionPaused(true)
         }
         #endif
-        if previousState == .recovering, interaction?.state == .settling { explorer.land() }
+        if let interaction, interaction.landingCount != previousLandingCount {
+            explorer.land(strength: min(1, max(0.4, interaction.lastLandingSpeed / JumpAnimation.launchSpeed)))
+        } else if previousState == .recovering, interaction?.state == .settling { explorer.land() }
         // Mission beats also change while the explorer is standing still.
         applyPlacement()
         explorer.render(delta: elapsed * playbackRate)
@@ -230,7 +233,7 @@ final class ExplorerScene: SKScene {
         switch interaction.state {
         case .held: motion = .held
         case .recovering: motion = .parachuting
-        case .jumping: motion = .launching
+        case .preparingJump, .jumping: motion = .jumping
         case .walking: motion = .walking
         case .climbing: motion = .climbing
         case .abseiling: motion = .abseiling
@@ -251,7 +254,7 @@ final class ExplorerScene: SKScene {
         explorer.tuning = interaction.walkingTuning
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
-        if interaction.state == .jumping { explorer.synchronizedTime = 0.8 }
+        explorer.jumpPose = interaction.keyboardJumpPose
         explorer.handTargets = nil
         explorer.footTargets = nil
         explorer.ropePose = nil

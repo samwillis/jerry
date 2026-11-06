@@ -101,6 +101,7 @@ final class ExplorerRig: SKNode {
     private var harnessWasUsed = false
     var synchronizedTime: Double?
     var ropePose: ExplorerPose?
+    var jumpPose: ExplorerPose?
     var grappleAim: WorldPoint?
     var usesHarnessPivot = false
     var handTargets: (WorldPoint, WorldPoint)?
@@ -252,6 +253,10 @@ final class ExplorerRig: SKNode {
         if let ropePose {
             let t = min(1, ropeBlendTime / 0.15)
             pose = ropePose.blended(from: ropeBlendFrom, fraction: t * t * (3 - 2 * t))
+        }
+        if let jumpPose {
+            let t = min(1, ropeBlendTime / 0.04)
+            pose = jumpPose.blended(from: ropeBlendFrom, fraction: t * t * (3 - 2 * t))
         }
         grappleGun.isHidden = motion != .grappling
         if motion == .grappling {

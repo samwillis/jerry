@@ -34,13 +34,13 @@ final class KeyboardControlTests: XCTestCase {
     }
     func testJumpHasGravityAirSteeringAndNoDoubleJump() {
         var value = explorer()
-        value.controlJump(); advance(&value, seconds: 0.25)
+        value.controlJump(); advance(&value, seconds: 0.35)
         let height = value.position.y
         XCTAssertGreaterThan(height, 40)
         value.controlJump() // No second impulse in the air.
         value.setControlDirection(horizontal: 1, vertical: 0)
         advance(&value, seconds: 0.25)
-        XCTAssertGreaterThan(value.position.x, 115)
+        XCTAssertGreaterThan(value.position.x, 110)
         XCTAssertLessThan(value.position.y, 72)
         advance(&value, seconds: 1)
         XCTAssertEqual(value.attachment?.edge, .floor)

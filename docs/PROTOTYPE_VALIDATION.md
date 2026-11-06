@@ -113,3 +113,10 @@ Accessibility access is false in this build's test context. No permission was gr
 ### Pointer awareness — 6 November 2026
 
 Debug/Release builds and all 27 applicable native checks pass (the denied-permission check is skipped because Accessibility access is now granted). The shared rig's eye/head response was inspected in the playground, including mirrored facing. Coordinate diagnostics during development confirmed conversion from the current AppKit screen pointer through the window/view/scene into head space; those diagnostics were removed. Eyes lead the head and blend back to the base expression at distance, retaining asynchronous blinks. No simulation or input-panel geometry changed; current-pointer sampling requires no event monitor or extra permission. Visual timing remains subject to user preference.
+
+
+### Player jump fluidity — 6 November 2026
+
+114 core tests pass. New jump checks cover planted soles through preparation, lift beginning after extension, continuity into the airborne pose, reachable limbs throughout the full preview, coasting on release, one landing event, moving/removed support during preparation, and ceiling contact without hovering. All 27 applicable native checks pass (the denied-Accessibility case is skipped when permission is granted). Debug and packaged Release builds pass.
+
+The crouch, fully extended take-off, airborne tuck and landing compression were inspected in the native playground at 3× and actual desktop scale. All inspected frames reported zero clamped contacts. Preparation remains a short fixed delay rather than a charged jump; jump height stays close to the previous height, with a slightly quicker airborne arc. Overall feel still benefits from the user's hands-on assessment.

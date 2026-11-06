@@ -107,3 +107,10 @@ The shared rig includes a spool launcher and aiming hands for **Grappling**, plu
 ## Pointer awareness — 6 November 2026
 
 The shared rig samples the current pointer during rendering, converts it through the real scene/head transforms, and applies a small additive gaze and head turn. This respects facing, zoom and rope sway. Eyes respond over about 90 ms, the head over 220 ms; interest fades between 120 and 220 logical rig points. Eye displacement remains within the face, blink openness still controls both eyes independently, and the existing motion pose remains the base. Firing reduces the distraction. No pointer events are intercepted or permission requested. The same response is visible in the desktop and playground; pausing rendering also pauses expressions.
+
+
+## Leg-driven player jump — 6 November 2026
+
+`JumpAnimation` shares a 120 ms ground preparation (65 ms compression, then extension) between the player physics and poses. Feet stay on their support until the legs extend; a 285 pt/s impulse and 600 pt/s² gravity give a roughly 68-point jump. Airborne poses blend from extension into a tuck and reach toward a real landing surface. A landing counter fires the existing impact compression exactly once, even when several simulation steps happen in a rendered frame. Steering accelerates at 400 pt/s² and coasts down at 120 pt/s². The first 80 ms of landing permits impact absorption before walking resumes.
+
+The playground's **Jumping** motion uses the same preparation, ballistic height, airborne poses and landing compression, at full and actual desktop scale. Useful paused times: 0.065 s crouch, 0.12 s full extension, 0.59 s near apex, and 1.15 s impact compression. This replaces the player's fixed 0.8 s sample of the parachute-launch clip. Automatic edge launches retain their separate corner choreography.

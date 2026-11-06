@@ -18,7 +18,7 @@ public struct ExplorerInteraction {
         }
     }
 
-    public enum State: String { case idle, held, settling, recovering, jumping, walking, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
+    public enum State: String { case idle, held, settling, recovering, preparingJump, jumping, walking, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
     public private(set) var position: Point
     public private(set) var state: State = .idle
     public private(set) var attachment: TerrainAttachment?
@@ -26,6 +26,19 @@ public struct ExplorerInteraction {
     public private(set) var controlHorizontal = 0.0
     public private(set) var controlVertical = 0.0
     private var controlVelocity = Point.zero
+    public private(set) var jumpPreparationElapsed = 0.0
+    public private(set) var jumpAirElapsed = 0.0
+    public private(set) var landingCount = 0
+    public private(set) var lastLandingSpeed = 0.0
+    public var keyboardJumpPose: ExplorerPose? {
+        if state == .preparingJump { return JumpAnimation.preparation(at: jumpPreparationElapsed) }
+        guard state == .jumping else { return nil }
+        let landingY = terrain?.surfaces.filter {
+            ($0.id.edge == .top || $0.id.edge == .floor) && $0.start.y <= position.y
+                && position.x - 24 >= $0.start.x && position.x + 24 <= $0.end.x
+        }.map { $0.start.y }.max() ?? bounds.minimum.y
+        return JumpAnimation.airborne(elapsed: jumpAirElapsed, verticalSpeed: controlVelocity.y, landingDistance: max(0, position.y - landingY))
+    }
     private var dropThroughRemaining = 0.0
     public var autonomous = false
     public var runsMission = false
@@ -705,18 +718,25 @@ public struct ExplorerInteraction {
     }
 
     public mutating func controlJump() {
-        guard keyboardControlEnabled, state != .held, state != .traversingEdge else { return }
-        if let session = ropeSession {
+        guard keyboardControlEnabled, state != .held, state != .traversingEdge, state != .preparingJump else { return }
+        if let session = ropeSession, session.mode != .supported && session.mode != .firing {
             controlVelocity = session.releaseVelocity
             controlVelocity.y = max(250, controlVelocity.y)
             controlVelocity.x += facing * 65
             ropeSession = nil; ropeContinuation.removeAll(); attachment = nil
         } else {
-            guard attachment != nil else { return } // No mid-air double jumps.
+            guard let support = attachment else { return } // No mid-air double jumps.
+            ropeSession = nil; ropeContinuation.removeAll()
+            if controlVertical >= 0, support.edge == .floor || support.edge == .top {
+                jumpPreparationElapsed = 0; jumpAirElapsed = 0
+                route.removeAll(); state = .preparingJump
+                return
+            }
             controlVelocity = .init(x: controlHorizontal * 80, y: controlVertical < 0 ? -30 : 260)
             if controlVertical < 0 { dropThroughRemaining = 0.3 }
             attachment = nil
         }
+        jumpAirElapsed = 0
         route.removeAll(); state = .jumping
     }
 
@@ -736,6 +756,20 @@ public struct ExplorerInteraction {
         guard state != .held, let terrain else { return }
         dropThroughRemaining = max(0, dropThroughRemaining - dt)
         if state == .traversingEdge { advanceTravel(by: dt); return }
+        if state == .preparingJump {
+            guard let attachment, let point = TerrainSupport.resolve(attachment, in: terrain) else {
+                self.attachment = nil; controlVelocity = .zero; jumpAirElapsed = 0; state = .jumping; return
+            }
+            position = point // Keep the soles planted, including on a moving window.
+            jumpPreparationElapsed += dt
+            if jumpPreparationElapsed + 0.000001 >= JumpAnimation.preparationDuration {
+                jumpPreparationElapsed = JumpAnimation.preparationDuration
+                self.attachment = nil
+                controlVelocity = .init(x: controlHorizontal * 80, y: JumpAnimation.launchSpeed)
+                jumpAirElapsed = 0; state = .jumping
+            }
+            return
+        }
         if var session = ropeSession, session.mode != .supported || controlVertical != 0 {
             let mode: RopeSession.Mode = controlVertical > 0 ? .climbing : (controlVertical < 0 ? .descending : .swinging)
             session.climbsAfterSwing = false
@@ -748,22 +782,36 @@ public struct ExplorerInteraction {
             advanceRope(by: dt)
             return
         }
-        if state == .recovering { state = .jumping; controlVelocity = flightVelocity }
+        if state == .recovering { state = .jumping; controlVelocity = flightVelocity; jumpAirElapsed = 0 }
         if state == .jumping || attachment == nil {
             let previous = position
-            controlVelocity.x = controlHorizontal * 80
-            controlVelocity.y -= RopeDynamics.gravity * dt
-            position.x += controlVelocity.x * dt; position.y += controlVelocity.y * dt
+            jumpAirElapsed += dt
+            let targetSpeed = controlHorizontal * 80
+            let acceleration = controlHorizontal == 0 ? 120.0 : 400.0
+            controlVelocity.x += min(acceleration * dt, max(-acceleration * dt, targetSpeed - controlVelocity.x))
+            // Exact constant-acceleration displacement avoids a take-off timing bias.
+            position.x += controlVelocity.x * dt
+            position.y += controlVelocity.y * dt - JumpAnimation.gravity * dt * dt / 2
+            controlVelocity.y -= JumpAnimation.gravity * dt
+            if position.y > bounds.maximum.y { controlVelocity.y = min(0, controlVelocity.y) }
+            if position.x < bounds.minimum.x || position.x > bounds.maximum.x { controlVelocity.x = 0 }
             clampPosition()
             if controlVelocity.y < 0, dropThroughRemaining <= 0,
                let (anchor, point) = TerrainSupport.landing(from: previous, to: position, in: terrain) {
+                lastLandingSpeed = abs(controlVelocity.y); landingCount += 1
                 attachment = anchor; position = point; controlVelocity = .zero
-                state = .settling; settlingRemaining = 0.12
+                state = .settling; settlingRemaining = LandingAnimation.duration
             } else if position.y <= bounds.minimum.y {
                 attachment = TerrainSupport.attach(at: position, in: terrain)?.0
-                controlVelocity = .zero; state = .idle
+                lastLandingSpeed = abs(controlVelocity.y); landingCount += 1
+                controlVelocity = .zero; state = .settling; settlingRemaining = LandingAnimation.duration
             } else { state = .jumping }
             return
+        }
+        if state == .settling {
+            settlingRemaining -= dt
+            if settlingRemaining > LandingAnimation.duration - 0.08 { return }
+            state = .idle
         }
         // Up/down grabs an exposed side within arm's reach. Front-of-window
         // climbing uses G and the shared rope, rather than an invisible wall.
@@ -811,7 +859,7 @@ public struct ExplorerInteraction {
             clampPosition()
             if let (anchor, point) = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1) {
                 attachment = anchor; position = point; state = .walking
-            } else { attachment = nil; controlVelocity = .init(x: facing * 80, y: 0); state = .jumping }
+            } else { attachment = nil; controlVelocity = .init(x: facing * 80, y: 0); jumpAirElapsed = 0; state = .jumping }
         } else {
             if state == .settling { settlingRemaining -= dt; if settlingRemaining > 0 { return } }
             state = .idle

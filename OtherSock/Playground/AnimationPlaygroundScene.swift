@@ -67,7 +67,7 @@ final class AnimationPlaygroundScene: SKScene {
     }
 
     private func layoutStage() {
-        let tall = selected == .parachuting || selected == .abseiling
+        let tall = selected == .parachuting || selected == .abseiling || selected == .jumping
         let y = tall ? max(25, min(size.height * 0.25, size.height - 140 * zoom - 55)) : max(105, size.height * 0.25)
         stageOrigin = CGPoint(x: size.width * 0.53, y: y)
         if !hasCustomOrigin { rig.position = stageOrigin }
@@ -212,7 +212,14 @@ final class AnimationPlaygroundScene: SKScene {
             rig.position = CGPoint(x: stageOrigin.x + offset.x * zoom * facing, y: stageOrigin.y + offset.y * zoom)
             actualSizeRig.position = CGPoint(x: 90 + offset.x * facing, y: 80 + offset.y)
         }
+        if selected == .jumping, !hasCustomOrigin {
+            let time = rig.animationTime.truncatingRemainder(dividingBy: JumpAnimation.previewDuration)
+            let height = JumpAnimation.previewHeight(at: time)
+            rig.position = .init(x: stageOrigin.x, y: stageOrigin.y + height * zoom)
+            actualSizeRig.position = .init(x: 90, y: 80 + height)
+        }
         var beat = "Drag the body to interrupt any pose"
+        if selected == .jumping { beat = "Plant → compress → push through legs → tuck → reach → absorb" }
         if selected == .mantling { beat = "Grip the lip → pull up → plant a boot → stand" }
         if selected == .lowering { beat = "Crouch → back over the lip → take the rope" }
         if selected == .launching { beat = "Look down → crouch → push clear → deploy" }

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ExplorerMotion: String, CaseIterable, Sendable {
-    case idle, walking, climbing, abseiling, grappling, ropeClimbing, ropeSwinging, parachuting, mantling, lowering, launching, held, investigating, landing, comic
+    case idle, walking, jumping, climbing, abseiling, grappling, ropeClimbing, ropeSwinging, parachuting, mantling, lowering, launching, held, investigating, landing, comic
 }
 
 public enum RecoveryAnimation {
@@ -159,6 +159,8 @@ public enum AnimationClips {
         case .idle:
             pose.hips.y += sin(phase * 0.4) * 0.15 * tuning.bounce
             pose.headTilt = sin(phase * 0.2) * 0.035
+        case .jumping:
+            pose = JumpAnimation.previewPose(at: t)
         case .walking:
             let stride = min(max(tuning.stride, 0), 12)
             // A lifted foot swings towards +x; a planted foot moves backwards relative to the body.
