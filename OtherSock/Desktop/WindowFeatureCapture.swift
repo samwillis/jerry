@@ -4,7 +4,7 @@ import CoreMedia
 import Vision
 import ExpeditionCore
 
-/// One bounded stream: the explorer's host window takes priority over the front window.
+/// One bounded stream. The overlay pairs host/front-window and keyboard streams when needed.
 /// Pixels are analysed on a serial background queue, never stored or sent anywhere.
 @MainActor
 final class WindowFeatureCapture {
@@ -50,7 +50,7 @@ final class WindowFeatureCapture {
                 guard let self, !Task.isCancelled, self.generation == token,
                       let window = content.windows.first(where: { $0.windowID == desired.id }) else { return }
                 let config = SCStreamConfiguration()
-                let scale = min(1, 960 / desired.frame.width, 720 / desired.frame.height)
+                let scale = min(1, 800 / desired.frame.width, 600 / desired.frame.height)
                 config.width = max(24, Int(desired.frame.width * scale))
                 config.height = max(24, Int(desired.frame.height * scale))
                 config.pixelFormat = kCVPixelFormatType_32BGRA
@@ -101,7 +101,11 @@ final class WindowFeatureCapture {
     }
     func currentFeatures() -> [WindowFeature] {
         let now = ProcessInfo.processInfo.systemUptime
-        guard enabled, now - received < 0.25, now - lastTimestamp < 0.3 else { return [] }
+        // Age the published result from delivery, not from the start of OCR/analysis.
+        // Otherwise a valid result can expire immediately on a large Debug frame.
+        // Queued old frames are rejected by the reader; prediction still uses the
+        // original observation time and is bounded to 50 ms.
+        guard enabled, now - received < 0.25 else { return [] }
         let dt = min(0.05, max(0, now - lastTimestamp))
         return features.map {
             var feature = $0
@@ -153,10 +157,12 @@ private final class FeatureFrameReader: NSObject, SCStreamOutput, SCStreamDelega
         }
         let width = CVPixelBufferGetWidth(buffer), height = CVPixelBufferGetHeight(buffer), stride = CVPixelBufferGetBytesPerRow(buffer)
         var rgb = [UInt8](repeating: 0, count: width * height * 3)
-        for y in 0..<height {
-            for x in 0..<width {
-                let i = y * stride + x * 4, o = (y * width + x) * 3
-                rgb[o] = bytes[i + 2]; rgb[o + 1] = bytes[i + 1]; rgb[o + 2] = bytes[i]
+        rgb.withUnsafeMutableBufferPointer { output in
+            for y in 0..<height {
+                for x in 0..<width {
+                    let i = y * stride + x * 4, o = (y * width + x) * 3
+                    output[o] = bytes[i + 2]; output[o + 1] = bytes[i + 1]; output[o + 2] = bytes[i]
+                }
             }
         }
         CVPixelBufferUnlockBaseAddress(buffer, .readOnly)
@@ -173,6 +179,11 @@ private final class FeatureFrameReader: NSObject, SCStreamOutput, SCStreamDelega
         }
         let pixels = TerrainPixels(width: width, height: height, rgb: rgb, pointWidth: window.frame.width, pointHeight: window.frame.height, textRegions: textRegions)
         tracker.update(pixels, windowID: window.id, at: now)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--trace-features") {
+            print("FEATURE ANALYSIS \(Int((ProcessInfo.processInfo.systemUptime - now) * 1000)) ms · \(width) × \(height)"); fflush(stdout)
+        }
+        #endif
         lastPixels = pixels
         deliver(tracker.features(at: now), now)
     }
@@ -202,8 +213,11 @@ private enum WindowTextExclusion {
 @MainActor
 private final class FeatureCheckCanvas: NSView {
     var scroll = 0.0 { didSet { needsDisplay = true } }
+    var pulse = false { didSet { needsDisplay = true } }
     override func draw(_ dirtyRect: NSRect) {
         NSColor(calibratedWhite: 0.94, alpha: 1).setFill(); bounds.fill()
+        NSColor(calibratedWhite: pulse ? 0.5 : 0.8, alpha: 1).setFill()
+        CGRect(x: 5, y: 5, width: 8, height: 8).fill()
         NSColor(calibratedRed: 0.12, green: 0.22, blue: 0.33, alpha: 1).setFill()
         CGRect(x: 40, y: 180 + scroll, width: 620, height: 85).fill()
         NSColor.black.setFill()
@@ -221,15 +235,15 @@ private final class FeatureCheckCanvas: NSView {
 
 extension WindowFeatureCapture {
     /// Real ScreenCaptureKit frames of our disposable canvas, including a content scroll.
-    static func runNativeChecks() async -> Bool {
+    static func runNativeChecks(size: CGSize = .init(width: 720, height: 520)) async -> Bool {
         guard CGPreflightScreenCaptureAccess() else { print("FEATURE SKIP Screen Recording access has not been granted"); return false }
-        let window = NSWindow(contentRect: .init(x: 180, y: 200, width: 720, height: 520), styleMask: [.borderless], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: .init(origin: .init(x: 180, y: 100), size: size), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        let canvas = FeatureCheckCanvas(frame: .init(x: 0, y: 0, width: 720, height: 520))
+        let canvas = FeatureCheckCanvas(frame: .init(origin: .zero, size: size))
         window.contentView = canvas; window.orderFrontRegardless()
         let capture = WindowFeatureCapture(); capture.enabled = true
         let viewport = WorldRect(x: 0, y: 0, width: 2000, height: 1400)
-        let desktop = DesktopWindow(id: UInt32(window.windowNumber), frame: .init(x: 180, y: 200, width: 720, height: 520))
+        let desktop = DesktopWindow(id: UInt32(window.windowNumber), frame: .init(x: 180, y: 100, width: size.width, height: size.height))
         capture.update(terrain: .init(windows: [desktop], viewport: viewport), preferredWindow: desktop.id, running: true)
         defer { capture.stop(); window.close() }
         var passed = true
@@ -241,7 +255,7 @@ extension WindowFeatureCapture {
         if let bitmap = canvas.bitmapImageRepForCachingDisplay(in: canvas.bounds) {
             canvas.cacheDisplay(in: canvas.bounds, to: bitmap)
             if let image = bitmap.cgImage {
-                let regions = try? WindowTextExclusion.regions(in: VNImageRequestHandler(cgImage: image, orientation: .up, options: [:]), width: 720, height: 520)
+                let regions = try? WindowTextExclusion.regions(in: VNImageRequestHandler(cgImage: image, orientation: .up, options: [:]), width: size.width, height: size.height)
                 check(regions?.contains { $0.minY > 400 && $0.minY < 450 } == true, "local text recognition identifies the rendered text region")
             } else { check(false, "rendered text image available") }
         } else { check(false, "rendered text image available") }
@@ -269,6 +283,13 @@ extension WindowFeatureCapture {
         check(before != nil && after != nil && abs(after!.y - before!.y - 60) < 5, "scrolling preserves grip identity and carries its attachment by 60 points")
         try? await Task.sleep(for: .milliseconds(500))
         check(capture.currentFeatures().contains { $0.id == crack.id }, "unchanged window frames keep confirmed holds alive")
+        var continuous = true
+        for _ in 0..<16 {
+            canvas.pulse.toggle(); canvas.displayIfNeeded()
+            try? await Task.sleep(for: .milliseconds(50))
+            continuous = continuous && capture.currentFeatures().contains { $0.id == crack.id }
+        }
+        check(continuous, "stable holds remain published while unrelated window content repaints")
         capture.stop()
         check(capture.currentFeatures().isEmpty, "stopping capture removes stale holds")
         return passed

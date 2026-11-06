@@ -3,7 +3,22 @@ import CoreGraphics
 import ExpeditionCore
 
 @MainActor
-struct WindowProvider {
+final class WindowProvider {
+    private(set) var frontWindowID: UInt32?
+    private(set) var keyboardWindowID: UInt32?
+    /// Accessibility Keyboard keeps screen-sized highlight/capture backdrops at
+    /// very high levels. Their WindowServer alpha is 1 despite transparent pixels.
+    /// Keep the real keyboard panel as an occluder; exclude only these backdrops.
+    static func isKeyboardBackdrop(bundle: String?, layer: Int, frame: CGRect, display: CGRect) -> Bool {
+        ["com.apple.inputmethod.AssistiveControl", "com.apple.KeyboardViewer"].contains(bundle ?? "") &&
+            layer >= Int(CGWindowLevelForKey(.screenSaverWindow)) && frame.insetBy(dx: -2, dy: -2).contains(display)
+    }
+    static func canClimbWindow(bundle: String?, layer: Int, frame: CGRect) -> Bool {
+        let keyboard = ["com.apple.inputmethod.AssistiveControl", "com.apple.KeyboardViewer"].contains(bundle ?? "")
+        return frame.width >= 80 && frame.height >= 60 &&
+            (layer == 0 || (keyboard && layer > 0 && layer < Int(CGWindowLevelForKey(.screenSaverWindow))))
+    }
+
     /// Conservatively hide in a full-screen Space. A normally zoomed window occupies only
     /// visibleFrame and leaves the menu bar/Dock strip, so it does not trigger this guard.
     func isSupportedDesktop(on screen: NSScreen) -> Bool {
@@ -30,6 +45,9 @@ struct WindowProvider {
         let viewport = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
         let worldViewport = WorldRect(x: viewport.minX, y: viewport.minY + 2, width: viewport.width, height: max(0, viewport.height - 2))
         var windows: [DesktopWindow] = []
+        frontWindowID = nil; keyboardWindowID = nil
+        let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        var fallbackWindowID: UInt32?
         for record in records {
             guard let id = (record[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   let pid = (record[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
@@ -46,14 +64,27 @@ struct WindowProvider {
             guard converted.intersects(worldViewport) else { continue }
             let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
             if bundle == Bundle.main.bundleIdentifier { continue }
+            if Self.isKeyboardBackdrop(bundle: bundle, layer: layer,
+                                       frame: CGRect(x: converted.minX, y: converted.minY, width: converted.width, height: converted.height),
+                                       display: CGRect(origin: .zero, size: screen.frame.size)) { continue }
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--fixture-terrain"), bundle != "com.othersock.terrainfixture" { continue }
             #endif
             let systemOwner = bundle == "com.apple.dock" || bundle == "com.apple.WindowManager" || bundle == "com.apple.controlcenter" || bundle == "com.apple.notificationcenterui"
             // Shell helper windows often have transparent, screen-sized backing rectangles.
             guard !systemOwner else { continue }
-            windows.append(DesktopWindow(id: id, frame: converted, canClimb: layer == 0 && frame.width >= 80 && frame.height >= 60))
+            let climbable = Self.canClimbWindow(bundle: bundle, layer: layer, frame: frame)
+            windows.append(DesktopWindow(id: id, frame: converted, canClimb: climbable))
+            if climbable {
+                if ["com.apple.inputmethod.AssistiveControl", "com.apple.KeyboardViewer"].contains(bundle ?? "") {
+                    if keyboardWindowID == nil { keyboardWindowID = id }
+                } else {
+                    if fallbackWindowID == nil { fallbackWindowID = id }
+                    if frontWindowID == nil && pid == frontPID { frontWindowID = id }
+                }
+            }
         }
+        if frontWindowID == nil { frontWindowID = fallbackWindowID }
         return TerrainSnapshot(windows: windows, viewport: worldViewport)
     }
 }

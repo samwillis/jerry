@@ -27,6 +27,7 @@ final class OverlayController {
     private var terrainTimer: Timer?
     private var featureTimer: Timer?
     private let featureCapture = WindowFeatureCapture()
+    private let supplementaryCapture = WindowFeatureCapture()
     private var geometry: TerrainSnapshot?
     private var lastGeometryTime: TimeInterval?
     private var geometrySampleElapsed = 0.1
@@ -136,6 +137,7 @@ final class OverlayController {
             }
         }
         featureCapture.onFeatures = { [weak self] _ in self?.publishTerrain() }
+        supplementaryCapture.onFeatures = { [weak self] _ in self?.publishTerrain() }
         let featureTimer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.policy.shouldPollTerrain, self.featureCapture.enabled else { return }
@@ -185,20 +187,29 @@ final class OverlayController {
         geometrySampleElapsed = lastGeometryTime.map { max(1.0 / 120, now - $0) } ?? 0.1
         lastGeometryTime = now
         geometry = windowProvider.snapshot(on: screen)
-        if let geometry { featureCapture.update(terrain: geometry, preferredWindow: scene.attachedWindowID, running: policy.shouldRun) }
+        if let geometry {
+            let host = geometry.windows.first { $0.id == scene.attachedWindowID && $0.canClimb }?.id
+            let primary = host ?? windowProvider.frontWindowID ?? windowProvider.keyboardWindowID
+            featureCapture.update(terrain: geometry, preferredWindow: primary, running: policy.shouldRun)
+            // Keep the visible keyboard and working window available together, with
+            // no duplicate stream when the explorer transfers onto the keyboard.
+            let secondary = [windowProvider.keyboardWindowID, windowProvider.frontWindowID].compactMap { $0 }.first { $0 != primary }
+            let extra = TerrainSnapshot(windows: geometry.windows.filter { $0.id == secondary }, viewport: geometry.viewport)
+            supplementaryCapture.update(terrain: extra, preferredWindow: secondary, running: policy.shouldRun)
+        }
         publishTerrain()
     }
 
     private func publishTerrain() {
         guard let geometry else { scene.updateTerrain(nil); return }
-        scene.updateTerrain(TerrainSnapshot(windows: geometry.windows, viewport: geometry.viewport, features: featureCapture.currentFeatures()), geometrySampleElapsed: geometrySampleElapsed)
+        scene.updateTerrain(TerrainSnapshot(windows: geometry.windows, viewport: geometry.viewport, features: featureCapture.currentFeatures() + supplementaryCapture.currentFeatures()), geometrySampleElapsed: geometrySampleElapsed)
     }
     func setExploreInsideWindows(_ enabled: Bool) {
-        featureCapture.enabled = enabled
-        if !enabled { featureCapture.stop() }
+        featureCapture.enabled = enabled; supplementaryCapture.enabled = enabled
+        if !enabled { featureCapture.stop(); supplementaryCapture.stop() }
         refreshTerrain()
     }
-    var windowExplorationStatus: String { featureCapture.status }
+    var windowExplorationStatus: String { featureCapture.status + (supplementaryCapture.currentFeatures().isEmpty ? "" : " · Keyboard/second window: " + supplementaryCapture.status) }
 
     func beginAgent() { setKeyboardControl(false); scene.setAgentMode(true); setAgentLayer(true); setPaused(false); checkDesktop() }
     func stopAgent() { parkedAgentPointer = nil; agentInputSuppressed = false; setAgentLayer(false); scene.setAgentMode(false); checkDesktop() }
@@ -324,7 +335,7 @@ final class OverlayController {
     }
 
     private func applyPolicy() {
-        if !policy.shouldRun { setKeyboardControl(false); featureCapture.stop() }
+        if !policy.shouldRun { setKeyboardControl(false); featureCapture.stop(); supplementaryCapture.stop() }
         if policy.shouldRun { refreshTerrain() }
         scene.setExpeditionPaused(!policy.shouldRun)
         if policy.shouldShow { show() }
@@ -361,7 +372,7 @@ final class OverlayController {
         keyboard.close()
         desktopCheck?.cancel()
         renderPauseWork?.cancel()
-        featureCapture.stop(); featureTimer?.invalidate(); featureTimer = nil
+        featureCapture.stop(); supplementaryCapture.stop(); featureTimer?.invalidate(); featureTimer = nil
         terrainTimer?.invalidate()
         terrainTimer = nil
         inputView.cancelDrag()
@@ -383,6 +394,16 @@ final class OverlayController {
             print("NATIVE \(condition ? "PASS" : "FAIL") \(name)")
             passed = passed && condition
         }
+        let display = CGRect(x: 0, y: 0, width: 1710, height: 1107)
+        check(WindowProvider.isKeyboardBackdrop(bundle: "com.apple.inputmethod.AssistiveControl", layer: 2997, frame: display, display: display), "transparent accessibility keyboard backdrops do not occlude terrain")
+        check(!WindowProvider.isKeyboardBackdrop(bundle: "com.apple.inputmethod.AssistiveControl", layer: 101, frame: CGRect(x: 1000, y: 690, width: 600, height: 323), display: display), "the actual floating keyboard still occludes terrain")
+        check(!WindowProvider.isKeyboardBackdrop(bundle: "com.apple.inputmethod.AssistiveControl", layer: 2997, frame: CGRect(x: 0, y: 0, width: 500, height: 100), display: display), "small accessibility panels are not mistaken for full-screen backdrops")
+        check(!WindowProvider.isKeyboardBackdrop(bundle: "another.app", layer: 2997, frame: display, display: display), "other apps retain their real full-screen occluders")
+        let keyboardFrame = CGRect(x: 1048, y: 692, width: 598, height: 323)
+        check(WindowProvider.canClimbWindow(bundle: "com.apple.inputmethod.AssistiveControl", layer: 101, frame: keyboardFrame), "the Accessibility Keyboard has climbable edges and can supply internal holds")
+        check(WindowProvider.canClimbWindow(bundle: "com.apple.KeyboardViewer", layer: 101, frame: keyboardFrame), "Keyboard Viewer floating panels have climbable edges")
+        check(!WindowProvider.canClimbWindow(bundle: "com.apple.inputmethod.AssistiveControl", layer: 2997, frame: display), "keyboard backdrops cannot become climbing or capture targets")
+        check(!WindowProvider.canClimbWindow(bundle: "another.app", layer: 101, frame: keyboardFrame), "unrelated floating overlays remain occluders only")
         let focus = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let hatPart = PaintedPart(rect: .init(x: -12, y: 7, width: 24, height: 8), radius: 2, color: ExplorerPalette.hat, material: .felt)
         check(panel.level.rawValue > Int(CGWindowLevelForKey(.dockWindow)), "explorer is layered above the system Dock")

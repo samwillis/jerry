@@ -43,13 +43,24 @@ public enum WindowFeatureDetector {
     /// Long, coherent boundaries only. Text strokes and tiny controls are deliberately rejected.
     public static func detect(_ image: TerrainPixels, windowID: UInt32) -> [WindowFeature] {
         guard image.valid else { return [] }
+        // Normalize each pixel once. The scan revisits neighbouring pixels many
+        // times; repeated byte conversion/clamping was dominating debug captures.
+        let colors = image.rgb.withUnsafeBufferPointer { bytes in
+            [SIMD3<Double>](unsafeUninitializedCapacity: image.width * image.height) { output, initialized in
+                for index in 0..<(image.width * image.height) {
+                    let offset = index * 3
+                    output[index] = SIMD3(Double(bytes[offset]), Double(bytes[offset + 1]), Double(bytes[offset + 2])) / 255
+                }
+                initialized = image.width * image.height
+            }
+        }
         var candidates: [WindowFeature] = []
         for horizontal in [true, false] {
             let across = horizontal ? image.height : image.width
             let along = horizontal ? image.width : image.height
             let alongScale = horizontal ? image.pointWidth / Double(image.width) : image.pointHeight / Double(image.height)
             let minimum = max(24, Int((horizontal ? 64.0 : 76.0) / alongScale))
-            func color(_ a: Int, _ b: Int) -> SIMD3<Double> { horizontal ? image.color(b, a) : image.color(a, b) }
+            func color(_ a: Int, _ b: Int) -> SIMD3<Double> { colors[horizontal ? a * image.width + b : b * image.width + a] }
             for a in 8..<(across - 8) {
                 var runStart = 0
                 var runEdge: TerrainEdge?

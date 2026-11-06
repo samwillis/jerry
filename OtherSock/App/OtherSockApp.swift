@@ -24,7 +24,11 @@ enum OtherSockApp {
         if ProcessInfo.processInfo.arguments.contains("--feature-checks") {
             application.setActivationPolicy(.accessory)
             application.finishLaunching()
-            Task { let passed = await WindowFeatureCapture.runNativeChecks(); exit(passed ? 0 : 1) }
+            Task {
+                let standard = await WindowFeatureCapture.runNativeChecks()
+                let large = await WindowFeatureCapture.runNativeChecks(size: .init(width: 1372, height: 920))
+                exit(standard && large ? 0 : 1)
+            }
             application.run()
             return
         }

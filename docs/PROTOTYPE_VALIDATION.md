@@ -253,3 +253,16 @@ The keyboard process can outlive its visible window while retaining AX key geome
 Immediately before a physical keyboard click (including direct tool clicks and a missed-character retry), the tool refreshes window visibility/stacking and AX hit-tests the point back to the intended control. If the keyboard is dismissed or covered during travel, it sends no click and returns a recovery message. Only the explorer’s own panels, withdrawn before input, are excluded from the stacking check.
 
 18 agent checks pass, including seven cases for visible, hidden, transparent, wrong-process, moved and covered keyboard windows and the explorer-overlay exception. Debug and packaged Release builds pass. A live typing round trip with the new hit-test gate remains to be acceptance-tested; no external app input was sent during this repair.
+
+
+## Restored terrain and onscreen-keyboard holds — 6 November 2026
+
+Accessibility Keyboard had two transparent screen-sized helper windows at WindowServer levels 2996/2997, reported with alpha 1. Treating those rectangles as solid occluders removed every real window edge and internal hold. The provider now excludes only high-level, display-covering backdrops owned by the two system keyboard apps. The real floating keyboard panel remains an occluder and is also a climbable/capturable surface. Native cases cover both keyboard apps, actual panels, helper backdrops and unrelated overlays.
+
+Up to two streams now cover the attached/working window and the visible keyboard, without duplicating a stream during transfers. The keyboard no longer takes the only capture slot from the front app. Capture is bounded at 800 × 600; pixel conversion uses a scoped buffer, and the detector normalizes each pixel once instead of repeatedly converting/clamping neighbours. Large-window Debug analysis dropped from about 330 ms to about 190 ms on this machine. Published-result freshness is measured from delivery (250 ms), so analysis time no longer consumes its entire lifetime; stale queued frames are still rejected before analysis and motion prediction remains capped at 50 ms.
+
+- 162 core tests pass; detector thresholds and text-exclusion rules are unchanged.
+- 72 native checks pass.
+- 22 live ScreenCaptureKit checks pass across 720 × 520 and 1372 × 920 fixtures: faint rules, low-contrast blocks, vertical cracks, text/underline rejection, scroll grip identity and continuous holds during unrelated repaints.
+- Debug and packaged Release builds pass. Live diagnostics show four keyboard holds alongside working-window holds, and 14 exposed terrain segments versus only three screen-rescue segments before the repair.
+- The updated app remains running with the existing exploration/guide preferences. Internal capture is bounded to the working/attached window plus a supplementary window; it does not analyse every background window simultaneously.
