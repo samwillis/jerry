@@ -224,3 +224,8 @@ E targets a visible hand crosshair. Accessibility access gates an AXPress attemp
 The user-facing idle setting now controls wandering/mission selection without suspending gravity, recovery, pointer attention or dragging. It persists and is respected after manual control. The hiking menu is organized into idle exploration, Take/Release Control, Actions, Settings and Controls & Tips, with developer options confined to Debug builds. Control–Option–Space is registered as a system hotkey without a global keyboard monitor.
 
 Holding G aims a visible rim marker; release fires from standing, in flight or from another rope. Refiring carries momentum and continues free flight until latch. Left/right pumps/brakes the rope tangent. E preserves the manual session and attached line across AXPress or fallback click; the key window is restored after the action and held movement is reconciled. Native/custom disposable controls were exercised on the floor and while hanging. Cross-app physical shortcut use remains an explicit manual check because targeted computer-use key injection did not traverse the OS hotkey path.
+
+
+## Welcome and unobstructed manual control — 6 November 2026
+
+Replaced the long alert with a reusable welcome guide: the actual animated explorer, idle-exploration setting, concise key rows, click-access status/action, and Take Control/Let’s Go buttons. It appears on first launch, records dismissal, and is reopenable through Controls & Tips. The layout can scroll on smaller displays while keeping footer actions accessible. Manual control uses an invisible keyboard target, with no controls window. Holding G routes arrows to the aim marker; releasing fires and restores movement/swing controls. Mouse movement does not aim the hook.

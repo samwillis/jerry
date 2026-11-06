@@ -13,7 +13,7 @@ final class ExplorerScene: SKScene {
     private let aimGuide = SKShapeNode()
     private var grappleAiming = false
     private var aimPoint: CGPoint?
-    private var lastAimPointer: CGPoint?
+    private var aimDirection = CGPoint.zero
     private(set) var idleExplorationEnabled = true
     private var startedOnWindow = false
     private var startedRopeDemo = false
@@ -109,22 +109,21 @@ final class ExplorerScene: SKScene {
     }
     func setGrappleAiming(_ enabled: Bool) {
         grappleAiming = enabled; aimGuide.isHidden = !enabled
-        lastAimPointer = nil
-        updateGrappleAim(); applyPlacement()
-    }
-    private func updateGrappleAim() {
-        guard grappleAiming, let view, let window = view.window else { return }
-        let pointer = NSEvent.mouseLocation
-        let location = view.convert(window.convertPoint(fromScreen: pointer), from: nil)
-        let raw = convertPoint(fromView: location)
-        if lastAimPointer == nil {
-            let underPointer = interaction?.aimedGrappleTarget(toward: .init(x: raw.x, y: raw.y))
-            let suggestion = underPointer ?? interaction?.suggestedGrappleAim()
-            aimPoint = suggestion.map { .init(x: $0.x, y: $0.y) } ?? raw
-            lastAimPointer = pointer
-        } else if let previous = lastAimPointer, hypot(pointer.x - previous.x, pointer.y - previous.y) > 1 {
-            aimPoint = raw; lastAimPointer = pointer
+        aimDirection = .zero
+        if enabled, let interaction {
+            let suggestion = interaction.suggestedGrappleAim()
+            aimPoint = suggestion.map { .init(x: $0.x, y: $0.y) }
+                ?? .init(x: interaction.position.x, y: min(usableFrame.maxY, interaction.position.y + 240))
         }
+        applyPlacement()
+    }
+    func setAimDirection(_ x: Double, _ y: Double) { aimDirection = .init(x: x, y: y) }
+    private func updateGrappleAim(by elapsed: Double = 0) {
+        guard grappleAiming, let point = aimPoint else { return }
+        let distance = max(1, hypot(aimDirection.x, aimDirection.y))
+        let step = min(0.1, max(0, elapsed)) * 320 / distance
+        aimPoint = .init(x: min(usableFrame.maxX - 24, max(usableFrame.minX + 24, point.x + aimDirection.x * step)),
+                         y: min(usableFrame.maxY, max(usableFrame.minY, point.y + aimDirection.y * step)))
     }
     @discardableResult func fireAimedGrapple() -> Bool {
         updateGrappleAim()
@@ -227,7 +226,7 @@ final class ExplorerScene: SKScene {
         let elapsed = min(rawElapsed, 0.25)
         previousUpdateTime = currentTime
         guard !expeditionPaused else { return }
-        updateGrappleAim()
+        updateGrappleAim(by: elapsed)
         let previousState = interaction?.state
         let previousLandingCount = interaction?.landingCount
         interaction?.advance(by: elapsed * playbackRate)

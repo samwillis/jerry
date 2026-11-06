@@ -137,3 +137,10 @@ Real disposable fixture runs received native AXPress clicks and custom-canvas fa
 ### Rope/arm visibility — 6 November 2026
 
 Debug and packaged Release builds pass, with all 35 applicable native checks passing. A real high-window fixture climb was inspected: the formerly hidden arm is visible in front of the jacket, and the line remains visible across the body beneath the hands. This is a render-layer change; physics, rig endpoints and input bounds are unchanged.
+
+
+### Welcome and keyboard-only aim — 6 November 2026
+
+Debug and packaged Release builds and all 42 applicable native checks pass. The checks cover arrow/diagonal aiming while G is held, movement suppression during aim, firing once on release, restoring held movement, the transparent mouse-ignoring input target, and first-run guide presentation/completion with preference restoration. The real guide was inspected after layout refinement: all key rows, idle checkbox, permission state and footer buttons are visible at the tested display size. Take Control closed it; real Right input moved the explorer without a controls window. A combined G+Right computer-use injection could not be completed reliably; native input-routing checks cover that chord.
+
+Manual mode now uses a 1×1 transparent, borderless keyboard target rather than the previous instructions panel. The welcome guide is shown on the first normal launch and remains available through Controls & Tips. Debug `--welcome` previews it without consuming first-run completion. No permission is requested just by opening the guide.

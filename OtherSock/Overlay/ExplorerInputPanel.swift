@@ -64,7 +64,7 @@ final class ExplorerInputView: NSView {
     }
 }
 
-/// Only this explicitly opened window receives game keys. No global keyboard monitor.
+/// Invisible key target used only during manual control. No instruction window or global keyboard monitor.
 @MainActor
 final class ExplorerControlPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -74,43 +74,40 @@ final class ExplorerControlPanel: NSPanel {
 @MainActor
 final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     let panel: ExplorerControlPanel
-    private let message = NSTextField(labelWithString: "")
+    private(set) var lastMessage = ""
     private var monitor: Any?
     private var held: Set<UInt16> = []
     private var previousApp: NSRunningApplication?
+    private var lastExternalApp = NSWorkspace.shared.frontmostApplication
     private var clickRestore: DispatchWorkItem?
     private(set) var isPerformingClick = false
     private var aiming = false
     var onDirection: ((Double, Double) -> Void)?
     var onJump: (() -> Void)?
     var onAimChanged: ((Bool) -> Void)?
+    var onAimDirection: ((Double, Double) -> Void)?
     var onGrapple: (() -> Void)?
     var onInteract: (() -> Void)?
     var onStop: (() -> Void)?
     private(set) var isControlling = false
 
     override init() {
-        panel = ExplorerControlPanel(contentRect: .init(x: 0, y: 0, width: 760, height: 76), styleMask: [.titled], backing: .buffered, defer: false)
+        panel = ExplorerControlPanel(contentRect: .init(x: 0, y: 0, width: 1, height: 1), styleMask: [.borderless], backing: .buffered, defer: false)
         super.init()
-        panel.title = "Control the explorer — Esc to return to your computer"
+        panel.title = "Explorer keyboard input"
+        panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.setAccessibilityElement(false)
         panel.level = .floating
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.delegate = self
-        let instructions = NSTextField(labelWithString: "← → / A D move · ↑ ↓ / W S climb/descend · Space jump · Hold G aim, release fire · E click")
-        instructions.font = .systemFont(ofSize: 12)
-        instructions.frame = .init(x: 12, y: 48, width: 740, height: 18)
-        panel.contentView?.addSubview(instructions)
-        message.frame = .init(x: 12, y: 8, width: 735, height: 34)
-        message.font = .systemFont(ofSize: 11)
-        message.maximumNumberOfLines = 2
-        message.lineBreakMode = .byWordWrapping
-        panel.contentView?.addSubview(message)
     }
 
     func start() {
         guard !isControlling else { return }
-        previousApp = NSWorkspace.shared.frontmostApplication
+        recordFrontApp()
+        previousApp = lastExternalApp
         isControlling = true
         held.removeAll()
         showMessage("The crosshair beside his hand is the click point. Down + Space drops through a platform.")
@@ -126,7 +123,15 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
 
     }
 
-    func showMessage(_ text: String) { message.stringValue = text }
+    func recordFrontApp() {
+        if let active = NSWorkspace.shared.frontmostApplication, active.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            lastExternalApp = active
+        }
+    }
+    func restoreExternalFocus() {
+        if lastExternalApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier { lastExternalApp?.activate(options: []) }
+    }
+    func showMessage(_ text: String) { lastMessage = text }
 
     /// Local key routing is shared with native checks; repeated actions never click twice.
     func handle(_ event: NSEvent) -> NSEvent? {
@@ -148,8 +153,8 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
             return nil
         }
         if event.keyCode == 5 {
-            if event.type == .keyDown, !event.isARepeat { aiming = true; onAimChanged?(true) }
-            if event.type == .keyUp, aiming { aiming = false; onGrapple?(); onAimChanged?(false) }
+            if event.type == .keyDown, !event.isARepeat { aiming = true; onAimChanged?(true); updateDirection() }
+            if event.type == .keyUp, aiming { aiming = false; onGrapple?(); onAimChanged?(false); updateDirection() }
             return nil
         }
         guard [UInt16(49), 14].contains(event.keyCode) else { return event }
@@ -162,9 +167,10 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     private func updateDirection() {
         let x = (held.isDisjoint(with: [2, 124]) ? 0.0 : 1) - (held.isDisjoint(with: [0, 123]) ? 0.0 : 1)
         let y = (held.isDisjoint(with: [13, 126]) ? 0.0 : 1) - (held.isDisjoint(with: [1, 125]) ? 0.0 : 1)
-        onDirection?(x, y)
+        onAimDirection?(aiming ? x : 0, aiming ? y : 0)
+        onDirection?(aiming ? 0 : x, aiming ? 0 : y)
     }
-    func clearDirections() { held.removeAll(); onDirection?(0, 0) }
+    func clearDirections() { held.removeAll(); updateDirection() }
     func stop(restoreFocus: Bool = false) {
         guard isControlling else { return }
         isControlling = false
@@ -193,6 +199,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
                 self.updateDirection()
                 if self.aiming && !CGEventSource.keyState(.combinedSessionState, key: 5) {
                     self.aiming = false; self.onAimChanged?(false)
+                    self.updateDirection()
                 }
                 self.isPerformingClick = false
                 self.clickRestore = nil

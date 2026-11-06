@@ -165,7 +165,16 @@ Automated equivalents and native observations are in [prototype validation](PROT
 - [x] E presses the disposable native fixture button without ending control, both on the floor and on a rope.
 - [x] The custom fixture canvas receives a fallback mouse click and the control window regains focus; repeated the check while swinging.
 - [x] G press/release fires a suggested aimed rim; arrow input and E still work on the attached line.
-- [ ] Move the pointer during G aim to choose a different exposed top rim, including while jumping or attached to a rope.
+- [ ] Hold G and use the arrows to choose a different exposed top rim, including while jumping or attached to a rope. Move the pointer and confirm it does not steer the aim.
 - [ ] Physically press Control–Option–Space from another app to take/release control. The native test verifies registration, event callback dispatch, repeat suppression and cleanup; computer-use targeted key injection did not exercise the OS-wide shortcut path.
 - [ ] Disable Enable Idle Exploration: leave him alone, drag/drop him onto a window, move the window, and bring the pointer near. He should settle and watch, without starting a sock hunt.
 - [ ] Re-enable exploration and verify wandering/sock hunting returns. Disable it before manual control and verify Escape leaves him resting afterward.
+
+
+### Welcome and keyboard-only aiming
+
+- [x] The redesigned non-modal guide shows the actual explorer, idle checkbox, key rows and current click-access status.
+- [x] Take Control closes the guide; actual Right-key input moves him without a visible controls window.
+- [x] Native input routing: hold G and Right/Up directs the aim only; releasing G fires once and restores arrows to movement/swinging. Mouse position is no longer read by grapple aiming.
+- [x] Native first-run check: absent completion marker opens the guide; closing records completion. Tests restore the prior marker afterward.
+- [ ] On a smaller screen, scroll the guide if needed; footer buttons must remain reachable.

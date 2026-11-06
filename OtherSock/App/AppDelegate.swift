@@ -6,6 +6,8 @@ import ExpeditionCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var overlay: OverlayController?
+    private var welcome: WelcomeController?
+    private var needsWelcome: Bool { UserDefaults.standard.integer(forKey: "welcomeVersion") < 1 }
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
     private var paceItem: NSMenuItem!
@@ -47,6 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if ProcessInfo.processInfo.arguments.contains("--keyboard-control") { setPaused(false); overlay?.setKeyboardControl(true) }
         #endif
         NotificationCenter.default.addObserver(self, selector: #selector(displaysChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        let previewWelcome = ProcessInfo.processInfo.arguments.contains("--welcome")
+        if previewWelcome || needsWelcome {
+            DispatchQueue.main.async { [weak self] in self?.showWelcome(markSeen: !previewWelcome) }
+        }
     }
 
     private func installMenu() {
@@ -147,15 +153,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         gentlePace.toggle(); UserDefaults.standard.set(gentlePace, forKey: "gentlePace")
         overlay?.setGentlePace(gentlePace); updateMenu()
     }
-    @objc private func showTips() {
-        let alert = NSAlert()
-        alert.messageText = "Meet your desktop explorer"
-        alert.informativeText = "Enable Idle Exploration to let him wander and look for the sock. Turn it off to let him rest; you can still drag him and he'll land safely.\n\nControl–Option–Space takes or releases control. Arrows or WASD move, climb and descend. Space jumps; Down + Space drops through a ledge. Hold G, aim at a window's top rim with the pointer, then release G to fire. Left/right pumps a rope swing. E clicks the crosshair beside his hand while keeping control. Esc returns to your previous app.\n\nClicks in other apps need Accessibility access, available in Settings."
-        alert.runModal()
+    @objc private func showTips() { showWelcome(markSeen: true) }
+    private func showWelcome(markSeen: Bool) {
+        overlay?.setKeyboardControl(false)
+        if welcome == nil {
+            let guide = WelcomeController()
+            guide.onIdleChanged = { [weak self] enabled in
+                guard let self, enabled != self.idleExploration else { return }; self.toggleIdle()
+            }
+            guide.onAllowClicks = { [weak self] in self?.overlay?.requestClickAccess() }
+            guide.onTakeControl = { [weak self] in
+                self?.setPaused(false); self?.overlay?.setKeyboardControl(true); self?.updateMenu()
+            }
+            welcome = guide
+        }
+        welcome?.onClose = { [weak self] in
+            if markSeen { UserDefaults.standard.set(1, forKey: "welcomeVersion") }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.overlay?.keyboardControlEnabled != true else { return }
+                self.overlay?.restoreExternalFocus()
+            }
+        }
+        welcome?.open(idleExploration: idleExploration)
     }
     @objc private func willSleep() { overlay?.setSleeping(true) }
     @objc private func didWake() { overlay?.setSleeping(false) }
-    @objc private func frontAppChanged() { overlay?.checkDesktop() }
+    @objc private func frontAppChanged() { overlay?.recordFrontApp(); overlay?.checkDesktop() }
     @objc private func spaceChanged() { overlay?.desktopChanged() }
     private func updateMenu() {
         idleItem?.state = idleExploration ? .on : .off
@@ -171,8 +194,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #if DEBUG
     func runActivityMenuChecks() -> Bool {
         let previousIdle = UserDefaults.standard.object(forKey: "idleExploration")
+        let previousWelcome = UserDefaults.standard.object(forKey: "welcomeVersion")
         installMenu(); overlay = OverlayController()
         defer {
+            welcome?.onClose = nil; welcome?.close(); welcome = nil
+            if let previousWelcome { UserDefaults.standard.set(previousWelcome, forKey: "welcomeVersion") }
+            else { UserDefaults.standard.removeObject(forKey: "welcomeVersion") }
             overlay?.close(); overlay = nil
             if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }; statusItem = nil
             if let previousIdle { UserDefaults.standard.set(previousIdle, forKey: "idleExploration") }
@@ -194,6 +221,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggleIdle()
         check(overlay?.idleExplorationEnabled == true && idleItem.state == .on, "idle checkbox restores exploration")
         check(statusItem?.menu?.items.contains { $0.title.contains("Expedition") || $0.title.contains("Prototype") } == false, "main menu uses plain product labels")
+        UserDefaults.standard.removeObject(forKey: "welcomeVersion")
+        check(needsWelcome, "first launch schedules the welcome guide")
+        showWelcome(markSeen: true)
+        check(welcome?.window?.isVisible == true, "welcome opens as a reusable non-modal guide")
+        welcome?.close()
+        check(!needsWelcome, "dismissing the guide records first-run completion")
         let shortcut = ExplorerControlHotKey()
         var presses = 0; shortcut.onTrigger = { presses += 1 }; shortcut.register()
         check(shortcut.isRegistered, "global Control Option Space shortcut registers")
@@ -208,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #endif
     func applicationWillTerminate(_ notification: Notification) {
         hotKey.close()
+        welcome?.close(); welcome = nil
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         overlay?.close(); overlay = nil
