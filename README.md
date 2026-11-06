@@ -20,7 +20,7 @@ On first launch, a welcome guide introduces the explorer, idle exploration, keyb
 
 ## AI survey and helper prototype
 
-The hiking menu’s **Tasks…** window supports ChatGPT browser sign-in, an OpenAI API key, and an offline native tool-loop test. A model plans inspections of three illustrated flags; the original explorer invites up to two helpers only for independent ready jobs. Friends inspect with binoculars and head home. This is a bounded survey prototype, not general desktop automation. See [the prototype guide](docs/AGENT_PROTOTYPE.md) for setup and the next increments.
+Set up ChatGPT sign-in or an API key in **Settings → AI Connection…**. While controlling the explorer, press **Return** for a small input bubble beside him, type a task and press Return to send. **Escape** cancels and restores manual control. You can also use **Ask Explorer…** in the hiking menu. AI text streams into the **Expedition journal** on the right, alongside live progress and Stop/New Task controls; hiding it leaves the task running, and **Show Expedition Journal** brings it back. The current task prototype inspects illustrated flags and invites up to two helpers for independent ready jobs. See [the prototype guide](docs/AGENT_PROTOTYPE.md) for scope and next increments.
 
 ## Play with the keyboard
 
@@ -36,6 +36,7 @@ Press **Control–Option–Space** from any app while The Other Sock is open, or
 | ↓ + Space | Drop through the current platform |
 | Hold G, release G | Use the arrow keys to aim at a window’s top rim, then fire; works from a platform, in the air, or on a rope |
 | E | Click the crosshair beside his hand |
+| Return | Open a task input beside the explorer; Return sends, Escape cancels |
 | Esc | End control and return focus to the previous app |
 
 Hold **Shift** for a distinct running gait at about twice manual walking speed, or for 1.8× wall/rope climbing and abseiling. Release it to return to normal pace. **Settings → Run When Exploring** enables running on longer idle journeys, and **Faster Rope Work** makes the faster work rate the default. Both settings start off, persist across relaunch, and do not turn idle exploration on. Gravity, jump height, hook flight and swing timing remain unchanged.

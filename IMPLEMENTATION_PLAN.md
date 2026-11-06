@@ -255,3 +255,8 @@ Added hold-C crouching, a 160 ms planted-foot transition, a lower hand/click mar
 Prototyped native Foundation Models custom providers, image prompts and validated survey tools, with ChatGPT browser sign-in and an optional app-owned API key. The permanent leader schedules ready jobs and invites up to two helpers only for independent work. Friends walk in, inspect synthetic flags with binoculars, and leave. Serial dependencies retain only the leader. Cancellation invalidates stale work and retires helpers.
 
 This establishes planning and team lifecycle with a bounded illustrated survey. General desktop observation, physical input ownership, window manipulation, scrolling, onscreen keyboard discovery and typing remain subsequent increments, detailed in [the agent prototype plan](docs/AGENT_PROTOTYPE.md).
+
+
+## Task UI first version — 6 November 2026
+
+Moved provider selection, ChatGPT sign-in, secure API-key entry, model loading and offline presets into AI Connection settings. Return in manual control now opens a single-line input bubble beside the explorer, clamped to the usable display and following his position. Escape restores manual control; typing pauses idle wandering without suspending gravity. Submitting starts AI mode and streams response text into a non-activating side journal with physical team progress, Stop, New Task and Hide. Menu commands expose the prompt and restore the journal. Taking manual control or dragging the leader cancels AI work and invalidates late tool callbacks. This increment preserves the illustrated survey scope; broader computer tasks remain next.

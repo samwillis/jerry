@@ -90,6 +90,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     var onAimDirection: ((Double, Double) -> Void)?
     var onGrapple: (() -> Void)?
     var onInteract: (() -> Void)?
+    var onPrompt: (() -> Void)?
     var onStop: (() -> Void)?
     private(set) var isControlling = false
 
@@ -149,6 +150,10 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
         }
         if event.keyCode == 53, event.type == .keyDown { stop(restoreFocus: true); return nil }
         guard event.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return event }
+        if [UInt16(36), 76].contains(event.keyCode) {
+            if event.type == .keyDown, !event.isARepeat { clearDirections(); onFastPace?(false); onPrompt?() }
+            return nil
+        }
         let moves: Set<UInt16> = [0, 1, 2, 8, 13, 123, 124, 125, 126]
         if moves.contains(event.keyCode) {
             if event.type == .keyDown { held.insert(event.keyCode) } else { held.remove(event.keyCode) }

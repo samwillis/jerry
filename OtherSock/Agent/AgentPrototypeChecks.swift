@@ -34,8 +34,9 @@ enum AgentPrototypeChecks {
                 let model = ExplorerLanguageModel(executorConfiguration: .init(model: "scripted", bearer: "", scriptedPlan: String(data: try JSONEncoder().encode(parallel), encoding: .utf8), sessionID: UUID()))
                 let tool = AssignSurveyJobsTool { accepted = $0 }
                 let session = LanguageModelSession(model: model, tools: [tool], instructions: "Inspect the synthetic image and queue survey jobs.")
-                let response = try await session.respond(to: Prompt { "Inspect all three flags."; Attachment(AgentTaskController.surveyImage()) })
-                check(accepted == parallel && response.content.contains("queued"), "Foundation Models image, custom provider, tool call, result and final response round trip")
+                var response = ""
+                for try await partial in session.streamResponse(to: Prompt { "Inspect all three flags."; Attachment(AgentTaskController.surveyImage()) }) { response = partial.content }
+                check(accepted == parallel && response.contains("queued"), "Foundation Models image, custom provider, tool call, result and streamed final response round trip")
                 let outputCount = session.transcript.filter { if case .toolOutput = $0 { return true }; return false }.count
                 check(outputCount == 1, "native tool output is included exactly once")
                 let definition = Transcript.ToolDefinition(tool: tool)

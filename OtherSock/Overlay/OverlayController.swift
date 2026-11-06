@@ -20,6 +20,9 @@ final class OverlayController {
     private let windowProvider = WindowProvider()
     private var teamPanels: [String: (ExplorerInputPanel, ExplorerInputView)] = [:]
     var onTeamStatus: ((String) -> Void)?
+    var onPromptRequested: (() -> Void)?
+    var onExplorerMoved: (() -> Void)?
+    var onTaskInterrupted: (() -> Void)?
     private var terrainTimer: Timer?
     private var featureTimer: Timer?
     private let featureCapture = WindowFeatureCapture()
@@ -82,6 +85,7 @@ final class OverlayController {
         scene.onPlacementChanged = { [weak self] frame, state in
             guard let self else { return }
             self.inputPanel.setFrame(frame.offsetBy(dx: self.displayOrigin.x, dy: self.displayOrigin.y), display: true)
+            self.onExplorerMoved?()
             self.inputView.setAccessibilityValue("\(state) at \(Int(frame.midX)), \(Int(frame.minY))")
             let wasHeld = self.characterHeld
             self.characterHeld = state == "held"
@@ -89,6 +93,7 @@ final class OverlayController {
         }
         inputView.onBegin = { [weak self] point in
             guard let self else { return }
+            self.onTaskInterrupted?()
             self.setKeyboardControl(false)
             self.scene.beginDrag(at: self.scenePoint(point))
         }
@@ -100,6 +105,7 @@ final class OverlayController {
             self?.refreshTerrain()
             self?.scene.endDrag()
         }
+        keyboard.onPrompt = { [weak self] in self?.onPromptRequested?() }
         keyboard.onDirection = { [weak self] x, y in self?.scene.setControlDirection(x, y) }
         keyboard.onCrouch = { [weak self] held in self?.scene.setControlCrouch(held) }
         keyboard.onFastPace = { [weak self] fast in self?.scene.setControlFastPace(fast) }
@@ -224,6 +230,7 @@ final class OverlayController {
 
     func recordFrontApp() { keyboard.recordFrontApp() }
     func restoreExternalFocus() { keyboard.restoreExternalFocus() }
+    var explorerScreenFrame: CGRect { inputPanel.frame }
     var keyboardControlEnabled: Bool { keyboard.isControlling }
     func setKeyboardControl(_ enabled: Bool, restoreFocus: Bool = false) {
         if enabled {
@@ -475,6 +482,12 @@ final class OverlayController {
         check(!aiming && shots == 1, "releasing G fires one aimed shot")
         check(aimDirection == .zero && direction == .init(x: 1, y: 1), "releasing G restores held arrows to movement")
         _ = tester.routeKey(key(124, down: false)); _ = tester.routeKey(key(126, down: false))
+        var prompts = 0
+        tester.onPrompt = { prompts += 1 }
+        _ = tester.routeKey(key(124, flags: .shift))
+        _ = tester.routeKey(key(36)); _ = tester.routeKey(key(36, repeatKey: true)); _ = tester.routeKey(key(36, down: false))
+        check(prompts == 1 && direction == .zero && !fastPace, "Return opens one prompt and clears held movement and pace")
+        check(tester.routeKey(key(36, flags: .command)) != nil && prompts == 1, "modified Return passes through without opening a prompt")
         tester.beginClick()
         tester.windowDidResignKey(Notification(name: NSWindow.didResignKeyNotification, object: tester.panel))
         check(tester.isControlling && tester.isPerformingClick, "click-induced focus loss preserves keyboard session")

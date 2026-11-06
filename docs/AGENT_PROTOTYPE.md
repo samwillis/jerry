@@ -1,16 +1,20 @@
 # Swift task and team prototype
 
-Open **Tasks…** from the hiking menu. This increment surveys three illustrated flags; it does not yet operate other applications. Only the illustrated card and the task instruction go to a live model.
+Open **Ask Explorer…** from the hiking menu, or press **Return** in manual control. A small input bubble appears beside the explorer and stays within the screen. Return sends; Escape dismisses it and restores manual control when that is how it was opened. Idle wandering waits while you type. This increment surveys three illustrated flags; it does not yet operate other applications. Only the illustrated card and the task instruction go to a live model.
 
 ## Try it
 
-Choose **ChatGPT plan**, use **Continue with ChatGPT** to complete browser consent, then **Load Models** and choose a model supporting images and tools. **Plan Survey** asks the model to assign the flag inspections. An OpenAI API key can alternatively be saved through the secure field. Credentials belong to this app and are stored in macOS Keychain; other apps' sessions are never imported. **Forget Connection** removes local credentials; it does not revoke the remote grant.
+Open **Settings → AI Connection…**. Choose **ChatGPT**, use **Continue with ChatGPT** to complete browser consent, then **Load models** and choose a model supporting images and tools. Settings is separate from the task prompt. Type a task beside the explorer and press Return to ask the model to assign inspections. An OpenAI API key can alternatively be saved through the secure field. Credentials belong to this app and are stored in macOS Keychain; other apps' sessions are never imported. **Forget Connection** removes local credentials; it does not revoke the remote grant.
 
-The **Scripted Foundation Models test (offline)** option exercises the same native session and tool loop without networking. Its presets demonstrate a solo job, three independent jobs and a dependent sequence.
+The **Offline demo** provider in Settings exercises the same native session and tool loop without networking. Its presets demonstrate a solo job, three independent jobs and a dependent sequence.
 
-The permanent explorer does the first ready job. At most two friends join for additional independent ready jobs. They enter from the screen edges, walk to their flags, inspect with binoculars and leave when their work finishes. Dependent work waits for its prerequisites; three sequential jobs do not recruit three explorers. Helpers are draggable. Stop, closing Tasks, grabbing the leader or taking manual control cancels the survey and sends helpers home. The leader remains.
+The permanent explorer does the first ready job. At most two friends join for additional independent ready jobs. They enter from the screen edges, walk to their flags, inspect with binoculars and leave when their work finishes. Dependent work waits for its prerequisites; three sequential jobs do not recruit three explorers. Helpers are draggable. Stop, grabbing the leader or taking manual control cancels the survey and sends helpers home. Closing Settings or hiding the journal leaves the task running. The leader remains.
 
 Unsigned Debug and Release builds can have different Keychain access identities. Automatic credential reads never prompt or block startup; a production build needs a stable signing identity. The currently running Debug build retains the tested connection.
+
+## Expedition journal
+
+AI text streams into a non-activating panel at the right edge of the primary display. It shows the instruction, live physical progress and model output. **Stop task** cancels both the model request and queued work. **New task…** opens the input beside the explorer; submitting replaces the current task. **Hide** and the close button only hide the panel. **Show Expedition Journal** restores it from the menu. The model output remains readable after completion or failure. Returning to manual control cancels the active task.
 
 ## Implementation
 

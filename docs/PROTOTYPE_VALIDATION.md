@@ -203,3 +203,10 @@ A front-rim pin now validates its exposed window top and hanging-body clearance 
 - Live ChatGPT: browser consent completed by the user; callback validation and Keychain persistence succeeded. Model catalog loaded eight models. A `gpt-6.1-sol` image/tool request queued three independent inspections, which completed and retired the helpers. Fixed listener handler ordering and retained streamed output items when the terminal response envelope omitted them.
 - Debug and Release builds and local distribution packaging pass. `git diff --check` passes.
 - API-key inference, expired-token refresh, revoked grants and cross-account sign-in are not live acceptance-tested. General desktop observation and computer operation are outside this survey increment.
+
+## Task interface and inline prompt — 6 November 2026
+
+- Native checks: 57 pass, including Return opening a single prompt, clearing held movement/pace and passing modified shortcuts through. Agent checks: 10 pass with a streamed Foundation Models image/tool/result/final-response round trip.
+- Live UI: ChatGPT connection restored in Settings; Return opened the borderless input beside the explorer; Escape returned to manual control, verified by opening it again with Return. Typing and submitting from the bubble produced streamed model text in the right-hand journal. The physical survey completed and Stop disabled on completion.
+- Reviewed connection Settings, the minimal input bubble and the journal at actual rendered scale. The bubble follows the explorer and clamps its placement to the usable display. Provider configuration and offline presets remain in Settings.
+- Debug and local Release packaging pass. The underlying 156 core tests were unchanged by this interface increment. API-key inference remains untested with a live key.

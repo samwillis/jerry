@@ -32,7 +32,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenu()
         overlay = OverlayController()
-        overlay?.onKeyboardControlChanged = { [weak self] _ in self?.updateMenu() }
+        overlay?.onKeyboardControlChanged = { [weak self] enabled in
+            if enabled { self?.taskController?.manualTakeover() }
+            self?.updateMenu()
+        }
+        overlay?.onPromptRequested = { [weak self] in self?.openTasks() }
+        overlay?.onTaskInterrupted = { [weak self] in self?.taskController?.stop() }
         overlay?.setIdleExploration(idleExploration)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--inside-windows") { exploreInsideWindows = true }
@@ -88,6 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         actions.submenu = activitiesMenu; menu.addItem(actions)
         menu.addItem(.separator())
         let settings = NSMenu(title: "Settings"); settings.autoenablesItems = false
+        _ = add("AI Connection…", action: #selector(openAISettings), to: settings)
+        settings.addItem(.separator())
         paceItem = add("Slow Movement", action: #selector(togglePace), to: settings)
         runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: settings)
         ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: settings)
@@ -98,7 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = add("Bring Explorer Back to Desktop", action: #selector(resetExpedition), to: settings)
         let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
         settingsItem.submenu = settings; menu.addItem(settingsItem)
-        _ = add("Tasks…", action: #selector(openTasks), to: menu)
+        _ = add("Ask Explorer…", action: #selector(openTasks), to: menu)
+        _ = add("Show Expedition Journal", action: #selector(showAgentActivity), to: menu)
         _ = add("Controls & Tips…", action: #selector(showTips), to: menu)
         #if DEBUG
         let development = NSMenu(title: "Developer Tools"); development.autoenablesItems = false
@@ -199,16 +207,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fasterRopeWork.toggle(); UserDefaults.standard.set(fasterRopeWork, forKey: "fasterRopeWork")
         overlay?.setFasterRopeWork(fasterRopeWork); updateMenu()
     }
-    @objc private func openTasks() {
-        overlay?.setKeyboardControl(false)
+    private func prepareTasks() {
         if taskController == nil {
             let controller = AgentTaskController()
             controller.onPlan = { [weak self] in self?.overlay?.startSurvey($0) }
             controller.onStop = { [weak self] in self?.overlay?.stopSurvey() }
+            controller.onPromptCancelled = { [weak self] in self?.overlay?.setKeyboardControl(true) }
+            controller.onPromptOpened = { [weak self] in self?.overlay?.setIdleExploration(false) }
+            controller.onPromptDismissed = { [weak self] in guard let self else { return }; self.overlay?.setIdleExploration(self.idleExploration) }
+            controller.onSubmitted = { [weak self] in
+                guard let self else { return }
+                self.overlay?.setIdleExploration(self.idleExploration); self.overlay?.restoreExternalFocus()
+            }
+            controller.explorerFrame = { [weak self] in self?.overlay?.explorerScreenFrame ?? .zero }
+            overlay?.onExplorerMoved = { [weak controller] in controller?.updatePromptPosition() }
             overlay?.onTeamStatus = { [weak controller] in controller?.updateTeamStatus($0) }
             taskController = controller
         }
-        taskController?.open()
+    }
+    @objc private func openTasks() {
+        let resume = overlay?.keyboardControlEnabled == true
+        overlay?.setKeyboardControl(false)
+        prepareTasks(); taskController?.openPrompt(resumeControl: resume)
+    }
+    @objc private func showAgentActivity() { prepareTasks(); taskController?.showActivity() }
+    @objc private func openAISettings() {
+        overlay?.setKeyboardControl(false)
+        prepareTasks(); taskController?.open()
     }
     @objc private func showTips() { showWelcome(markSeen: true) }
     private func showWelcome(markSeen: Bool) {
@@ -283,7 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         check(overlay?.idleExplorationEnabled == false && idleItem.state == .off, "idle checkbox stops exploration without freezing physics")
         toggleIdle()
         check(overlay?.idleExplorationEnabled == true && idleItem.state == .on, "idle checkbox restores exploration")
-        check(statusItem?.menu?.items.contains { $0.title.contains("Expedition") || $0.title.contains("Prototype") } == false, "main menu uses plain product labels")
+        check(statusItem?.menu?.items.contains { $0.title == "Expedition" || $0.title.contains("Prototype") } == false, "main menu uses plain product labels")
         UserDefaults.standard.removeObject(forKey: "welcomeVersion")
         check(needsWelcome, "first launch schedules the welcome guide")
         showWelcome(markSeen: true)
@@ -304,7 +329,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #endif
     func applicationWillTerminate(_ notification: Notification) {
         hotKey.close()
-        taskController?.stop(); taskController?.close(); taskController = nil
+        taskController?.closeAll(); taskController = nil
         welcome?.close(); welcome = nil
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)

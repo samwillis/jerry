@@ -106,6 +106,7 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
             ["Hold G + arrows", "Aim the grappling hook"],
             ["Release G", "Fire at the highlighted window rim"],
             ["E", "Click the marker—even while on a rope"],
+            ["Return", "Give the explorer an AI task"],
             ["Esc", "Give control back to your computer"]
         ]
         let grid = NSGridView(views: rows.map { [keycap($0[0]), text($0[1], size: 12)] })
