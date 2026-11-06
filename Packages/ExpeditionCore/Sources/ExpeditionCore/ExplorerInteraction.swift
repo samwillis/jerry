@@ -35,7 +35,22 @@ public struct ExplorerInteraction {
     }
     public mutating func setFasterRopeWork(_ enabled: Bool) { fasterRopeWork = enabled }
     public private(set) var runningTime = 0.0
-    public var manualTravelSpeed: Double { controlFastPace ? RunningGait.speed : 80 }
+    private var crouchHeld = false
+    public private(set) var crouchAmount = 0.0
+    public var crouchBlend: Double { crouchAmount * crouchAmount * (3 - 2 * crouchAmount) }
+    public var canCrouch: Bool {
+        keyboardControlEnabled && attachment?.edge.isStandable == true && ropeSession == nil
+            && [.idle, .settling, .walking, .running].contains(state)
+    }
+    public var isCrouching: Bool { canCrouch && (crouchHeld || crouchAmount > 0) }
+    public mutating func setControlCrouch(_ held: Bool) { crouchHeld = keyboardControlEnabled && held }
+    private mutating func advanceCrouch(by dt: Double) {
+        guard canCrouch else { crouchAmount = 0; return }
+        let target = crouchHeld ? 1.0 : 0
+        crouchAmount += min(dt / 0.16, max(-dt / 0.16, target - crouchAmount))
+    }
+    public var controlClickPoint: Point { .init(x: position.x + facing * 32, y: position.y + 44 - (canCrouch ? crouchBlend * 28 : 0)) }
+    public var manualTravelSpeed: Double { isCrouching ? 80 - 40 * crouchBlend : (controlFastPace ? RunningGait.speed : 80) }
     public mutating func setControlFastPace(_ fast: Bool) { controlFastPace = keyboardControlEnabled && fast }
     private var controlVelocity = Point.zero
     public private(set) var jumpPreparationElapsed = 0.0
@@ -306,6 +321,7 @@ public struct ExplorerInteraction {
             if state == .dropping { advanceDrop(by: dt); continue }
             if state == .transferringHold { advanceHoldTransfer(by: dt); continue }
             if keyboardControlEnabled {
+                advanceCrouch(by: dt)
                 advanceKeyboardControl(by: dt)
                 continue
             }
@@ -823,6 +839,7 @@ public struct ExplorerInteraction {
                 attachment = current
             } else { attachment = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1)?.0 }
         }
+        crouchHeld = false; crouchAmount = 0
         manualDrop = false; downConsumed = false
         keyboardControlEnabled = enabled
         controlHorizontal = 0; controlVertical = 0; controlFastPace = false
@@ -1080,17 +1097,19 @@ public struct ExplorerInteraction {
             ropeSession = nil
             facing = controlHorizontal
             let stride: Double
-            if controlFastPace {
+            let runs = controlFastPace && !isCrouching
+            if runs {
                 stride = RunningGait.distance(from: runningTime, to: runningTime + dt)
                 runningTime += dt
             } else {
-                stride = WalkingGait.distance(from: walkingTime, to: walkingTime + dt * 2, tuning: walkingTuning)
-                walkingTime += dt * 2
+                let gaitStep = dt * (2 - crouchBlend)
+                stride = WalkingGait.distance(from: walkingTime, to: walkingTime + gaitStep, tuning: walkingTuning)
+                walkingTime += gaitStep
             }
             position.x += facing * stride
             clampPosition()
             if let (anchor, point) = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1) {
-                attachment = anchor; position = point; state = controlFastPace ? .running : .walking
+                attachment = anchor; position = point; state = runs ? .running : .walking
             } else { attachment = nil; controlVelocity = .init(x: facing * manualTravelSpeed, y: 0); jumpAirElapsed = 0; state = .jumping }
         } else {
             if state == .settling { settlingRemaining -= dt; if settlingRemaining > 0 { return } }

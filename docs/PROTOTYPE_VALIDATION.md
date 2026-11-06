@@ -189,3 +189,8 @@ Fixed a departure-support regression: capture prioritises the hook’s destinati
 A front-rim pin now validates its exposed window top and hanging-body clearance independently of standing room above the roof. Windows near the top of the usable display can be hooked. Reeling in keeps the body on screen; if there is no safe mantle, the explorer hangs on the attached line instead of discarding it. Moving that window lower permits the same rope to finish its mantle normally. Covered rims remain rejected.
 
 146 core tests and 51 native checks pass; Debug and packaged Release builds pass. Three new regression cases exercise capture switching away from a departure ledge during firing, prevention of an in-flight transfer, and a hook/climb/hang/move-window/mantle sequence with no initial standing room above the roof.
+
+
+## Toolbar crouch — 6 November 2026
+
+149 core tests pass. New cases cover planted feet and an eased enter/exit, click-marker height, mirrored click reach, the 40-point/s crouched gait, Shift suppression, cleanup on control release and keeping crouch out of jumping/rope poses. Native checks cover holding/releasing C, clicking E without losing crouch/control, and sampled crouched-walking limb reach. The hold-C state is also reconciled from the physical key after desktop clicks. The playground Crouching clip was visually inspected at enlarged and actual desktop size with zero clamped contacts. Debug and packaged Release builds pass.

@@ -243,3 +243,8 @@ Implemented optional ScreenCaptureKit window analysis with explicit Screen Recor
 Standing ledges participate in swept landing, walking, route planning and sock missions. Horizontal cracks use a planted-hand traverse; vertical boundaries/cracks use braced climbing with downward elbows and contacts within rig reach. The graph joins nearby intersecting holds. Manual Up transfers from the shared rope to a nearby hold with a short reach/blend; slow autonomous rope work can transfer too. Manual input, interaction clicks and grappling remain available after transfer. Down from horizontal support steps off or releases into parachute recovery, with a latch preventing repeated drops while the key is held; ropes and vertical routes keep downward climbing.
 
 Validation includes synthetic classification/scrolling/occlusion/physics tests, real captured moving test-window content, native menu and limb-reach checks, and a disposable scroll-wheel fixture. The first implementation analyses one prioritized window, not every desktop window, and uses conservative straight-line terrain. Tracking across discontinuous reflow is intentionally rejected rather than guessing a new attachment.
+
+
+## Toolbar crouching — 6 November 2026
+
+Added hold-C crouching, a 160 ms planted-foot transition, a lower hand/click marker, and half-speed crouched walking with matched gait timing. E keeps both manual control and the held crouch. Physical held-key reconciliation after a desktop click includes C; focus/shortcut/stop cleanup releases it. Down retains its ledge-drop role. Crouch is grounded and does not replace jump or rope poses. The shared Crouching clip is available in the animation playground and the welcome guide documents the key.

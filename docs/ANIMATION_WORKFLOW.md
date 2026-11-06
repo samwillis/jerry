@@ -150,3 +150,8 @@ A post-blur crop subtracts rounded window frames below the feet, including a sma
 ## Crack climbing and rope transfers — 6 November 2026
 
 `CrackAnimation` supplies hanging horizontal traverses and narrow vertical climbing poses. Horizontal hand contacts remain planted through stance and reach during the return stroke. Vertical contacts share the existing support-relative climbing contact model and lifting clock, with closer x targets and a lower braced hip position. Both arms render in front of the torso, with downward elbow hinges. A 220 ms world-position blend transfers from rope to hold while the rig blends into its new contacts; disappearing target holds abort into recovery. Native checks sample both poses over their cycles and reject unreachable limb targets. Down-to-drop uses the shared edge launch animation before gravity and parachute deployment.
+
+
+## Toolbar crouch — 6 November 2026
+
+`CrouchAnimation` lowers the hips by 12 points, inclines the head, and brings the forward hand down while retaining the source pose’s foot contacts. The core supplies an eased 160 ms blend shared by the rendered pose and the click target (44 points above the feet standing, 16 crouched). Crouched movement slows the existing walking gait clock rather than sliding the same clip at a different world speed. Shift-running is suppressed during the crouch. Foreground arm layering keeps the reaching hand visible. The standalone Crouching playground clip was visually inspected with both feet on the fake window and zero clamped contacts.

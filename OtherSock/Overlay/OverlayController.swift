@@ -97,6 +97,7 @@ final class OverlayController {
             self?.scene.endDrag()
         }
         keyboard.onDirection = { [weak self] x, y in self?.scene.setControlDirection(x, y) }
+        keyboard.onCrouch = { [weak self] held in self?.scene.setControlCrouch(held) }
         keyboard.onFastPace = { [weak self] fast in self?.scene.setControlFastPace(fast) }
         keyboard.onJump = { [weak self] in self?.scene.controlJump() }
         keyboard.onAimDirection = { [weak self] x, y in self?.scene.setAimDirection(x, y) }
@@ -347,6 +348,15 @@ final class OverlayController {
         }
         check(crackClamps == 0, "crack traverse and vertical climbing stay inside limb reach")
         shadowRig.crackPose = nil
+        var crouchClamps = 0
+        for step in 0..<120 {
+            shadowRig.crouchAmount = Double(step % 30) / 29
+            shadowRig.select(.walking); shadowRig.synchronizedTime = Double(step) / 60
+            shadowRig.render(delta: 1.0 / 60)
+            crouchClamps += shadowRig.clampedContacts
+        }
+        check(crouchClamps == 0, "crouched walking keeps knees and reaching arms inside limb reach")
+        shadowRig.crouchAmount = 0
         show()
         check(panel.isVisible && inputPanel.isVisible, "both panels visible")
         check(panel.ignoresMouseEvents && !inputPanel.ignoresMouseEvents, "input confined to body panel")
@@ -391,6 +401,8 @@ final class OverlayController {
         tester.onInteract = { clicks += 1 }
         tester.onAimChanged = { aiming = $0 }
         tester.onAimDirection = { x, y in aimDirection = .init(x: x, y: y) }
+        var crouching = false
+        tester.onCrouch = { crouching = $0 }
         tester.onGrapple = { shots += 1 }
         tester.start()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.08))
@@ -408,10 +420,16 @@ final class OverlayController {
         check(fastPace && direction.x == 1, "Shift movement enables fast pace without clearing directions")
         _ = tester.routeKey(key(124, down: false))
         check(!fastPace && direction == .zero, "releasing Shift restores normal pace")
+        _ = tester.routeKey(key(8))
+        check(crouching && direction == .zero, "holding C crouches without stepping off the ledge")
+        _ = tester.routeKey(key(14))
+        check(crouching && clicks == 1 && tester.isControlling, "E retains crouch and manual control")
+        _ = tester.routeKey(key(8, down: false))
+        check(!crouching, "releasing C restores standing posture")
         _ = tester.routeKey(key(49)); _ = tester.routeKey(key(49, repeatKey: true))
         _ = tester.routeKey(key(14)); _ = tester.routeKey(key(14, repeatKey: true))
-        check(jumps == 1 && clicks == 1, "jump and click fire once rather than on key repeat")
-        check(tester.routeKey(key(14, flags: .command)) != nil && clicks == 1, "command shortcuts pass through without clicking")
+        check(jumps == 1 && clicks == 2, "jump and click fire once rather than on key repeat")
+        check(tester.routeKey(key(14, flags: .command)) != nil && clicks == 2, "command shortcuts pass through without clicking")
         _ = tester.routeKey(key(5)); _ = tester.routeKey(key(5, repeatKey: true))
         check(aiming && shots == 0, "holding G aims without firing or repeating")
         _ = tester.routeKey(key(124))

@@ -12,6 +12,56 @@ final class KeyboardControlTests: XCTestCase {
     func advance(_ value: inout ExplorerInteraction, seconds: Double) {
         for _ in 0..<Int(seconds * 120) { value.advance(by: 1.0 / 120) }
     }
+    func testCrouchBlendsWithPlantedFeetAndLowersClickPoint() {
+        var value = explorer(x: 450, y: 370)
+        let feet = value.position
+        value.setControlCrouch(true); advance(&value, seconds: 0.08)
+        XCTAssertGreaterThan(value.crouchBlend, 0)
+        XCTAssertLessThan(value.crouchBlend, 1)
+        advance(&value, seconds: 0.12)
+        XCTAssertEqual(value.crouchBlend, 1, accuracy: 0.0001)
+        XCTAssertEqual(value.position, feet)
+        XCTAssertEqual(value.controlClickPoint.y, feet.y + 16)
+        let pose = CrouchAnimation.apply(to: ExplorerPose(), amount: value.crouchBlend)
+        XCTAssertEqual(pose.leftFoot.y, 0); XCTAssertEqual(pose.rightFoot.y, 0)
+        XCTAssertEqual(pose.rightHand.y, 18)
+        value.setControlCrouch(false); advance(&value, seconds: 0.2)
+        XCTAssertEqual(value.position, feet)
+        XCTAssertEqual(value.controlClickPoint.y, feet.y + 44)
+    }
+    func testCrouchWalkingMatchesSlowerGaitAndSuppressesRunning() {
+        var value = explorer()
+        value.setControlCrouch(true); advance(&value, seconds: 0.2)
+        value.setControlFastPace(true)
+        value.setControlDirection(horizontal: -1, vertical: 0)
+        let start = value.position.x
+        advance(&value, seconds: 1)
+        XCTAssertEqual(start - value.position.x, 40, accuracy: 0.01)
+        XCTAssertEqual(value.walkingTime, 1, accuracy: 0.01)
+        XCTAssertEqual(value.state, .walking)
+        XCTAssertEqual(value.controlClickPoint.x, value.position.x - 32)
+        let walking = AnimationClips.sample(.walking, time: value.walkingTime, tuning: value.walkingTuning)
+        let crouched = CrouchAnimation.apply(to: walking, amount: 1)
+        XCTAssertEqual(crouched.leftFoot, walking.leftFoot)
+        XCTAssertEqual(crouched.rightFoot, walking.rightFoot)
+        value.setKeyboardControl(false)
+        XCTAssertEqual(value.crouchAmount, 0)
+        XCTAssertFalse(value.isCrouching)
+    }
+    func testCrouchIsGroundedAndDoesNotReplaceJumpOrRopePoses() {
+        var value = explorer()
+        value.setControlCrouch(true); advance(&value, seconds: 0.2)
+        value.controlJump()
+        XCTAssertEqual(value.controlClickPoint.y, value.position.y + 44)
+        advance(&value, seconds: 0.3)
+        XCTAssertEqual(value.state, .jumping)
+        XCTAssertEqual(value.crouchAmount, 0)
+        XCTAssertTrue(value.fireGrapple(toward: .init(x: 450, y: 370)))
+        advance(&value, seconds: 1)
+        XCTAssertNotNil(value.ropeSession)
+        XCTAssertFalse(value.canCrouch)
+        XCTAssertEqual(value.crouchAmount, 0)
+    }
     func testControlStaysStillWithoutAutonomousAdventures() {
         var value = explorer()
         advance(&value, seconds: 20)

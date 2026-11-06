@@ -101,7 +101,8 @@ final class ExplorerScene: SKScene {
 
     var keyboardClickPoint: CGPoint? {
         guard let interaction, interaction.keyboardControlEnabled else { return nil }
-        return .init(x: interaction.position.x + interaction.facing * 32, y: interaction.position.y + 44)
+        let point = interaction.controlClickPoint
+        return .init(x: point.x, y: point.y)
     }
     func setKeyboardControl(_ enabled: Bool) {
         interaction?.setKeyboardControl(enabled)
@@ -137,6 +138,7 @@ final class ExplorerScene: SKScene {
     }
     func setRunWhenExploring(_ enabled: Bool) { runWhenExploring = enabled; interaction?.setRunWhenExploring(enabled) }
     func setFasterRopeWork(_ enabled: Bool) { fasterRopeWork = enabled; interaction?.setFasterRopeWork(enabled) }
+    func setControlCrouch(_ held: Bool) { interaction?.setControlCrouch(held) }
     func setControlFastPace(_ fast: Bool) { interaction?.setControlFastPace(fast) }
     func setControlDirection(_ x: Double, _ y: Double) { interaction?.setControlDirection(horizontal: x, vertical: y) }
     func controlJump() { interaction?.controlJump(); applyPlacement() }
@@ -310,6 +312,7 @@ final class ExplorerScene: SKScene {
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         if motion == .running { explorer.synchronizedTime = interaction.runningTime }
+        explorer.crouchAmount = interaction.canCrouch ? interaction.crouchBlend : 0
         explorer.jumpPose = interaction.dropPose ?? interaction.keyboardJumpPose
         explorer.crackPose = interaction.internalClimbingPose
         explorer.handTargets = nil

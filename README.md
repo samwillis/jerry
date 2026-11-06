@@ -152,3 +152,8 @@ One window is analysed at a time: the explorer’s attached/rope-anchor window t
 This is deliberately conservative visual terrain, not semantic UI understanding. A long rule may be climbable; a low-contrast boundary may be ignored. Large jumps, rapid reflows, continuous untextured dividers and changing/video content can lose tracking. Detection is bounded to 24 strong features and one host window to limit cost.
 
 For repeatable development checks, run the Debug executable with `--feature-checks` (uses existing Screen Recording access and creates its own disposable capture window). `scripts/terrain-fixture.sh` builds a scrollable test window; launch its executable with `--internal-terrain`, then launch Debug OtherSock with `--inside-windows --fixture-terrain --debug-terrain`. These flags do not persist the opt-in setting.
+
+
+## Crouch for toolbar clicks
+
+While in keyboard control, hold **C** to crouch with his feet planted. The click marker lowers by 28 points; press **E** while holding C to click there. Release C to rise. C + left/right gives a slower, gait-matched crouched walk; Shift does not turn it into a run. Down keeps its step-off/descent behaviour. Crouching applies to standing surfaces, including internal toolbar ledges; rope and crack poses remain available as before. The animation playground also includes a Crouching clip.

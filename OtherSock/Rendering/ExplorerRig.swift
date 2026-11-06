@@ -134,6 +134,7 @@ final class ExplorerRig: SKNode {
     var jumpPose: ExplorerPose?
     var grappleAim: WorldPoint?
     var usesHarnessPivot = false
+    var crouchAmount = 0.0
     var crackPose: ExplorerPose?
     var handTargets: (WorldPoint, WorldPoint)?
     var footTargets: (WorldPoint, WorldPoint)?
@@ -299,7 +300,7 @@ final class ExplorerRig: SKNode {
         var pose = animator.advance(by: delta, synchronizedTime: synchronizedTime)
         // Both rope grips must read in front of the jacket, with the line between
         // the torso and gloves. Restore the usual far-arm stack for other motions.
-        let onRope = crackPose != nil || ropePose != nil || [.ropeClimbing, .ropeSwinging, .abseiling].contains(motion)
+        let onRope = crouchAmount > 0.001 || motion == .crouching || crackPose != nil || ropePose != nil || [.ropeClimbing, .ropeSwinging, .abseiling].contains(motion)
         rightArm.zPosition = onRope ? 2 : 0
         leftArm.zPosition = onRope ? 3 : 0
         ropeBlendTime += delta.isFinite ? min(max(delta, 0), 0.1) : 0
@@ -315,13 +316,15 @@ final class ExplorerRig: SKNode {
             let t = min(1, ropeBlendTime / 0.04)
             pose = jumpPose.blended(from: ropeBlendFrom, fraction: t * t * (3 - 2 * t))
         }
+        pose = CrouchAnimation.apply(to: pose, amount: crouchAmount)
         grappleGun.isHidden = motion != .grappling && grappleAim == nil
         if motion == .grappling || grappleAim != nil {
             let aim = grappleAim ?? .init(x: 80, y: 130)
-            let angle = atan2(aim.y - 46, aim.x - 8)
-            grappleGun.position = .init(x: 8, y: 46); grappleGun.zRotation = angle
+            let gunY = 46 - 12 * crouchAmount
+            let angle = atan2(aim.y - gunY, aim.x - 8)
+            grappleGun.position = .init(x: 8, y: gunY); grappleGun.zRotation = angle
             func hand(_ x: Double, _ y: Double) -> WorldPoint {
-                .init(x: 8 + cos(angle) * x - sin(angle) * y, y: 46 + sin(angle) * x + cos(angle) * y)
+                .init(x: 8 + cos(angle) * x - sin(angle) * y, y: gunY + sin(angle) * x + cos(angle) * y)
             }
             pose.leftHand = hand(4, -3); pose.rightHand = hand(-3, -4)
             pose.headTilt = min(0.15, max(-0.15, angle * 0.12))

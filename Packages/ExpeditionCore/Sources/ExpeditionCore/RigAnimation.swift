@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ExplorerMotion: String, CaseIterable, Sendable {
-    case idle, walking, running, jumping, climbing, abseiling, grappling, ropeClimbing, ropeSwinging, parachuting, mantling, lowering, launching, held, investigating, landing, comic
+    case idle, walking, running, crouching, jumping, climbing, abseiling, grappling, ropeClimbing, ropeSwinging, parachuting, mantling, lowering, launching, held, investigating, landing, comic
 }
 
 public enum RecoveryAnimation {
@@ -163,6 +163,8 @@ public enum AnimationClips {
         case .idle:
             pose.hips.y += sin(phase * 0.4) * 0.15 * tuning.bounce
             pose.headTilt = sin(phase * 0.2) * 0.035
+        case .crouching:
+            pose = CrouchAnimation.apply(to: pose, amount: 1)
         case .running:
             pose = RunningGait.pose(at: t)
         case .jumping:
@@ -480,5 +482,21 @@ public enum CrackAnimation {
         }
         pose.headTilt = -0.08
         return pose
+    }
+}
+
+
+/// Feet stay in their original support-relative pose, including during a slow
+/// walking stride. The forward hand lowers with the interaction marker.
+public enum CrouchAnimation {
+    public static func apply(to source: ExplorerPose, amount: Double) -> ExplorerPose {
+        let t = min(1, max(0, amount))
+        var target = source
+        target.hips.y -= 12
+        target.headTilt -= 0.12
+        target.leftHand = .init(x: -18, y: 23)
+        target.rightHand = .init(x: 23, y: 18)
+        target.leftElbowBend = -1; target.rightElbowBend = -1
+        return target.blended(from: source, fraction: t)
     }
 }

@@ -83,6 +83,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     private(set) var isPerformingClick = false
     private var aiming = false
     var onDirection: ((Double, Double) -> Void)?
+    var onCrouch: ((Bool) -> Void)?
     var onFastPace: ((Bool) -> Void)?
     var onJump: (() -> Void)?
     var onAimChanged: ((Bool) -> Void)?
@@ -111,7 +112,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
         previousApp = lastExternalApp
         isControlling = true
         held.removeAll()
-        showMessage("The crosshair beside his hand is the click point. Down + Space drops through a platform.")
+        showMessage("The crosshair beside his hand is the click point. Hold C to crouch and lower the click point. Down steps off a ledge.")
         if let screen = NSScreen.screens.first {
             panel.setFrameTopLeftPoint(.init(x: screen.visibleFrame.minX + 12, y: screen.visibleFrame.maxY - 12))
         }
@@ -148,7 +149,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
         }
         if event.keyCode == 53, event.type == .keyDown { stop(restoreFocus: true); return nil }
         guard event.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return event }
-        let moves: Set<UInt16> = [0, 1, 2, 13, 123, 124, 125, 126]
+        let moves: Set<UInt16> = [0, 1, 2, 8, 13, 123, 124, 125, 126]
         if moves.contains(event.keyCode) {
             if event.type == .keyDown { held.insert(event.keyCode) } else { held.remove(event.keyCode) }
             updateDirection()
@@ -169,6 +170,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
     private func updateDirection() {
         let x = (held.isDisjoint(with: [2, 124]) ? 0.0 : 1) - (held.isDisjoint(with: [0, 123]) ? 0.0 : 1)
         let y = (held.isDisjoint(with: [13, 126]) ? 0.0 : 1) - (held.isDisjoint(with: [1, 125]) ? 0.0 : 1)
+        onCrouch?(held.contains(8))
         onAimDirection?(aiming ? x : 0, aiming ? y : 0)
         onDirection?(aiming ? 0 : x, aiming ? 0 : y)
     }
@@ -195,7 +197,7 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
                 guard let self, self.isControlling, self.isPerformingClick else { return }
                 NSApp.activate(ignoringOtherApps: true)
                 self.panel.makeKeyAndOrderFront(nil)
-                self.held = Set([UInt16(0), 1, 2, 13, 123, 124, 125, 126].filter {
+                self.held = Set([UInt16(0), 1, 2, 8, 13, 123, 124, 125, 126].filter {
                     CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0))
                 })
                 self.updateDirection()
