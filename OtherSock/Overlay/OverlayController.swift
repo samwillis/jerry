@@ -296,6 +296,16 @@ final class OverlayController {
         let focus = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let hatPart = PaintedPart(rect: .init(x: -12, y: 7, width: 24, height: 8), radius: 2, color: ExplorerPalette.hat, material: .felt)
         check(hatPart.silhouettePath.boundingBoxOfPath == .init(x: -12, y: -4, width: 24, height: 8), "shadow silhouettes use sprite-local coordinates")
+        let shadowRig = ExplorerRig(), shadowSpace = SKNode()
+        shadowSpace.addChild(shadowRig); shadowRig.position = .init(x: 200, y: 200)
+        shadowRig.setShadowOcclusion(windows: [.init(x: 180, y: 0, width: 200, height: 200)], from: shadowSpace)
+        check(shadowRig.shadowIsVisible(at: .init(x: 0, y: 20)) && !shadowRig.shadowIsVisible(at: .init(x: 0, y: -1)), "supporting window hides shadow beneath its lip")
+        shadowRig.xScale = -1
+        shadowRig.setShadowOcclusion(windows: [.init(x: 180, y: 0, width: 200, height: 200)], from: shadowSpace)
+        check(!shadowRig.shadowIsVisible(at: .init(x: -50, y: -1)) && shadowRig.shadowIsVisible(at: .init(x: 50, y: -1)), "ledge shadow clipping survives mirrored facing")
+        shadowRig.position.y = 180
+        shadowRig.setShadowOcclusion(windows: [.init(x: 180, y: 0, width: 200, height: 200)], from: shadowSpace)
+        check(shadowRig.shadowIsVisible(at: .init(x: 0, y: -1)), "hanging in front of a window keeps its cast shadow")
         show()
         check(panel.isVisible && inputPanel.isVisible, "both panels visible")
         check(panel.ignoresMouseEvents && !inputPanel.ignoresMouseEvents, "input confined to body panel")
@@ -313,7 +323,11 @@ final class OverlayController {
         check(abs(inputPanel.frame.midX - original.midX - 60) < 0.1, "paused drag callback moves body panel")
         check(!view.isPaused && !policy.shouldRun, "paused drag renders without advancing simulation")
         inputView.onEnd?()
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+        // First-use mask/blur pipeline compilation can delay the final frame.
+        let finalFrameDeadline = Date(timeIntervalSinceNow: 0.75)
+        while !view.isPaused && Date() < finalFrameDeadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        }
         check(view.isPaused, "paused release renders final frame then stops")
         setSleeping(true)
         check(!panel.isVisible && !inputPanel.isVisible, "sleep hides all panels")

@@ -300,6 +300,9 @@ final class ExplorerScene: SKScene {
         var facing = interaction.facing
         if stationary, let target { facing = target.x >= interaction.position.x ? 1 : -1 }
         explorer.xScale = facing
+        explorer.setShadowOcclusion(windows: terrain?.windows.map {
+            .init(x: $0.frame.minX, y: $0.frame.minY, width: $0.frame.width, height: $0.frame.height)
+        } ?? [], from: self)
         explorer.tuning = interaction.walkingTuning
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))

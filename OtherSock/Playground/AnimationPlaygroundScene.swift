@@ -21,6 +21,7 @@ final class AnimationPlaygroundScene: SKScene {
     private var grabPoint = CGPoint(x: 0, y: 64)
     private var hasCustomOrigin = false
     private var stageOrigin = CGPoint.zero
+    private var shadowWindow = CGRect.zero
     var playbackPaused = false
     var playbackRate: Double = 1
     var zoom: CGFloat = 3 { didSet { updateScale(); layoutStage() } }
@@ -146,6 +147,7 @@ final class AnimationPlaygroundScene: SKScene {
             frame = CGRect(x: stageOrigin.x + (facing > 0 ? -200 : -20), y: platformY - 120, width: 220, height: 120)
         }
         let radius = [ExplorerMotion.abseiling, .mantling, .lowering, .launching].contains(selected) ? AbseilRope.cornerRadius * zoom : 8
+        shadowWindow = frame
         let window = SKShapeNode(rect: frame, cornerRadius: radius)
         window.fillColor = darkBackground ? NSColor(calibratedWhite: 0.17, alpha: 1) : .white
         window.strokeColor = .systemTeal
@@ -219,6 +221,9 @@ final class AnimationPlaygroundScene: SKScene {
             rig.position = .init(x: stageOrigin.x, y: stageOrigin.y + height * zoom)
             actualSizeRig.position = .init(x: 90, y: 80 + height)
         }
+        rig.setShadowOcclusion(windows: [shadowWindow], from: self)
+        // The actual-size preview has no illustrated supporting window.
+        actualSizeRig.setShadowOcclusion(windows: [], from: self)
         var beat = "Drag the body to interrupt any pose"
         if selected == .jumping { beat = "Plant → compress → push through legs → tuck → reach → absorb" }
         if selected == .mantling { beat = "Grip the lip → pull up → plant a boot → stand" }
@@ -238,7 +243,7 @@ final class AnimationPlaygroundScene: SKScene {
             return
         }
         let local = rig.convert(point, from: self)
-        if rig.calculateAccumulatedFrame().contains(point) {
+        if CGRect(x: -26, y: -4, width: 52, height: 82).contains(local) {
             activeHandle = "body"
             rigDragOffset = CGPoint(x: point.x - rig.position.x, y: point.y - rig.position.y)
             grabPoint = local

@@ -156,3 +156,9 @@ The animated silhouette shadow was inspected against the welcome screen's light 
 132 core tests pass, including new running travel/animation synchronization, no planted-sole sliding, an airborne phase with reachable legs, Shift release, running jump momentum without extra height, optional idle-running behavior, faster ascent/descent on the same line, and unchanged gravity-driven swing timing. All 45 applicable native checks and Debug/packaged Release builds pass. The run was inspected enlarged and at desktop size with zero clamped contacts. Real Shift+Right input produced running then idle in the desktop trace without a controls window. Native checks cover modifier routing/reset and sprite-local shadow geometry.
 
 Both faster options are off by default. The fast rope setting changes motor work only; it is not a simulation-wide time scale. Normal/fast locomotion blends through the existing rig transition rather than introducing a separate physics mode.
+
+## Softer shadow behind ledges — 6 November 2026
+
+The explorer casts a lighter, diffuse shadow below his body, using a slightly smaller silhouette and transparent padding so the blur has no hard rectangular boundary. A post-blur mask hides shadow pixels behind nearby supporting window tops, including when the rig faces the other direction. Hanging in front of a window retains the cast shadow. This uses window geometry as a visual approximation rather than inserting an overlay between other applications’ windows.
+
+Debug and packaged Release builds pass, along with all 48 native checks. New checks cover support-lip clipping, mirrored facing and a front-of-window hang. The existing asynchronous final-frame pause check now polls to a bounded deadline to accommodate first-use rendering setup. Visual inspection in the light-background animation playground confirmed a soft downward shadow, no blur cutoff and a clean supporting window face. The body’s interaction bounds remain unchanged.

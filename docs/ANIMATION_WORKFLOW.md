@@ -138,3 +138,10 @@ A low-opacity silhouette follows the posed head/hat, torso, backpack, limbs, boo
 Shift or the Faster Rope Work setting advances the climbing pull clock, winch take-up and descent payout at 1.8×. Gravity and fixed-step rope integration still use real elapsed time, including during swinging and hook flight. Run When Exploring selects the run for automatic walking legs of at least 90 points, while explicit Walk actions still walk. Settings remain independent of idle exploration.
 
 The run review also corrected shadow paths into sprite-local coordinates and disabled stale effect rasterization, keeping the animated shadow aligned with hats, boots and changing poses.
+
+
+## Softer shadow and ledge occlusion — 6 November 2026
+
+The cast silhouette now uses 15% opacity, a 4.5-point Gaussian blur, 94% scale and a centred seven-point downward offset. Transparent padding prevents the filter from clipping its feathered edge to the tight silhouette bounds. This gives an above/front light direction without an oversized, elevated copy of the figure.
+
+A post-blur crop subtracts rounded window frames below the feet, including a small allowance for their top borders. The overlay cannot literally interleave its nodes with another app's windows; excluding those pixels makes the shadow appear behind the supporting ledge. Hanging in front of a window retains a cast shadow on its face. The mask follows metadata, mirroring and preview scale. Desktop input bounds remain fixed, and playground grabbing uses explicit body bounds instead of the enlarged effect frame.

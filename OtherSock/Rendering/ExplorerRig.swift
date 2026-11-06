@@ -98,6 +98,9 @@ private final class RigLimb: SKNode {
 /// Shared by the desktop and playground. Visual offsets never change the simulation origin.
 @MainActor
 final class ExplorerRig: SKNode {
+    private let shadowCrop = SKCropNode()
+    private let shadowMask = SKShapeNode()
+    private var shadowOccluders: [CGRect]?
     private let shadow = SKEffectNode()
     private var shadowPieces: [SKShapeNode] = []
     private let pivot = SKNode()
@@ -145,12 +148,23 @@ final class ExplorerRig: SKNode {
 
     override init() {
         super.init()
-        shadow.zPosition = -20
-        shadow.alpha = 0.22
-        shadow.filter = CIFilter(name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.5])
+        shadowCrop.zPosition = -20
+        shadowMask.fillColor = .white; shadowMask.strokeColor = .clear
+        shadowMask.path = CGPath(rect: .init(x: -128, y: -96, width: 256, height: 256), transform: nil)
+        shadowCrop.maskNode = shadowMask
+        shadow.alpha = 0.15
+        shadow.setScale(0.94)
+        shadow.filter = CIFilter(name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 4.5])
+        // Give the blur transparent breathing room; otherwise SpriteKit clips
+        // it to the silhouette's tight bounds and leaves a hard rectangular edge.
+        let blurPadding = SKSpriteNode(color: .clear, size: .init(width: 120, height: 160))
+        blurPadding.position = .init(x: 0, y: 32)
+        shadow.addChild(blurPadding)
+        shadow.shouldCenterFilter = false
         shadow.shouldEnableEffects = true
         shadow.shouldRasterize = false
-        addChild(shadow)
+        addChild(shadowCrop)
+        shadowCrop.addChild(shadow)
         addChild(pivot)
         pivot.addChild(body)
         body.addChild(backpack)
@@ -370,8 +384,35 @@ final class ExplorerRig: SKNode {
             piece.isHidden = index >= paths.count
             if index < paths.count { piece.path = paths[index] }
         }
-        shadow.position = .init(x: xScale < 0 ? -2.5 : 2.5, y: -2.5)
+        shadow.position = .init(x: 0, y: -7)
     }
+
+    /// Native windows cannot be interleaved inside this floating overlay. Masking
+    /// the finished blur makes a ledge occlude the shadow while the figure stays in front.
+    func setShadowOcclusion(windows: [CGRect], from space: SKNode) {
+        let feet = convert(.zero, to: space)
+        let scaleX = max(0.001, abs(xScale)), scaleY = max(0.001, abs(yScale))
+        let candidates = windows.filter {
+            $0.maxY <= feet.y + 0.75 && $0.maxY >= feet.y - 40 * scaleY
+                && $0.maxX >= feet.x - 80 * scaleX && $0.minX <= feet.x + 80 * scaleX
+        }.map { rect in
+            let a = convert(rect.origin, from: space), b = convert(.init(x: rect.maxX, y: rect.maxY), from: space)
+            return CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(b.x - a.x), height: abs(b.y - a.y))
+        }
+        guard shadowOccluders != candidates else { return }
+        shadowOccluders = candidates
+        var allowed = CGPath(rect: .init(x: -128, y: -96, width: 256, height: 256), transform: nil)
+        for rect in candidates {
+            // Include the border itself, so blur never paints a dark stripe on the lip.
+            let frame = rect.insetBy(dx: -0.75 / scaleX, dy: -0.75 / scaleY)
+            let window = CGPath(roundedRect: frame, cornerWidth: 10 / scaleX, cornerHeight: 10 / scaleY, transform: nil)
+            allowed = allowed.subtracting(window)
+        }
+        shadowMask.path = allowed
+    }
+    #if DEBUG
+    func shadowIsVisible(at point: CGPoint) -> Bool { shadowMask.path?.contains(point) ?? true }
+    #endif
 
     /// Sample the current pointer, without capturing mouse events or keyboard focus.
     /// Convert through the actual node transforms so mirroring, rope sway, and the
