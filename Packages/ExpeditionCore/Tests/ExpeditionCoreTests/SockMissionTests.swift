@@ -20,6 +20,23 @@ final class SockMissionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(subject.mission.completedExpeditions, 2)
         XCTAssertTrue(stages.isSuperset(of: ["selecting", "spotting", "crossing", "investigating", "revealing", "updatingMap", "resting"]))
     }
+    func testSockPatternRemainsFixedUntilTheDiscoveryDisappears() {
+        var subject = explorer(terrain())
+        var visiblePattern: SockMission.Pattern?
+        var discoveries: [SockMission.Pattern] = []
+        var sawRest = false
+        for _ in 0..<36000 {
+            subject.advance(by: 1.0 / 60)
+            if subject.mission.target == nil { visiblePattern = nil; continue }
+            let pattern = subject.mission.pattern
+            if let visiblePattern { XCTAssertEqual(pattern, visiblePattern, "A visible sock must not change when the completion counter advances") }
+            else { visiblePattern = pattern; discoveries.append(pattern) }
+            if subject.mission.stage == .resting { sawRest = true }
+            if discoveries.count == 5 { break }
+        }
+        XCTAssertTrue(sawRest)
+        XCTAssertEqual(discoveries, [.stripes, .spots, .argyle, .zigzags, .stripes])
+    }
     func testSuitableLayoutUsesParachuteAndCompletesSockSearch() {
         let t = terrain([.init(id: 1, frame: .init(x: 300, y: 20, width: 300, height: 350))])
         var subject = explorer(t, at: .init(x: 450, y: 370))

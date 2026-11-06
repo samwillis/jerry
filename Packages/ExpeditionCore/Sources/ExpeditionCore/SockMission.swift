@@ -3,6 +3,9 @@ import Foundation
 /// An interruptible, deterministic comic sequence. No asynchronous animation callbacks:
 /// every beat is driven by the same fixed simulation clock as movement.
 public struct SockMission {
+    public enum Pattern: Int, CaseIterable, Sendable { case stripes, spots, argyle, zigzags }
+    /// Chosen with the target, and retained through discovery, map update and rest.
+    public private(set) var pattern: Pattern = .stripes
     public enum Stage: String, CaseIterable, Sendable {
         case selecting, spotting, approaching, crossing, investigating, revealing, updatingMap, resting
     }
@@ -83,6 +86,7 @@ public struct SockMission {
             let choice = candidates[Int(generation % UInt64(candidates.count))]
             generation &+= 1
             target = choice.0
+            pattern = Pattern.allCases[completedExpeditions % Pattern.allCases.count]
             planned = choice.1
             transition(.spotting)
         case .spotting:

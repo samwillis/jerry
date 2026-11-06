@@ -95,7 +95,7 @@ final class ExpeditionProps: SKNode {
         discovery.isHidden = target == nil || held
         if let target { discovery.position = .init(x: target.x, y: target.y + 2) }
         let revealed = stage == .revealing || stage == .updatingMap || stage == .resting
-        styleSock(mission.completedExpeditions % 4)
+        styleSock(mission.pattern.rawValue)
         sock.zRotation = revealed ? sin(min(mission.elapsed, 0.4) / 0.4 * .pi) * 0.12 : 0
         binoculars.isHidden = stage != .spotting || held
         binoculars.position = .init(x: explorer.x + 10 * facing, y: explorer.y + 59)

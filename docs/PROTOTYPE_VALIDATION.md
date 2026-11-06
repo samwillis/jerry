@@ -275,3 +275,10 @@ Removed the banana artwork/reveal and discovery flag. The exploration sequence n
 Both arms now use the same jacket colour/material; the separate darker far-sleeve base was removed. The shared model instructions identify the explorer as Jerry and allow direct conversational answers without computer tools. Live ChatGPT acceptance: “What is your name?” returned “My name is Jerry.” with no computer tool action.
 
 162 core tests, 72 native checks and 18 agent checks pass. Debug and packaged Release builds pass. The updated Debug app remains running.
+
+
+## Stable sock designs — 6 November 2026
+
+The renderer previously chose the design from the completion count, which advances before the sock disappears during the resting beat. The mission now selects and retains a pattern when it selects a target. Rendering and the discovery message use that retained pattern; only a new discovery advances the design.
+
+163 core tests pass. A regression follows five successive discoveries, verifies a constant design throughout each visible mission including rest, and checks the stripes/spots/argyle/zigzags rotation and wraparound. Debug and packaged Release builds pass.
