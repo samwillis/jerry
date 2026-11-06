@@ -142,6 +142,7 @@ final class ExplorerScene: SKScene {
     func controlJump() { interaction?.controlJump(); applyPlacement() }
     func controlGrapple() { interaction?.controlGrapple(); applyPlacement() }
 
+    var attachedWindowID: UInt32? { interaction?.attachedWindowID }
     var activityStatus: String { interaction?.activityStatus ?? "Preparing terrain…" }
     var availableActivities: Set<ExplorerActivity> { interaction?.availableActivities ?? [] }
     func requestActivity(_ activity: ExplorerActivity) {
@@ -174,9 +175,9 @@ final class ExplorerScene: SKScene {
         if interaction?.state == .settling, interaction?.attachment != nil { explorer.land(strength: 0.5) }
     }
 
-    func updateTerrain(_ snapshot: TerrainSnapshot?) {
+    func updateTerrain(_ snapshot: TerrainSnapshot?, geometrySampleElapsed: TimeInterval? = nil) {
         let now = ProcessInfo.processInfo.systemUptime
-        let sampleElapsed = lastTerrainReadTime.map { max(1.0 / 120, now - $0) } ?? 0.1
+        let sampleElapsed = geometrySampleElapsed ?? (lastTerrainReadTime.map { max(1.0 / 120, now - $0) } ?? 0.1)
         lastTerrainReadTime = now
         let unavailable = snapshot == nil
         // If window-server metadata fails, retain only the guaranteed rescue boundaries.
@@ -222,7 +223,7 @@ final class ExplorerScene: SKScene {
             path.move(to: CGPoint(x: surface.start.x, y: surface.start.y))
             path.addLine(to: CGPoint(x: surface.end.x, y: surface.end.y))
             let line = SKShapeNode(path: path)
-            line.strokeColor = surface.id.owner == .screen ? .systemTeal : (surface.id.edge == .top ? .systemGreen : .systemPink)
+            line.strokeColor = surface.id.edge.isInternal ? (surface.id.edge == .ledge ? .systemGreen : (surface.id.edge == .horizontalCrack ? .systemOrange : .systemPurple)) : surface.id.owner == .screen ? .systemTeal : (surface.id.edge == .top ? .systemGreen : .systemPink)
             line.lineWidth = 2
             terrainGuides.addChild(line)
         }
@@ -279,6 +280,8 @@ final class ExplorerScene: SKScene {
         explorer.position = CGPoint(x: interaction.position.x, y: interaction.position.y)
         var motion: ExplorerMotion
         switch interaction.state {
+        case .transferringHold: motion = .climbing
+        case .dropping: motion = .launching
         case .held: motion = .held
         case .recovering: motion = .parachuting
         case .preparingJump, .jumping: motion = .jumping
@@ -307,7 +310,8 @@ final class ExplorerScene: SKScene {
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         if motion == .running { explorer.synchronizedTime = interaction.runningTime }
-        explorer.jumpPose = interaction.keyboardJumpPose
+        explorer.jumpPose = interaction.dropPose ?? interaction.keyboardJumpPose
+        explorer.crackPose = interaction.internalClimbingPose
         explorer.handTargets = nil
         explorer.footTargets = nil
         explorer.ropePose = nil
@@ -330,7 +334,7 @@ final class ExplorerScene: SKScene {
             explorer.ropePose = RopeAnimation.pose(mode: session.mode, direction: .init(x: dx / length, y: dy / length), velocity: .init(x: session.body.velocity.x * facing, y: session.body.velocity.y), pullTime: session.pullTime)
             explorer.usesHarnessPivot = true
         }
-        if motion == .climbing {
+        if motion == .climbing && !interaction.internalClimbing {
             let contacts = ClimbingContacts(heightAlongWall: interaction.heightAlongWall)
             explorer.handTargets = (contacts.leftHand, contacts.rightHand)
             explorer.footTargets = (contacts.leftFoot, contacts.rightFoot)

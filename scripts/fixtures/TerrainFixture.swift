@@ -13,6 +13,25 @@ final class FixtureClickCanvas: NSView {
 }
 
 @MainActor
+final class InternalTerrainCanvas: NSView {
+    private var scrollOffset = 0.0
+    override var acceptsFirstResponder: Bool { true }
+    override func scrollWheel(with event: NSEvent) {
+        scrollOffset = min(100, max(-100, scrollOffset - event.scrollingDeltaY))
+        needsDisplay = true
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(calibratedWhite: 0.95, alpha: 1).setFill(); bounds.fill()
+        NSColor(calibratedRed: 0.15, green: 0.35, blue: 0.45, alpha: 1).setFill()
+        CGRect(x: 35, y: 170 + scrollOffset, width: bounds.width - 70, height: 85).fill()
+        NSColor.black.setFill()
+        CGRect(x: 35, y: 340 + scrollOffset, width: bounds.width - 70, height: 2).fill()
+        CGRect(x: 330, y: 40 + scrollOffset, width: 2, height: 300).fill()
+        ("Scroll here to move the ledges and cracks" as NSString).draw(at: .init(x: 24, y: bounds.height - 35), withAttributes: [.font: NSFont.systemFont(ofSize: 15), .foregroundColor: NSColor.labelColor])
+    }
+}
+
+@MainActor
 final class Fixture: NSObject, NSApplicationDelegate {
     private var windows: [NSWindow] = []
     private var support: NSWindow!
@@ -21,6 +40,13 @@ final class Fixture: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let screen = NSScreen.screens.first else { return }
         let base = screen.visibleFrame.minY
+        if ProcessInfo.processInfo.arguments.contains("--internal-terrain") {
+            let target = NSWindow(contentRect: .init(x: 280, y: base + 80, width: 720, height: 520), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            target.title = "Climbing landscape — scroll inside"; target.isReleasedWhenClosed = false
+            target.contentView = InternalTerrainCanvas(frame: target.contentView!.bounds)
+            windows.append(target); target.orderFront(nil); NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--click-target") {
             let rope = ProcessInfo.processInfo.arguments.contains("--rope-click-target")
             let target = NSWindow(contentRect: .init(x: rope ? 700 : 830, y: base, width: rope ? 350 : 220, height: rope ? 500 : 70), styleMask: [.titled, .closable], backing: .buffered, defer: false)

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum TravelKind: String, Sendable { case walking, climbing, abseiling, parachuting, mantling, lowering, grappling }
+public enum TravelKind: String, Sendable { case walking, climbing, abseiling, parachuting, mantling, lowering, grappling, shimmying, transferring }
 
 public struct TravelStep: Equatable, Sendable {
     public let from: TerrainAttachment
@@ -17,7 +17,7 @@ public struct NavigationGraph {
 
     public init(terrain: TerrainSnapshot) {
         self.terrain = terrain
-        let platforms = terrain.surfaces.filter { $0.id.edge == .top || $0.id.edge == .floor }
+        let platforms = terrain.surfaces.filter { $0.id.edge.isStandable }
         for platform in platforms where platform.end.x - platform.start.x >= 48 {
             let inset = min(56.0, (platform.end.x - platform.start.x) / 2)
             for x in [platform.start.x + 24, platform.start.x + inset, (platform.start.x + platform.end.x) / 2, platform.end.x - inset, platform.end.x - 24] {
@@ -29,7 +29,7 @@ public struct NavigationGraph {
                 }
             }
         }
-        for wall in terrain.surfaces where wall.id.owner != .screen && wall.id.edge != .top {
+        for wall in terrain.surfaces where wall.id.owner != .screen && [.left, .right].contains(wall.id.edge) {
             guard case .window(let id) = wall.id.owner,
                   let window = terrain.windows.first(where: { $0.id == id }) else { continue }
             let outside = wall.start.x + (wall.id.edge == .left ? -24.0 : 24.0)
@@ -45,15 +45,38 @@ public struct NavigationGraph {
                 }
             }
         }
+        for feature in terrain.features {
+            let length = WindowFeatureDetector.length(feature)
+            let inset = feature.edge.isHorizontal ? 24.0 : 0
+            let endInset = feature.edge.isHorizontal ? 24.0 : 64
+            for offset in [inset, max(inset, (length - endInset) / 2), length - endInset] {
+                _ = add(.init(owner: .window(feature.windowID), edge: feature.edge, offset: offset, featureID: feature.id))
+            }
+            // Add contacts nearest other features so intersecting cracks can connect.
+            for other in terrain.features where other.windowID == feature.windowID && other.id != feature.id && other.edge.isHorizontal != feature.edge.isHorizontal {
+                let offset = feature.edge.isHorizontal ? other.start.x - feature.start.x : other.start.y - feature.start.y - (other.edge == .horizontalCrack ? 58 : 0)
+                guard offset >= inset, offset <= length - endInset else { continue }
+                _ = add(.init(owner: .window(feature.windowID), edge: feature.edge, offset: offset, featureID: feature.id))
+            }
+        }
         let nodes = vertices
         for a in nodes {
-            for b in nodes where a != b && a.owner == b.owner && a.edge == b.edge {
+            for b in nodes where a != b && a.owner == b.owner && a.edge == b.edge && a.featureID == b.featureID {
                 guard let p = TerrainSupport.resolve(a, in: terrain), let q = TerrainSupport.resolve(b, in: terrain) else { continue }
-                if a.edge == .top || a.edge == .floor {
+                if a.edge.isStandable {
                     if clear(a, b) { connect(a, b, .walking) }
+                } else if a.edge == .horizontalCrack {
+                    if clear(a, b) { connect(a, b, .shimmying) }
                 } else if a.edge != .front, abs(p.y - q.y) <= 1200, clear(a, b) {
-                    connect(a, b, q.y > p.y ? .climbing : .abseiling)
+                    connect(a, b, a.edge.isInternal || q.y > p.y ? .climbing : .abseiling)
                 }
+            }
+        }
+        for a in nodes where a.edge.isInternal {
+            guard let p = TerrainSupport.resolve(a, in: terrain) else { continue }
+            for b in nodes where b.owner == a.owner && (b.edge != a.edge || b.featureID != a.featureID) {
+                guard let q = TerrainSupport.resolve(b, in: terrain), distance(p, q) <= 68, clear(a, b) else { continue }
+                connect(a, b, .transferring); connect(b, a, .transferring)
             }
         }
         // Flight begins with an animated push from a supported top, then clears the roof.
@@ -76,7 +99,7 @@ public struct NavigationGraph {
     /// Breadth-first route to a seeded destination. The caller varies the seed after each rest.
     public func route(from anchor: TerrainAttachment, to destination: TerrainAttachment? = nil, seed: UInt64, allowParachute: Bool = true, allowGrapple: Bool = false) -> [TravelStep] {
         guard let point = TerrainSupport.resolve(anchor, in: terrain) else { return [] }
-        let starts = vertices.filter { $0.owner == anchor.owner && $0.edge == anchor.edge && clear(anchor, $0) }
+        let starts = vertices.filter { $0.owner == anchor.owner && $0.edge == anchor.edge && $0.featureID == anchor.featureID && clear(anchor, $0) }
             .sorted { distance(point, TerrainSupport.resolve($0, in: terrain)!) < distance(point, TerrainSupport.resolve($1, in: terrain)!) }
         guard let start = starts.first else { return [] }
         var reached = [start]
@@ -89,16 +112,16 @@ public struct NavigationGraph {
             }
             index += 1
         }
-        let candidates = paths.indices.filter { !paths[$0].isEmpty && (reached[$0].edge == .top || reached[$0].edge == .floor) }
+        let candidates = paths.indices.filter { !paths[$0].isEmpty && (reached[$0].edge == .top || reached[$0].edge == .floor || reached[$0].edge.isInternal) }
         if let destination, let goal = TerrainSupport.resolve(destination, in: terrain) {
-            let matches = paths.indices.filter { reached[$0].owner == destination.owner && reached[$0].edge == destination.edge && clear(reached[$0], destination) }
+            let matches = paths.indices.filter { reached[$0].owner == destination.owner && reached[$0].edge == destination.edge && reached[$0].featureID == destination.featureID && clear(reached[$0], destination) }
             guard let match = matches.min(by: { distance(TerrainSupport.resolve(reached[$0], in: terrain)!, goal) < distance(TerrainSupport.resolve(reached[$1], in: terrain)!, goal) }) else { return [] }
             var result = paths[match]
             if distance(point, TerrainSupport.resolve(start, in: terrain)!) > 0.1 {
-                result.insert(.init(from: anchor, to: start, kind: anchor.edge == .top || anchor.edge == .floor ? .walking : (TerrainSupport.resolve(start, in: terrain)!.y > point.y ? .climbing : .abseiling)), at: 0)
+                result.insert(.init(from: anchor, to: start, kind: alongKind(anchor, from: point, to: TerrainSupport.resolve(start, in: terrain)!)), at: 0)
             }
             if distance(TerrainSupport.resolve(reached[match], in: terrain)!, goal) > 0.1 {
-                let kind: TravelKind = destination.edge == .top || destination.edge == .floor ? .walking : (goal.y > TerrainSupport.resolve(reached[match], in: terrain)!.y ? .climbing : .abseiling)
+                let kind: TravelKind = alongKind(destination, from: TerrainSupport.resolve(reached[match], in: terrain)!, to: goal)
                 result.append(.init(from: reached[match], to: destination, kind: kind))
             }
             return result
@@ -110,7 +133,7 @@ public struct NavigationGraph {
         let chosen = choices[Int(seed % UInt64(choices.count))]
         var result = paths[chosen]
         if distance(point, TerrainSupport.resolve(start, in: terrain)!) > 0.1 {
-            result.insert(.init(from: anchor, to: start, kind: anchor.edge == .top || anchor.edge == .floor ? .walking : (TerrainSupport.resolve(start, in: terrain)!.y > point.y ? .climbing : .abseiling)), at: 0)
+            result.insert(.init(from: anchor, to: start, kind: alongKind(anchor, from: point, to: TerrainSupport.resolve(start, in: terrain)!)), at: 0)
         }
         return result
     }
@@ -118,8 +141,10 @@ public struct NavigationGraph {
     public func isValid(_ step: TravelStep) -> Bool {
         guard let p = TerrainSupport.resolve(step.from, in: terrain), let q = TerrainSupport.resolve(step.to, in: terrain) else { return false }
         switch step.kind {
+        case .shimmying: guard step.from.edge == .horizontalCrack, step.from.featureID == step.to.featureID, abs(q.y - p.y) < 0.1 else { return false }
+        case .transferring: guard step.from.owner == step.to.owner, (step.from.edge.isInternal || step.to.edge.isInternal), distance(p, q) <= 68 else { return false }
         case .walking: guard abs(q.y - p.y) < 0.1 else { return false }
-        case .climbing: guard abs(q.x - p.x) < 0.1, q.y > p.y, q.y - p.y <= 1200 else { return false }
+        case .climbing: guard abs(q.x - p.x) < 0.1, (step.from.edge.isInternal ? abs(q.y - p.y) > 0 : q.y > p.y), abs(q.y - p.y) <= 1200 else { return false }
         case .abseiling: guard abs(q.x - p.x) < 0.1, q.y < p.y, p.y - q.y <= 1200, validRope(step.from) else { return false }
         case .mantling:
             guard step.from.owner == step.to.owner, step.to.edge == .top else { return false }
@@ -239,6 +264,9 @@ public struct NavigationGraph {
     }
 
     private func horizontalAnchor(_ surface: TerrainSurface, x: Double) -> TerrainAttachment {
+        if surface.id.edge == .ledge, let feature = terrain.features.first(where: { $0.id == surface.id.segment && .window($0.windowID) == surface.id.owner }), let window = terrain.windows.first(where: { $0.id == feature.windowID }) {
+            return .init(owner: surface.id.owner, edge: .ledge, offset: x - window.frame.minX - feature.start.x, featureID: feature.id)
+        }
         let base = terrain.windows.first { .window($0.id) == surface.id.owner }?.frame.minX ?? terrain.viewport.minX
         return .init(owner: surface.id.owner, edge: surface.id.edge, offset: x - base)
     }
@@ -253,6 +281,11 @@ public struct NavigationGraph {
         if (kind == .mantling || kind == .lowering) && !isValid(step) { return }
         if !steps.contains(step) { steps.append(step) }
     }
+    private func alongKind(_ anchor: TerrainAttachment, from p: WorldPoint, to q: WorldPoint) -> TravelKind {
+        if anchor.edge.isStandable { return .walking }
+        if anchor.edge == .horizontalCrack { return .shimmying }
+        return anchor.edge.isInternal || q.y > p.y ? .climbing : .abseiling
+    }
     private func distance(_ a: WorldPoint, _ b: WorldPoint) -> Double { hypot(a.x - b.x, a.y - b.y) }
     private func clear(_ a: TerrainAttachment, _ b: TerrainAttachment) -> Bool {
         guard let p = TerrainSupport.resolve(a, in: terrain), let q = TerrainSupport.resolve(b, in: terrain) else { return false }
@@ -261,8 +294,8 @@ public struct NavigationGraph {
             let t = Double(i) / Double(count)
             let corner: ExplorerMotion? = a.owner == b.owner && a.edge != b.edge ? (a.edge == .top ? .lowering : (b.edge == .top ? .mantling : nil)) : nil
             let point = corner.map { EdgeTraversal.position($0, progress: t, from: p, to: q) } ?? WorldPoint(x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t)
-            if a.edge == b.edge && a.owner == b.owner {
-                let anchor = TerrainAttachment(owner: a.owner, edge: a.edge, offset: a.offset + (b.offset - a.offset) * t)
+            if a.edge == b.edge && a.owner == b.owner && a.featureID == b.featureID {
+                let anchor = TerrainAttachment(owner: a.owner, edge: a.edge, offset: a.offset + (b.offset - a.offset) * t, featureID: a.featureID)
                 if TerrainSupport.resolve(anchor, in: terrain) == nil { return false }
             } else {
                 let body = WorldRect(x: point.x - 23, y: point.y + 1, width: 46, height: 74)

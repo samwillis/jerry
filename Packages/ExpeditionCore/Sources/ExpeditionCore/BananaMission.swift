@@ -58,19 +58,25 @@ public struct BananaMission {
             // Usually favour a chute, but occasionally let the rope expert have a turn.
             let allowFlight = generation % 3 != 2
             var choices: [(TerrainAttachment, [TravelStep])] = []
-            for destination in graph.vertices where destination.edge == .top || destination.edge == .floor {
+            for destination in graph.vertices where destination.edge.isStandable {
                 guard let point = TerrainSupport.resolve(destination, in: terrain),
                       hypot(point.x - explorer.position.x, point.y - explorer.position.y) > 80 else { continue }
                 // Stop beside the discovery rather than standing on top of the prop.
                 let direction: Double = explorer.position.x < point.x ? -1 : 1
-                let arrivals = [direction, -direction].map { TerrainAttachment(owner: destination.owner, edge: destination.edge, offset: destination.offset + $0 * 32) }
+                let arrivals = [direction, -direction].map { TerrainAttachment(owner: destination.owner, edge: destination.edge, offset: destination.offset + $0 * 32, featureID: destination.featureID) }
                 for arrival in arrivals {
                     guard let stand = TerrainSupport.resolve(arrival, in: terrain), abs(stand.x - point.x) >= 28 else { continue }
                     let route = graph.route(from: anchor, to: arrival, seed: 1, allowParachute: allowFlight, allowGrapple: generation % 4 == 3)
                     if !route.isEmpty { choices.append((destination, route)); break }
                 }
             }
-            if choices.isEmpty { elapsed = 0; return }
+            if choices.isEmpty {
+                if anchor.edge.isInternal {
+                    _ = explorer.follow(graph.route(from: anchor, seed: generation))
+                    generation &+= 1
+                }
+                elapsed = 0; return
+            }
             // Prefer parachuting when a safe launch/landing pair is actually reachable.
             let flights = choices.filter { $0.1.contains { $0.kind == .parachuting } }
             let candidates = flights.isEmpty ? choices : flights

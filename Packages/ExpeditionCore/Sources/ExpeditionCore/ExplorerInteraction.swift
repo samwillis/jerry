@@ -18,7 +18,7 @@ public struct ExplorerInteraction {
         }
     }
 
-    public enum State: String { case idle, held, settling, recovering, preparingJump, jumping, walking, running, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
+    public enum State: String { case idle, held, settling, recovering, preparingJump, jumping, walking, running, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing, dropping, transferringHold }
     public private(set) var position: Point
     public private(set) var state: State = .idle
     public private(set) var attachment: TerrainAttachment?
@@ -46,10 +46,36 @@ public struct ExplorerInteraction {
         if state == .preparingJump { return JumpAnimation.preparation(at: jumpPreparationElapsed) }
         guard state == .jumping else { return nil }
         let landingY = terrain?.surfaces.filter {
-            ($0.id.edge == .top || $0.id.edge == .floor) && $0.start.y <= position.y
+            $0.id.edge.isStandable && $0.start.y <= position.y
                 && position.x - 24 >= $0.start.x && position.x + 24 <= $0.end.x
         }.map { $0.start.y }.max() ?? bounds.minimum.y
         return JumpAnimation.airborne(elapsed: jumpAirElapsed, verticalSpeed: controlVelocity.y, landingDistance: max(0, position.y - landingY))
+    }
+    private var holdTransferElapsed = 0.0
+    private var holdTransferStart = Point.zero
+    private mutating func advanceHoldTransfer(by dt: Double) {
+        guard let terrain, let attachment, let target = TerrainSupport.resolve(attachment, in: terrain) else { recover(); return }
+        holdTransferElapsed += dt
+        let t = min(1, holdTransferElapsed / 0.22)
+        let blend = t * t * (3 - 2 * t)
+        position = .init(x: holdTransferStart.x + (target.x - holdTransferStart.x) * blend, y: holdTransferStart.y + (target.y - holdTransferStart.y) * blend)
+        if t >= 1 { state = .idle }
+    }
+    private var dropElapsed = 0.0
+    private var dropStart = Point.zero
+    private var dropEnd = Point.zero
+    private var manualDrop = false
+    private var downConsumed = false
+    public var dropPose: ExplorerPose? { state == .dropping ? EdgeTraversal.pose(.launching, progress: dropElapsed / EdgeTraversal.duration(.launching)) : nil }
+    public var attachedWindowID: UInt32? {
+        if let session = ropeSession { return session.anchor.windowID }
+        if case .window(let id) = attachment?.owner { return id }
+        return nil
+    }
+    public var internalClimbing: Bool { attachment?.edge.isInternal == true && attachment?.edge.isStandable == false }
+    public var internalClimbingPose: ExplorerPose? {
+        guard internalClimbing else { return nil }
+        return CrackAnimation.pose(horizontal: attachment?.edge == .horizontalCrack, time: climbingTime, offset: (attachment?.offset ?? 0) * (attachment?.edge == .horizontalCrack ? facing : 1))
     }
     private var dropThroughRemaining = 0.0
     public private(set) var idleExplorationEnabled = true
@@ -87,8 +113,8 @@ public struct ExplorerInteraction {
         return result
     }
     private var currentSupport: TerrainAttachment? {
-        if let step = route.first, step.from.owner == step.to.owner, step.from.edge == step.to.edge {
-            return .init(owner: step.from.owner, edge: step.from.edge, offset: step.from.offset + (step.to.offset - step.from.offset) * travelFraction)
+        if let step = route.first, step.from.owner == step.to.owner, step.from.edge == step.to.edge && step.from.featureID == step.to.featureID {
+            return .init(owner: step.from.owner, edge: step.from.edge, offset: step.from.offset + (step.to.offset - step.from.offset) * travelFraction, featureID: step.from.featureID)
         }
         return attachment
     }
@@ -158,7 +184,7 @@ public struct ExplorerInteraction {
     public private(set) var walkingTime: Double = 0
     public private(set) var climbingTime: Double = 0
     public var walkingTuning = AnimationTuning()
-    public var edgeProgress: Double { travelFraction }
+    public var edgeProgress: Double { state == .dropping ? dropElapsed / EdgeTraversal.duration(.launching) : travelFraction }
     public var edgeMotion: ExplorerMotion? {
         guard state == .traversingEdge, let step = route.first else { return nil }
         switch step.kind { case .mantling: return .mantling; case .lowering: return .lowering; case .parachuting: return .launching; default: return nil }
@@ -277,6 +303,8 @@ public struct ExplorerInteraction {
         while accumulator + 0.0000001 >= dt {
             accumulator -= dt
             simulationSteps += 1
+            if state == .dropping { advanceDrop(by: dt); continue }
+            if state == .transferringHold { advanceHoldTransfer(by: dt); continue }
             if keyboardControlEnabled {
                 advanceKeyboardControl(by: dt)
                 continue
@@ -394,7 +422,7 @@ public struct ExplorerInteraction {
     public mutating func updateTerrain(_ terrain: TerrainSnapshot, sampleElapsed: Double = 0.1) {
         self.terrain = terrain
         if autonomous { graph = NavigationGraph(terrain: terrain) }
-        guard state != .held else { return }
+        guard state != .held && state != .dropping && state != .transferringHold else { return }
         if var session = ropeSession {
             if let guide = session.anchor.resolve(in: terrain) {
                 session.followSupport(guide, sampleElapsed: sampleElapsed)
@@ -497,9 +525,12 @@ public struct ExplorerInteraction {
             let runs = runWhenExploring && !keyboardControlEnabled && requestedActivity == nil && hypot(to.x - from.x, to.y - from.y) >= 90
             if runs && state != .running { runningTime = 0 }
             state = runs ? .running : .walking; facing = direction
+        case .shimmying, .transferring:
+            state = .climbing
+            if step.from.edge.isInternal { attachment = step.from }
         case .climbing:
             if state != .climbing { climbingTime = ClimbingGait.time(atHeight: heightAlongWall) }
-            state = .climbing; facing = step.from.edge == .left ? 1 : -1
+            state = .climbing; facing = step.from.edge.isInternal || step.from.edge == .left ? 1 : -1
         case .abseiling:
             beginRope(step, mode: .descending)
         case .grappling:
@@ -519,7 +550,12 @@ public struct ExplorerInteraction {
               let from = TerrainSupport.resolve(step.from, in: terrain),
               let to = TerrainSupport.resolve(step.to, in: terrain) else { recover(); return }
         let distance = hypot(to.x - from.x, to.y - from.y)
-        if let motion = edgeMotion {
+        if step.kind == .transferring {
+            travelFraction = min(1, travelFraction + dt / 0.35)
+        } else if step.kind == .shimmying {
+            climbingTime += dt * ropeWorkRate
+            travelFraction = min(1, travelFraction + 30 * dt * ropeWorkRate / max(0.01, distance))
+        } else if let motion = edgeMotion {
             travelFraction = min(1, travelFraction + dt / EdgeTraversal.duration(motion))
         } else if step.kind == .walking {
             let travelled: Double
@@ -540,6 +576,9 @@ public struct ExplorerInteraction {
             travelFraction = min(1, travelFraction + 48 * dt / max(0.01, distance))
         }
         position = travelPosition(step, from: from, to: to)
+        if step.from.edge.isInternal && step.from.featureID == step.to.featureID {
+            attachment = .init(owner: step.from.owner, edge: step.from.edge, offset: step.from.offset + (step.to.offset - step.from.offset) * travelFraction, featureID: step.from.featureID)
+        }
         clampPosition()
         if travelFraction >= 1 {
             if step.kind == .parachuting {
@@ -661,6 +700,7 @@ public struct ExplorerInteraction {
         position = next
         ropeSession = session
         applyRopeState()
+        if !keyboardControlEnabled, (session.mode == .descending || session.mode == .climbing), transferToWindowHold() { return }
         if session.mode == .descending && session.body.length >= RopeDynamics.maximumLength - 0.01 {
             releaseRope(velocity: session.releaseVelocity)
             activityIssue = "Rope end reached — parachuting"
@@ -770,12 +810,14 @@ public struct ExplorerInteraction {
                 attachment = current
             } else { attachment = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1)?.0 }
         }
+        manualDrop = false; downConsumed = false
         keyboardControlEnabled = enabled
         controlHorizontal = 0; controlVertical = 0; controlFastPace = false
         mission.cancel(); runsMission = !enabled && idleExplorationEnabled
         requestedActivity = nil; pendingActivity = nil
         route.removeAll(); afterLanding.removeAll(); flightContinuation.removeAll(); ropeContinuation.removeAll()
         flightGoal = nil
+        if state == .dropping || state == .transferringHold { return }
         if !corner.isEmpty { route = corner; return } // Finish an in-progress corner safely.
         if enabled {
             controlVelocity = state == .recovering ? flightVelocity : .zero
@@ -793,10 +835,11 @@ public struct ExplorerInteraction {
     public mutating func setControlDirection(horizontal: Double, vertical: Double) {
         controlHorizontal = min(1, max(-1, horizontal))
         controlVertical = min(1, max(-1, vertical))
+        if controlVertical >= 0 { downConsumed = false }
     }
 
     public mutating func controlJump() {
-        guard keyboardControlEnabled, state != .held, state != .traversingEdge, state != .preparingJump else { return }
+        guard keyboardControlEnabled, state != .held, state != .traversingEdge, state != .preparingJump, state != .dropping, state != .transferringHold else { return }
         if let session = ropeSession, session.mode != .supported && session.mode != .firing {
             controlVelocity = session.releaseVelocity
             controlVelocity.y = max(250, controlVelocity.y)
@@ -830,9 +873,97 @@ public struct ExplorerInteraction {
         ropeSession?.climbsAfterSwing = false
     }
 
+    /// Reach for a nearby internal hold. Called deliberately by input, or during
+    /// slow autonomous rope work; it never grabs a crack during a fast swing.
+    @discardableResult public mutating func transferToWindowHold() -> Bool {
+        guard let terrain, state != .held, state != .transferringHold, let (anchor, _) = TerrainSupport.grip(at: position, in: terrain, reach: ropeSession == nil && attachment != nil ? 68 : 24, excluding: attachment, direction: ropeSession == nil ? .init(x: controlHorizontal, y: controlVertical) : .zero) else { return false }
+        if let session = ropeSession, hypot(session.releaseVelocity.x, session.releaseVelocity.y) > 220 { return false }
+        ropeSession = nil; ropeContinuation.removeAll(); route.removeAll(); afterLanding.removeAll()
+        flightGoal = nil; holdTransferStart = position; holdTransferElapsed = 0
+        attachment = anchor; state = .transferringHold; climbingTime = 0
+        manualDrop = false; controlVelocity = .zero
+        return true
+    }
+
+    private mutating func advanceDrop(by dt: Double) {
+        dropElapsed += dt
+        let progress = min(1, dropElapsed / EdgeTraversal.duration(.launching))
+        position = EdgeTraversal.position(.launching, progress: progress, from: dropStart, to: dropEnd)
+        // The shared launch arc ends at its original height. A deliberate drop
+        // must finish below the ledge so a central drop cannot catch it again.
+        let u = max(0, (progress - 0.7) / 0.3)
+        position.y += (dropEnd.y - dropStart.y) * u * u * (3 - 2 * u)
+        if dropElapsed >= EdgeTraversal.duration(.launching) {
+            attachment = nil; state = .recovering; physicalRelease = true; recoveryTime = 0
+            flightVelocity = .init(x: facing * 45, y: -35)
+        }
+    }
+
+    private mutating func startDrop() {
+        guard let support = attachment else { return }
+        downConsumed = true; manualDrop = true
+        route.removeAll(); afterLanding.removeAll(); ropeContinuation.removeAll(); ropeSession = nil
+        mission.cancel()
+        if support.edge == .horizontalCrack {
+            attachment = nil; physicalRelease = true; recoveryTime = 0
+            flightVelocity = .init(x: controlHorizontal * 60, y: -35); state = .recovering
+            return
+        }
+        dropStart = position
+        // Move past the nearest exposed end, so a swept landing cannot immediately
+        // catch the same ledge. Native windows remain platforms, not solid boxes.
+        let surface = terrain?.surfaces.filter { $0.id.owner == support.owner && $0.id.edge == support.edge && (support.featureID == nil || $0.id.segment == support.featureID) }.min { abs(($0.start.x + $0.end.x) / 2 - position.x) < abs(($1.start.x + $1.end.x) / 2 - position.x) }
+        let side: Double
+        if let surface {
+            side = controlHorizontal != 0 ? controlHorizontal : (position.x - surface.start.x < surface.end.x - position.x ? -1 : 1)
+            let x = side < 0 ? surface.start.x - 25 : surface.end.x + 25
+            // A central drop-through does not teleport across a wide toolbar.
+            dropEnd = .init(x: abs(x - position.x) <= 70 ? x : position.x + side * 14, y: position.y - 8)
+        } else { side = facing; dropEnd = .init(x: position.x + side * 14, y: position.y - 8) }
+        facing = side; dropElapsed = 0; state = .dropping
+    }
+
+    private mutating func advanceInternalClimbing(by dt: Double, anchor: TerrainAttachment, terrain: TerrainSnapshot) {
+        guard let feature = terrain.features.first(where: { $0.id == anchor.featureID && .window($0.windowID) == anchor.owner }) else { recover(); return }
+        let horizontal = anchor.edge == .horizontalCrack
+        let direction = horizontal ? controlHorizontal : controlVertical
+        if horizontal { if controlHorizontal != 0 { facing = controlHorizontal } }
+        else { facing = 1 }
+        let work = dt * ropeWorkRate
+        let movement = horizontal ? 30 * work : ClimbingGait.distance(from: climbingTime, to: climbingTime + work)
+        let end = WindowFeatureDetector.length(feature) - (horizontal ? 20 : 62)
+        let offset = min(max(horizontal ? 20 : 0, anchor.offset + direction * movement), end)
+        let next = TerrainAttachment(owner: anchor.owner, edge: anchor.edge, offset: offset, featureID: anchor.featureID)
+        if let point = TerrainSupport.resolve(next, in: terrain) {
+            attachment = next; position = point
+            state = direction == 0 ? .idle : .climbing
+            if direction != 0 { climbingTime += work }
+        }
+        // At intersections, an input perpendicular to the current route reaches
+        // for the adjoining hold. Up can also pull onto a nearby standing ledge.
+        if horizontal ? controlVertical > 0 : (controlHorizontal != 0 || (controlVertical > 0 && offset >= end - 1)) {
+            _ = transferToWindowHold()
+        }
+    }
+
     private mutating func advanceKeyboardControl(by dt: Double) {
         guard state != .held, let terrain else { return }
         dropThroughRemaining = max(0, dropThroughRemaining - dt)
+        if manualDrop, state == .recovering {
+            flightVelocity.x += controlHorizontal * 90 * dt
+            advancePhysics(by: dt)
+            if state != .recovering { manualDrop = false }
+            return
+        }
+        if controlVertical < 0, !downConsumed, let support = attachment,
+           (support.edge.isStandable && support.edge != .floor) || support.edge == .horizontalCrack {
+            startDrop(); return
+        }
+        if ropeSession != nil, controlVertical > 0, transferToWindowHold() { return }
+        if ropeSession == nil, let support = attachment, support.edge.isInternal && !support.edge.isStandable {
+            advanceInternalClimbing(by: dt, anchor: support, terrain: terrain); return
+        }
+        if controlVertical > 0, transferToWindowHold() { return }
         if state == .traversingEdge { advanceTravel(by: dt); return }
         if state == .preparingJump {
             guard let attachment, let point = TerrainSupport.resolve(attachment, in: terrain) else {

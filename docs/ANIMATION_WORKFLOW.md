@@ -145,3 +145,8 @@ The run review also corrected shadow paths into sprite-local coordinates and dis
 The cast silhouette now uses 15% opacity, a 4.5-point Gaussian blur, 94% scale and a centred seven-point downward offset. Transparent padding prevents the filter from clipping its feathered edge to the tight silhouette bounds. This gives an above/front light direction without an oversized, elevated copy of the figure.
 
 A post-blur crop subtracts rounded window frames below the feet, including a small allowance for their top borders. The overlay cannot literally interleave its nodes with another app's windows; excluding those pixels makes the shadow appear behind the supporting ledge. Hanging in front of a window retains a cast shadow on its face. The mask follows metadata, mirroring and preview scale. Desktop input bounds remain fixed, and playground grabbing uses explicit body bounds instead of the enlarged effect frame.
+
+
+## Crack climbing and rope transfers — 6 November 2026
+
+`CrackAnimation` supplies hanging horizontal traverses and narrow vertical climbing poses. Horizontal hand contacts remain planted through stance and reach during the return stroke. Vertical contacts share the existing support-relative climbing contact model and lifting clock, with closer x targets and a lower braced hip position. Both arms render in front of the torso, with downward elbow hinges. A 220 ms world-position blend transfers from rope to hold while the rig blends into its new contacts; disappearing target holds abort into recovery. Native checks sample both poses over their cycles and reject unreachable limb targets. Down-to-drop uses the shared edge launch animation before gravity and parachute deployment.

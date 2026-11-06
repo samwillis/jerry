@@ -134,6 +134,7 @@ final class ExplorerRig: SKNode {
     var jumpPose: ExplorerPose?
     var grappleAim: WorldPoint?
     var usesHarnessPivot = false
+    var crackPose: ExplorerPose?
     var handTargets: (WorldPoint, WorldPoint)?
     var footTargets: (WorldPoint, WorldPoint)?
     var grabPoint = CGPoint(x: 0, y: 64)
@@ -298,13 +299,17 @@ final class ExplorerRig: SKNode {
         var pose = animator.advance(by: delta, synchronizedTime: synchronizedTime)
         // Both rope grips must read in front of the jacket, with the line between
         // the torso and gloves. Restore the usual far-arm stack for other motions.
-        let onRope = ropePose != nil || [.ropeClimbing, .ropeSwinging, .abseiling].contains(motion)
+        let onRope = crackPose != nil || ropePose != nil || [.ropeClimbing, .ropeSwinging, .abseiling].contains(motion)
         rightArm.zPosition = onRope ? 2 : 0
         leftArm.zPosition = onRope ? 3 : 0
         ropeBlendTime += delta.isFinite ? min(max(delta, 0), 0.1) : 0
         if let ropePose {
             let t = min(1, ropeBlendTime / 0.15)
             pose = ropePose.blended(from: ropeBlendFrom, fraction: t * t * (3 - 2 * t))
+        }
+        if let crackPose {
+            let t = min(1, ropeBlendTime / 0.18)
+            pose = crackPose.blended(from: ropeBlendFrom, fraction: t * t * (3 - 2 * t))
         }
         if let jumpPose {
             let t = min(1, ropeBlendTime / 0.04)

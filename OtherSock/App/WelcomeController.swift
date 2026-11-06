@@ -100,9 +100,9 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
         controls.addArrangedSubview(text("TAKE THE LEAD", size: 11, weight: .semibold, color: .secondaryLabelColor))
         let rows = [
             ["⌃ ⌥ Space", "Take or release control, from any app"],
-            ["Arrows / WASD", "Walk, climb, descend and swing"],
+            ["Arrows / WASD", "Walk, climb and swing; Up grabs a hold"],
             ["Shift", "Run / climb and abseil faster"],
-            ["Space / ↓ + Space", "Jump / drop through a ledge"],
+            ["Space / ↓", "Jump / step off a ledge and parachute"],
             ["Hold G + arrows", "Aim the grappling hook"],
             ["Release G", "Fire at the highlighted window rim"],
             ["E", "Click the marker—even while on a rope"],

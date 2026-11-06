@@ -94,15 +94,20 @@ final class KeyboardControlTests: XCTestCase {
         advance(&value, seconds: 20)
         XCTAssertEqual(value.attachment?.edge, .top)
     }
-    func testDescendingFromRoofConnectsLoweringToAbseil() {
+    func testDownStepsOffRoofAndParachutesWithoutCreatingRope() {
         var value = explorer(x: 324, y: 370)
         value.setControlDirection(horizontal: 0, vertical: -1)
-        advance(&value, seconds: 2)
-        XCTAssertNotNil(value.ropeSession)
-        XCTAssertEqual(value.ropeSession?.mode, .descending)
-        value.setControlDirection(horizontal: 0, vertical: 0)
-        advance(&value, seconds: 0.1)
-        XCTAssertEqual(value.ropeSession?.mode, .swinging)
+        advance(&value, seconds: 0.05)
+        XCTAssertEqual(value.state, .dropping)
+        XCTAssertNotNil(value.dropPose)
+        advance(&value, seconds: 1.4)
+        XCTAssertNil(value.ropeSession)
+        XCTAssertEqual(value.state, .recovering)
+        XCTAssertLessThan(value.position.y, 370)
+        XCTAssertGreaterThan(value.recoveryElapsed, 0.3)
+        advance(&value, seconds: 12)
+        XCTAssertEqual(value.attachment?.edge, .floor)
+        XCTAssertNotEqual(value.state, .dropping, "Holding Down must not repeatedly drop after landing")
     }
     func testLeavingControlInMidairUsesRecoveryAndClearsDirections() {
         var value = explorer()

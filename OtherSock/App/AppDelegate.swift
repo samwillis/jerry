@@ -16,16 +16,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var fasterRopeWork = UserDefaults.standard.bool(forKey: "fasterRopeWork")
     private var paceItem: NSMenuItem!
     private var debugItem: NSMenuItem?
+    private var interiorItem: NSMenuItem?
+    private var exploreInsideWindows = UserDefaults.standard.bool(forKey: "exploreInsideWindows")
     private var activitiesMenu: NSMenu!
     private let hotKey = ExplorerControlHotKey()
     private var isPaused = ProcessInfo.processInfo.arguments.contains("--paused")
     private var idleExploration = UserDefaults.standard.object(forKey: "idleExploration") as? Bool ?? !UserDefaults.standard.bool(forKey: "expeditionPaused")
     private var gentlePace = UserDefaults.standard.bool(forKey: "gentlePace")
-    #if DEBUG
     private var showsDebug = ProcessInfo.processInfo.arguments.contains("--debug-terrain") || UserDefaults.standard.bool(forKey: "debugGuides")
+    #if DEBUG
     private var playground: AnimationPlaygroundController?
-    #else
-    private var showsDebug = false
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -33,6 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay = OverlayController()
         overlay?.onKeyboardControlChanged = { [weak self] _ in self?.updateMenu() }
         overlay?.setIdleExploration(idleExploration)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--inside-windows") { exploreInsideWindows = true }
+        #endif
+        overlay?.setExploreInsideWindows(exploreInsideWindows)
         overlay?.setDebugVisible(showsDebug)
         overlay?.setGentlePace(gentlePace)
         overlay?.setRunWhenExploring(runWhenExploring)
@@ -51,6 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         workspace.addObserver(self, selector: #selector(spaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         workspace.addObserver(self, selector: #selector(frontAppChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--show-menu") {
+            DispatchQueue.main.async { [weak self] in self?.statusItem?.button?.performClick(nil) }
+        }
         if ProcessInfo.processInfo.arguments.contains("--playground") { openPlayground() }
         if ProcessInfo.processInfo.arguments.contains("--keyboard-control") { setPaused(false); overlay?.setKeyboardControl(true) }
         #endif
@@ -82,6 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         paceItem = add("Slow Movement", action: #selector(togglePace), to: settings)
         runningItem = add("Run When Exploring", action: #selector(toggleRunning), to: settings)
         ropePaceItem = add("Faster Rope Work", action: #selector(toggleRopePace), to: settings)
+        interiorItem = add("Explore Inside Windows…", action: #selector(toggleInterior), to: settings)
+        debugItem = add("Show Terrain Guides", action: #selector(toggleDebug), to: menu)
         _ = add("Allow Clicks in Other Apps…", action: #selector(allowClicks), to: settings)
         settings.addItem(.separator())
         _ = add("Bring Explorer Back to Desktop", action: #selector(resetExpedition), to: settings)
@@ -90,7 +99,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = add("Controls & Tips…", action: #selector(showTips), to: menu)
         #if DEBUG
         let development = NSMenu(title: "Developer Tools"); development.autoenablesItems = false
-        debugItem = add("Show Window Guides", action: #selector(toggleDebug), to: development)
         _ = add("Animation Playground…", action: #selector(openPlayground), to: development)
         let developmentItem = NSMenuItem(title: "Developer Tools", action: nil, keyEquivalent: "")
         developmentItem.submenu = development; menu.addItem(developmentItem)
@@ -157,6 +165,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         showsDebug.toggle(); UserDefaults.standard.set(showsDebug, forKey: "debugGuides")
         overlay?.setDebugVisible(showsDebug); updateMenu()
     }
+    @objc private func toggleInterior() {
+        if exploreInsideWindows {
+            exploreInsideWindows = false
+        } else if CGPreflightScreenCaptureAccess() {
+            exploreInsideWindows = true
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "Let him explore inside windows?"
+            alert.informativeText = "The Other Sock needs Screen Recording access to find ledges and cracks in window content. It analyses one window at a time on this Mac. Images are never saved or sent anywhere.\n\nAfter granting access in System Settings, turn this option on again."
+            alert.addButton(withTitle: "Allow Screen Recording")
+            alert.addButton(withTitle: "Cancel")
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            if CGRequestScreenCaptureAccess() { exploreInsideWindows = true }
+            else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") { NSWorkspace.shared.open(url) }
+        }
+        UserDefaults.standard.set(exploreInsideWindows, forKey: "exploreInsideWindows")
+        overlay?.setExploreInsideWindows(exploreInsideWindows); updateMenu()
+    }
     @objc private func togglePace() {
         gentlePace.toggle(); UserDefaults.standard.set(gentlePace, forKey: "gentlePace")
         overlay?.setGentlePace(gentlePace); updateMenu()
@@ -199,6 +226,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateMenu() {
         idleItem?.state = idleExploration ? .on : .off
         debugItem?.state = showsDebug ? .on : .off
+        interiorItem?.state = exploreInsideWindows ? .on : .off
+        interiorItem?.toolTip = overlay?.windowExplorationStatus
         paceItem?.state = gentlePace ? .on : .off
         runningItem?.state = runWhenExploring ? .on : .off
         ropePaceItem?.state = fasterRopeWork ? .on : .off
@@ -226,6 +255,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuNeedsUpdate(activitiesMenu)
         var passed = true
         func check(_ result: Bool, _ name: String) { print("NATIVE \(result ? "PASS" : "FAIL") \(name)"); passed = passed && result }
+        check(statusItem?.menu?.items.contains { $0.title == "Show Terrain Guides" && $0.action == #selector(toggleDebug) } == true, "terrain guide toggle is available in the main menu")
+        check(interiorItem?.title == "Explore Inside Windows…", "window pixel exploration has an explicit opt-in setting")
         let commands = activitiesMenu.items.filter { $0.action != nil }
         check(commands.count == ExplorerActivity.allCases.count - 1, "Actions contains explicit activities without duplicate automatic mode")
         let rope = commands.first { $0.tag == ExplorerActivity.allCases.firstIndex(of: .abseil) }

@@ -19,6 +19,11 @@ final class OverlayController {
     private var displayOrigin = CGPoint.zero
     private let windowProvider = WindowProvider()
     private var terrainTimer: Timer?
+    private var featureTimer: Timer?
+    private let featureCapture = WindowFeatureCapture()
+    private var geometry: TerrainSnapshot?
+    private var lastGeometryTime: TimeInterval?
+    private var geometrySampleElapsed = 0.1
     private var policy = RuntimePolicy()
     private var desktopCheck: DispatchWorkItem?
     private var terrainRefreshCount = 0
@@ -115,6 +120,15 @@ final class OverlayController {
                 self.refreshTerrain()
             }
         }
+        featureCapture.onFeatures = { [weak self] _ in self?.publishTerrain() }
+        let featureTimer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.policy.shouldPollTerrain, self.featureCapture.enabled else { return }
+                self.publishTerrain()
+            }
+        }
+        self.featureTimer = featureTimer
+        RunLoop.main.add(featureTimer, forMode: .common)
         terrainTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
@@ -151,8 +165,24 @@ final class OverlayController {
     private func refreshTerrain() {
         terrainRefreshCount += 1
         guard let screen = NSScreen.screens.first else { return }
-        scene.updateTerrain(windowProvider.snapshot(on: screen))
+        let now = ProcessInfo.processInfo.systemUptime
+        geometrySampleElapsed = lastGeometryTime.map { max(1.0 / 120, now - $0) } ?? 0.1
+        lastGeometryTime = now
+        geometry = windowProvider.snapshot(on: screen)
+        if let geometry { featureCapture.update(terrain: geometry, preferredWindow: scene.attachedWindowID, running: policy.shouldRun) }
+        publishTerrain()
     }
+
+    private func publishTerrain() {
+        guard let geometry else { scene.updateTerrain(nil); return }
+        scene.updateTerrain(TerrainSnapshot(windows: geometry.windows, viewport: geometry.viewport, features: featureCapture.currentFeatures()), geometrySampleElapsed: geometrySampleElapsed)
+    }
+    func setExploreInsideWindows(_ enabled: Bool) {
+        featureCapture.enabled = enabled
+        if !enabled { featureCapture.stop() }
+        refreshTerrain()
+    }
+    var windowExplorationStatus: String { featureCapture.status }
 
     func setPaused(_ paused: Bool) {
         if paused { setKeyboardControl(false) }
@@ -235,7 +265,7 @@ final class OverlayController {
     }
 
     private func applyPolicy() {
-        if !policy.shouldRun { setKeyboardControl(false) }
+        if !policy.shouldRun { setKeyboardControl(false); featureCapture.stop() }
         if policy.shouldRun { refreshTerrain() }
         scene.setExpeditionPaused(!policy.shouldRun)
         if policy.shouldShow { show() }
@@ -272,6 +302,7 @@ final class OverlayController {
         keyboard.close()
         desktopCheck?.cancel()
         renderPauseWork?.cancel()
+        featureCapture.stop(); featureTimer?.invalidate(); featureTimer = nil
         terrainTimer?.invalidate()
         terrainTimer = nil
         inputView.cancelDrag()
@@ -306,6 +337,16 @@ final class OverlayController {
         shadowRig.position.y = 180
         shadowRig.setShadowOcclusion(windows: [.init(x: 180, y: 0, width: 200, height: 200)], from: shadowSpace)
         check(shadowRig.shadowIsVisible(at: .init(x: 0, y: -1)), "hanging in front of a window keeps its cast shadow")
+        var crackClamps = 0
+        for horizontal in [true, false] {
+            for step in 0..<120 {
+                shadowRig.crackPose = CrackAnimation.pose(horizontal: horizontal, time: Double(step) / 60, offset: Double(step))
+                shadowRig.select(.climbing); shadowRig.render(delta: 0.1)
+                crackClamps += shadowRig.clampedContacts
+            }
+        }
+        check(crackClamps == 0, "crack traverse and vertical climbing stay inside limb reach")
+        shadowRig.crackPose = nil
         show()
         check(panel.isVisible && inputPanel.isVisible, "both panels visible")
         check(panel.ignoresMouseEvents && !inputPanel.ignoresMouseEvents, "input confined to body panel")

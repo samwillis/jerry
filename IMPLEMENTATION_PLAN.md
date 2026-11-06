@@ -234,3 +234,12 @@ Replaced the long alert with a reusable welcome guide: the actual animated explo
 ## Optional running and faster work — 6 November 2026
 
 Implemented Shift-running with a separate, gait-matched run and airborne stride phase, plus Shift for faster wall climbing, rope climbing and abseiling. Persistent Settings options Run When Exploring and Faster Rope Work make the respective speeds optional defaults. The first enables running on longer automatic walking legs; explicit Walk actions retain walking. Rope work speeds the motor/pull clock without changing gravity or pendulum timing. Settings do not enable idle exploration by themselves. The welcome guide documents Shift.
+
+
+## Internal window terrain and tracking — 6 November 2026
+
+Implemented optional ScreenCaptureKit window analysis with explicit Screen Recording opt-in, local RGB boundary/line detection, a public terrain-guide toggle in both build configurations, and a bounded background capture pipeline. Feature IDs include their host window and survive scrolling through appearance matching and image registration. Window-relative geometry and feature-relative attachments combine window motion with content motion. Short bounded prediction bridges captured frames; stale, obscured or invalid holds trigger recovery.
+
+Standing ledges participate in swept landing, walking, route planning and sock missions. Horizontal cracks use a planted-hand traverse; vertical boundaries/cracks use braced climbing with downward elbows and contacts within rig reach. The graph joins nearby intersecting holds. Manual Up transfers from the shared rope to a nearby hold with a short reach/blend; slow autonomous rope work can transfer too. Manual input, interaction clicks and grappling remain available after transfer. Down from horizontal support steps off or releases into parachute recovery, with a latch preventing repeated drops while the key is held; ropes and vertical routes keep downward climbing.
+
+Validation includes synthetic classification/scrolling/occlusion/physics tests, real captured moving test-window content, native menu and limb-reach checks, and a disposable scroll-wheel fixture. The first implementation analyses one prioritized window, not every desktop window, and uses conservative straight-line terrain. Tracking across discontinuous reflow is intentionally rejected rather than guessing a new attachment.

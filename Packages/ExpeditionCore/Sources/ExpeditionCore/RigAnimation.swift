@@ -450,3 +450,35 @@ public enum RopeAnimation {
         return pose
     }
 }
+
+
+/// Hanging traverse and narrow vertical crack contacts. Both elbows bend down;
+/// the feet brace and search instead of using the standing/walking pose.
+public enum CrackAnimation {
+    public static func pose(horizontal: Bool, time: Double, offset: Double) -> ExplorerPose {
+        var pose = ExplorerPose()
+        let phase = time * .pi * 2
+        pose.leftElbowBend = -1; pose.rightElbowBend = -1
+        pose.hips = .init(x: horizontal ? 0 : 2, y: 25)
+        if horizontal {
+            func grip(_ phaseOffset: Double, x: Double) -> WorldPoint {
+                let cycle = offset / 30 + phaseOffset
+                let phase = cycle - floor(cycle)
+                let swing = max(0, (phase - 0.65) / 0.35)
+                let reach = swing * swing * (3 - 2 * swing) * 30
+                return .init(x: x + 9 - phase * 30 + reach, y: 58 - sin(swing * .pi) * 5)
+            }
+            pose.leftHand = grip(0, x: -10); pose.rightHand = grip(0.5, x: 10)
+            pose.leftFoot = .init(x: -10, y: 4 + max(0, sin(phase)) * 5)
+            pose.rightFoot = .init(x: 10, y: 4 + max(0, -sin(phase)) * 5)
+        } else {
+            let contacts = ClimbingContacts(heightAlongWall: offset)
+            pose.leftHand = .init(x: 11, y: contacts.leftHand.y)
+            pose.rightHand = .init(x: 14, y: contacts.rightHand.y)
+            pose.leftFoot = .init(x: 11, y: contacts.leftFoot.y)
+            pose.rightFoot = .init(x: 14, y: contacts.rightFoot.y)
+        }
+        pose.headTilt = -0.08
+        return pose
+    }
+}
