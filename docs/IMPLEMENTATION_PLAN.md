@@ -8,7 +8,7 @@ The product concept and later ideas live in [PLAN.md](PLAN.md). This document de
 
 ## Current status
 
-Phases 1–7 are implemented for the local, single-display macOS prototype. The latest increment connects real desktop travel, the repeating sock hunt, saved menu preferences, lifecycle guards, and Release packaging. Verification and practical limits are recorded in [prototype validation](docs/PROTOTYPE_VALIDATION.md); this does not claim full-screen traversal, a Windows port, or public distribution readiness.
+Phases 1–7 are implemented for the local, single-display macOS prototype. The latest increment connects real desktop travel, the repeating sock hunt, saved menu preferences, lifecycle guards, and Release packaging. Verification and practical limits are recorded in [prototype validation](PROTOTYPE_VALIDATION.md); this does not claim full-screen traversal, a Windows port, or public distribution readiness.
 
 ## Initial technical decisions
 
@@ -52,14 +52,14 @@ Create directories as their implementation becomes necessary, rather than adding
 ## 1. Establish a runnable shell
 
 1. Inspect the installed Xcode/Swift toolchain and choose a supported deployment target.
-2. Create the app target, the core package, and a short README with build and launch instructions.
+2. Create the app target and core package, with a public README and build/launch instructions in the root AGENTS.md.
 3. Implement the menu bar controls and one transparent overlay on the main display.
 4. Draw a placeholder explorer and verify that the overlay does not activate the app or capture keyboard focus.
 5. Add a development-only terrain/debug toggle.
 
 Acceptance: launch and quit reliably; type, scroll, select text, and drag underlying windows normally while the placeholder is visible. Pause stops animation; quit removes every app-owned panel.
 
-Implementation status (5 November 2026): app shell, local core package, Xcode target/shared scheme, click-through overlay, placeholder idle animation, menu controls, and debug guides are implemented. The Debug build and initial launch/rendering passed. See [manual checks](docs/MANUAL_TESTS.md) for remaining interactive acceptance checks.
+Implementation status (5 November 2026): app shell, local core package, Xcode target/shared scheme, click-through overlay, placeholder idle animation, menu controls, and debug guides are implemented. The Debug build and initial launch/rendering passed. See [manual checks](MANUAL_TESTS.md) for remaining interactive acceptance checks.
 
 ## 2. Prove dragging before adding movement
 
@@ -103,7 +103,7 @@ Build a development-only preview window before connecting full movement to real 
 
 Acceptance: preview every movement at actual desktop scale; hands and feet stay attached during contact, limbs bend consistently in both facing directions, and dragging interrupts any pose cleanly. The first comic sequence is an explorer walking to an edge, looking down, changing its mind, and being picked up by the user.
 
-Implementation status (5 November 2026): phase four is implemented with a shared shape rig, two-bone IK, anatomical bend poles, numeric pose blending, idle/walk/climb/abseil/parachute/held/investigation clips, and a looping edge-hesitation comic sequence. The Debug-only playground includes an actual-size comparison, 1–3× zoom, 0.1–1× playback, pause/restart, facing/background controls, joint/contact debugging, tunable cadence/stride/bounce, and draggable contacts, anchor, pivot, and body. The desktop reuses the rig for resting, held, and recovery states. Debug and Release builds pass; 34 core tests pass. Native previews and interaction checks are documented in docs/MANUAL_TESTS.md. The user's knee/foot-direction feedback was addressed by consistent knee and elbow pole targets. [Animation workflow](docs/ANIMATION_WORKFLOW.md) documents the rig and future drawing/integration tasks. Finished bitmap artwork and real climbing routes remain subsequent work.
+Implementation status (5 November 2026): phase four is implemented with a shared shape rig, two-bone IK, anatomical bend poles, numeric pose blending, idle/walk/climb/abseil/parachute/held/investigation clips, and a looping edge-hesitation comic sequence. The Debug-only playground includes an actual-size comparison, 1–3× zoom, 0.1–1× playback, pause/restart, facing/background controls, joint/contact debugging, tunable cadence/stride/bounce, and draggable contacts, anchor, pivot, and body. The desktop reuses the rig for resting, held, and recovery states. Debug and Release builds pass; 34 core tests pass. Native previews and interaction checks are documented in docs/MANUAL_TESTS.md. The user's knee/foot-direction feedback was addressed by consistent knee and elbow pole targets. [Animation workflow](ANIMATION_WORKFLOW.md) documents the rig and future drawing/integration tasks. Finished bitmap artwork and real climbing routes remain subsequent work.
 
 ### Agent workflow for animation and drawing
 
@@ -149,7 +149,7 @@ Implement a state machine with explicit entry, update, and exit behaviour:
 
 Acceptance: walk to an edge, climb, abseil, parachute, and land on real windows. Repeat while moving, closing, and covering windows, and while dragging the explorer during each movement type.
 
-Implementation status (5 November 2026): fixed 120 Hz stepping with bounded catch-up, seeded surface routing, real top walking, side climbing, window-anchored abseiling, steered parachuting, swept landing, and route continuation after landing are implemented. Current and upcoming transitions are revalidated against fresh terrain. Grabbing cancels navigation immediately, including while paused. The shared rig receives facing and world-stable climbing contacts; recovery retains release momentum. Reset Expedition provides an escape hatch. The `recovering` movement state contains the initial falling/deployment and open-canopy subphases; investigation is controlled by the mission stage rather than a second movement controller. See the focused movement tests and native evidence in [prototype validation](docs/PROTOTYPE_VALIDATION.md).
+Implementation status (5 November 2026): fixed 120 Hz stepping with bounded catch-up, seeded surface routing, real top walking, side climbing, window-anchored abseiling, steered parachuting, swept landing, and route continuation after landing are implemented. Current and upcoming transitions are revalidated against fresh terrain. Grabbing cancels navigation immediately, including while paused. The shared rig receives facing and world-stable climbing contacts; recovery retains release momentum. Reset Expedition provides an escape hatch. The `recovering` movement state contains the initial falling/deployment and open-canopy subphases; investigation is controlled by the mission stage rather than a second movement controller. See the focused movement tests and native evidence in [prototype validation](PROTOTYPE_VALIDATION.md).
 
 Refinement (6 November 2026): added phase-synchronised walking and climbing, a stable knee branch with lower climbing contacts, explicit mantle/lower/launch beats, a top-pinned rope that follows rounded corners with tangent joins, and a menu for requesting specific real-terrain activities. Manual requests queue through unsafe interruptions and rest when complete; automatic adventures can be restored from the same submenu.
 
@@ -178,7 +178,7 @@ Implementation status (5 November 2026): the deterministic mission director sele
 
 Acceptance: use the prototype during an ordinary work session without input interference, stuck characters, or accumulating panels. Document known limitations instead of claiming unsupported display or Space behaviour works.
 
-Implementation status (5 November 2026): Pause, Gentle Pace, and guide preferences persist. Pause suspends simulation and routine geometry polling, with dragging still available. Sleep/Space/foreground-app notifications drive visibility guards; return refreshes terrain and resets clocks while preserving explicit pause. The explorer remains on the primary display and resets safely after display changes. Duplicate app instances are prevented. `scripts/package.sh` produces a local Release app/archive. Automated core/soak tests, native AppKit lifecycle checks, runtime observations, performance samples, and known OS limitations are recorded in [prototype validation](docs/PROTOTYPE_VALIDATION.md). Signing/notarisation remains a distribution increment, as scoped above.
+Implementation status (5 November 2026): Pause, Gentle Pace, and guide preferences persist. Pause suspends simulation and routine geometry polling, with dragging still available. Sleep/Space/foreground-app notifications drive visibility guards; return refreshes terrain and resets clocks while preserving explicit pause. The explorer remains on the primary display and resets safely after display changes. Duplicate app instances are prevented. `scripts/package.sh` produces a local Release app/archive. Automated core/soak tests, native AppKit lifecycle checks, runtime observations, performance samples, and known OS limitations are recorded in [prototype validation](PROTOTYPE_VALIDATION.md). Signing/notarisation remains a distribution increment, as scoped above.
 
 ## Verification
 
