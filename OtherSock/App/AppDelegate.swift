@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var activitiesMenu: NSMenu!
     private var isPaused = ProcessInfo.processInfo.arguments.contains("--paused") || UserDefaults.standard.bool(forKey: "expeditionPaused")
     private var gentlePace = UserDefaults.standard.bool(forKey: "gentlePace")
+    private var keyboardItem: NSMenuItem!
     private var paceItem: NSMenuItem!
     private var showsDebug = ProcessInfo.processInfo.arguments.contains("--debug-terrain") || UserDefaults.standard.bool(forKey: "debugGuides")
     #if DEBUG
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenu()
         overlay = OverlayController()
+        overlay?.onKeyboardControlChanged = { [weak self] _ in self?.updateMenu() }
         overlay?.setDebugVisible(showsDebug)
         overlay?.setGentlePace(gentlePace)
         overlay?.setPaused(isPaused)
@@ -31,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         workspace.addObserver(self, selector: #selector(frontAppChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--playground") { openPlayground() }
+        if ProcessInfo.processInfo.arguments.contains("--keyboard-control") { setPaused(false); overlay?.setKeyboardControl(true) }
         #endif
         NotificationCenter.default.addObserver(
             self, selector: #selector(displaysChanged),
@@ -60,6 +63,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #if DEBUG
         _ = add("Animation Playground…", action: #selector(openPlayground), to: menu)
         #endif
+        menu.addItem(.separator())
+        keyboardItem = add("Control Explorer with Keyboard…", action: #selector(toggleKeyboard), to: menu)
+        _ = add("Allow Explorer Clicks…", action: #selector(allowClicks), to: menu)
         menu.addItem(.separator())
         _ = add("Quit The Other Sock", action: #selector(quit), to: menu)
         activitiesMenu = NSMenu(title: "Activities")
@@ -101,6 +107,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay?.requestActivity(ExplorerActivity.allCases[sender.tag])
     }
 
+    @objc private func toggleKeyboard() {
+        guard let overlay else { return }
+        let enable = !overlay.keyboardControlEnabled
+        if enable { setPaused(false) }
+        overlay.setKeyboardControl(enable)
+        updateMenu()
+    }
+    @objc private func allowClicks() { overlay?.requestClickAccess() }
+
     @objc private func pause() { setPaused(true) }
     @objc private func resume() { setPaused(false) }
     private func setPaused(_ paused: Bool) {
@@ -136,6 +151,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         resumeItem.isEnabled = isPaused
         debugItem.state = showsDebug ? .on : .off
         paceItem.state = gentlePace ? .on : .off
+        keyboardItem?.state = overlay?.keyboardControlEnabled == true ? .on : .off
+        keyboardItem?.title = overlay?.keyboardControlEnabled == true ? "Stop Keyboard Control" : "Control Explorer with Keyboard…"
         statusItem?.button?.toolTip = "The Other Sock — expedition \(isPaused ? "paused" : "running")"
     }
 

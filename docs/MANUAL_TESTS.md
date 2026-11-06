@@ -146,3 +146,15 @@ Automated equivalents and native observations are in [prototype validation](PROT
 - While hanging in front, switch between Abseil, Climb rope and Swing on rope; retain the same attachment and momentum. Move/close the supporting window.
 - A side approach must still preserve tangent joins around its rounded corner.
 - Developer fixture: `TerrainFixture --front-only` shows one high window for the upward-shot check.
+
+### Keyboard and desktop interaction
+
+- [x] Open Keyboard Control and use Right/A/D: movement starts and stops on key release; the control window owns focus.
+- [x] Use G then Up/Down to control one physical rope. Space jumps off it. Esc closes control mode.
+- [ ] From a roof, walk to its edge and Down to lower into abseiling; release Down to hold the line.
+- [ ] Jump onto a low platform; Down + Space drops through it; repeated Space cannot double jump.
+- [ ] Switch apps while holding a movement key: control ends and normal typing works; no stuck movement on re-entry.
+- [ ] Grant Accessibility to the final app via Allow Explorer Clicks. Place the visible crosshair over a disposable button and press E once. Verify one action; holding E must not repeat it.
+- [ ] Developer fixture `TerrainFixture --click-target` exposes a counter button. Check AXPress on that button, and check fallback mouse clicking on an appropriate custom canvas control.
+- [ ] After clicking a text field that takes focus, type in the target app normally. Re-enter keyboard control explicitly to move again.
+- [x] Native checks verify denied permission sends no click. Granted-permission clicks remain unverified in the current context.

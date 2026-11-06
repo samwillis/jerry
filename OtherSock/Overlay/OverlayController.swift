@@ -23,6 +23,9 @@ final class OverlayController {
     private var desktopCheck: DispatchWorkItem?
     private var terrainRefreshCount = 0
     private var characterHeld = false
+    private let keyboard = ExplorerKeyboardController()
+    private var clickPending = false
+    var onKeyboardControlChanged: ((Bool) -> Void)?
     private var renderPauseWork: DispatchWorkItem?
 
     init() {
@@ -77,6 +80,7 @@ final class OverlayController {
         }
         inputView.onBegin = { [weak self] point in
             guard let self else { return }
+            self.setKeyboardControl(false)
             self.scene.beginDrag(at: self.scenePoint(point))
         }
         inputView.onDrag = { [weak self] point in
@@ -86,6 +90,14 @@ final class OverlayController {
         inputView.onEnd = { [weak self] in
             self?.refreshTerrain()
             self?.scene.endDrag()
+        }
+        keyboard.onDirection = { [weak self] x, y in self?.scene.setControlDirection(x, y) }
+        keyboard.onJump = { [weak self] in self?.scene.controlJump() }
+        keyboard.onGrapple = { [weak self] in self?.scene.controlGrapple() }
+        keyboard.onInteract = { [weak self] in self?.clickAtExplorer() }
+        keyboard.onStop = { [weak self] in
+            self?.scene.setKeyboardControl(false)
+            self?.onKeyboardControlChanged?(false)
         }
         updateDisplay()
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
@@ -103,12 +115,13 @@ final class OverlayController {
     }
 
     func show() {
-        guard policy.shouldShow else { return }
+        guard policy.shouldShow, !clickPending else { return }
         panel.orderFrontRegardless()
         inputPanel.order(.above, relativeTo: panel.windowNumber)
     }
 
     func updateDisplay() {
+        setKeyboardControl(false)
         // The first screen owns the menu bar. Do not follow whichever screen has keyboard focus.
         guard let screen = NSScreen.screens.first else {
             policy.desktopSupported = false
@@ -133,13 +146,50 @@ final class OverlayController {
     }
 
     func setPaused(_ paused: Bool) {
+        if paused { setKeyboardControl(false) }
         policy.manuallyPaused = paused
         if paused { applyPolicy() } else { checkDesktop() }
     }
 
+    var keyboardControlEnabled: Bool { keyboard.isControlling }
+    func setKeyboardControl(_ enabled: Bool) {
+        if enabled {
+            guard policy.shouldShow else { return }
+            setPaused(false)
+            scene.setKeyboardControl(true)
+            keyboard.start()
+            onKeyboardControlChanged?(true)
+        } else { keyboard.stop() }
+    }
+    func requestClickAccess() {
+        ExplorerDesktopClick.requestAccess()
+        keyboard.showMessage("Enable The Other Sock in Privacy & Security → Accessibility, then return to keyboard control.")
+    }
+    private func clickAtExplorer() {
+        guard keyboard.isControlling, !clickPending, let local = scene.keyboardClickPoint,
+              let screen = NSScreen.screens.first else { return }
+        guard ExplorerDesktopClick.hasAccess else { requestClickAccess(); return }
+        let cocoa = CGPoint(x: local.x + displayOrigin.x, y: local.y + displayOrigin.y)
+        guard !keyboard.panel.frame.contains(cocoa) else {
+            keyboard.showMessage("Move the marker away from the keyboard-control window."); return
+        }
+        let point = ExplorerDesktopClick.quartzPoint(cocoa, primaryTop: screen.frame.maxY)
+        clickPending = true
+        keyboard.clearDirections()
+        panel.orderOut(nil); inputPanel.orderOut(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+            guard let self else { return }
+            if self.keyboard.isControlling && self.policy.shouldRun {
+                self.keyboard.showMessage(ExplorerDesktopClick.press(at: point))
+            }
+            self.clickPending = false
+            if self.policy.shouldShow { self.show() }
+        }
+    }
+
     var activityStatus: String { scene.activityStatus }
     var availableActivities: Set<ExplorerActivity> { scene.availableActivities }
-    func requestActivity(_ activity: ExplorerActivity) { refreshTerrain(); scene.requestActivity(activity) }
+    func requestActivity(_ activity: ExplorerActivity) { setKeyboardControl(false); refreshTerrain(); scene.requestActivity(activity) }
 
     func setGentlePace(_ gentle: Bool) { scene.playbackRate = gentle ? 0.65 : 1 }
 
@@ -169,6 +219,7 @@ final class OverlayController {
     }
 
     private func applyPolicy() {
+        if !policy.shouldRun { setKeyboardControl(false) }
         if policy.shouldRun { refreshTerrain() }
         scene.setExpeditionPaused(!policy.shouldRun)
         if policy.shouldShow { show() }
@@ -197,11 +248,12 @@ final class OverlayController {
         } else { view.isPaused = true }
     }
 
-    func resetExpedition() { refreshTerrain(); scene.resetExpedition() }
+    func resetExpedition() { setKeyboardControl(false); refreshTerrain(); scene.resetExpedition() }
 
     func setDebugVisible(_ visible: Bool) { scene.setDebugVisible(visible) }
 
     func close() {
+        keyboard.close()
         desktopCheck?.cancel()
         renderPauseWork?.cancel()
         terrainTimer?.invalidate()
@@ -257,6 +309,36 @@ final class OverlayController {
         check(policy.shouldRun && panel.isVisible && inputPanel.isVisible, "return refreshes and resumes")
         resetExpedition()
         check(NSWorkspace.shared.frontmostApplication?.processIdentifier == focus, "launch/reset/lifecycle preserve frontmost app")
+        let previousApp = NSWorkspace.shared.frontmostApplication
+        var direction = CGPoint.zero, jumps = 0, clicks = 0
+        let tester = ExplorerKeyboardController()
+        tester.onDirection = { x, y in direction = .init(x: x, y: y) }
+        tester.onJump = { jumps += 1 }
+        tester.onInteract = { clicks += 1 }
+        tester.start()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.08))
+        check(tester.isControlling && tester.panel.canBecomeKey && !panel.canBecomeKey, "keyboard mode has its own key-capable window")
+        func key(_ code: UInt16, down: Bool = true, repeatKey: Bool = false, flags: NSEvent.ModifierFlags = []) -> NSEvent {
+            NSEvent.keyEvent(with: down ? .keyDown : .keyUp, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: tester.panel.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: repeatKey, keyCode: code)!
+        }
+        check(tester.routeKey(key(124)) == nil && direction.x == 1, "arrow key is consumed and starts player movement")
+        _ = tester.routeKey(key(0))
+        check(direction.x == 0, "opposite movement keys cancel")
+        _ = tester.routeKey(key(0, down: false)); _ = tester.routeKey(key(124, down: false))
+        check(direction == .zero, "key release clears movement")
+        _ = tester.routeKey(key(49)); _ = tester.routeKey(key(49, repeatKey: true))
+        _ = tester.routeKey(key(14)); _ = tester.routeKey(key(14, repeatKey: true))
+        check(jumps == 1 && clicks == 1, "jump and click fire once rather than on key repeat")
+        check(tester.routeKey(key(14, flags: .command)) != nil && clicks == 1, "command shortcuts pass through without clicking")
+        _ = tester.routeKey(key(53))
+        check(!tester.isControlling && !tester.panel.isVisible && direction == .zero, "Escape ends capture and clears held directions")
+        tester.close()
+        check(ExplorerDesktopClick.quartzPoint(.init(x: 120, y: 240), primaryTop: 900) == .init(x: 120, y: 660), "click marker converts to Quartz coordinates")
+        if !ExplorerDesktopClick.hasAccess {
+            check(ExplorerDesktopClick.press(at: .zero).hasPrefix("Allow"), "desktop click is gated without Accessibility permission")
+        }
+        print("NATIVE INFO Accessibility permission: \(ExplorerDesktopClick.hasAccess)")
+        previousApp?.activate(options: [])
         close()
         check(!panel.isVisible && !inputPanel.isVisible && terrainTimer == nil, "close removes panels and timer")
         return passed

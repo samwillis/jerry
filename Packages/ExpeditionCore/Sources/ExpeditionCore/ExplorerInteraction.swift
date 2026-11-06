@@ -18,10 +18,15 @@ public struct ExplorerInteraction {
         }
     }
 
-    public enum State: String { case idle, held, settling, recovering, walking, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
+    public enum State: String { case idle, held, settling, recovering, jumping, walking, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
     public private(set) var position: Point
     public private(set) var state: State = .idle
     public private(set) var attachment: TerrainAttachment?
+    public private(set) var keyboardControlEnabled = false
+    public private(set) var controlHorizontal = 0.0
+    public private(set) var controlVertical = 0.0
+    private var controlVelocity = Point.zero
+    private var dropThroughRemaining = 0.0
     public var autonomous = false
     public var runsMission = false
     public private(set) var mission = BananaMission()
@@ -32,6 +37,7 @@ public struct ExplorerInteraction {
     private var ropeContinuation: [TravelStep] = []
     private var physicalRelease = false
     public var activityStatus: String {
+        if keyboardControlEnabled { return "Keyboard control: \(state.rawValue)" }
         if let pendingActivity { return "Queued: \(pendingActivity.title)" }
         if let activityIssue { return activityIssue }
         if let ropeSession {
@@ -244,6 +250,10 @@ public struct ExplorerInteraction {
         while accumulator + 0.0000001 >= dt {
             accumulator -= dt
             simulationSteps += 1
+            if keyboardControlEnabled {
+                advanceKeyboardControl(by: dt)
+                continue
+            }
             if ropeSession != nil && ropeSession?.mode != .supported {
                 advanceRope(by: dt)
             } else if state == .walking || state == .climbing || state == .abseiling || state == .traversingEdge {
@@ -407,7 +417,7 @@ public struct ExplorerInteraction {
             }
             return
         }
-        guard state != .recovering else { return }
+        guard state != .recovering && state != .jumping else { return }
         if let (anchor, supported) = TerrainSupport.attach(at: position, in: terrain) {
             attachment = anchor
             position = supported
@@ -657,4 +667,155 @@ public struct ExplorerInteraction {
         state = .settling
         settlingRemaining = 0.8
     }
+
+    /// Local keyboard input belongs to an explicit play session, never a global hook.
+    public mutating func setKeyboardControl(_ enabled: Bool) {
+        guard keyboardControlEnabled != enabled else { return }
+        let corner = state == .traversingEdge ? route : []
+        if enabled, corner.isEmpty, let terrain {
+            // A walking route's stored attachment is its start, not its current
+            // interpolated stand point. Capture the current support before cancelling.
+            if let current = currentSupport, let point = TerrainSupport.resolve(current, in: terrain), hypot(point.x - position.x, point.y - position.y) < 2 {
+                attachment = current
+            } else { attachment = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1)?.0 }
+        }
+        keyboardControlEnabled = enabled
+        controlHorizontal = 0; controlVertical = 0
+        mission.cancel(); runsMission = !enabled
+        requestedActivity = nil; pendingActivity = nil
+        route.removeAll(); afterLanding.removeAll(); flightContinuation.removeAll(); ropeContinuation.removeAll()
+        flightGoal = nil
+        if !corner.isEmpty { route = corner; return } // Finish an in-progress corner safely.
+        if enabled {
+            controlVelocity = state == .recovering ? flightVelocity : .zero
+            if ropeSession != nil { ropeSession?.climbsAfterSwing = false }
+            else if attachment != nil { state = .idle }
+            else { state = .jumping }
+        } else if state == .jumping {
+            releaseRope(velocity: controlVelocity)
+        } else if ropeSession != nil {
+            ropeSession?.climbsAfterSwing = true
+            if ropeSession?.mode == .swinging { ropeSession?.switchMode(.climbing) }
+        } else { state = attachment == nil ? .recovering : .idle }
+    }
+
+    public mutating func setControlDirection(horizontal: Double, vertical: Double) {
+        controlHorizontal = min(1, max(-1, horizontal))
+        controlVertical = min(1, max(-1, vertical))
+    }
+
+    public mutating func controlJump() {
+        guard keyboardControlEnabled, state != .held, state != .traversingEdge else { return }
+        if let session = ropeSession {
+            controlVelocity = session.releaseVelocity
+            controlVelocity.y = max(250, controlVelocity.y)
+            controlVelocity.x += facing * 65
+            ropeSession = nil; ropeContinuation.removeAll(); attachment = nil
+        } else {
+            guard attachment != nil else { return } // No mid-air double jumps.
+            controlVelocity = .init(x: controlHorizontal * 80, y: controlVertical < 0 ? -30 : 260)
+            if controlVertical < 0 { dropThroughRemaining = 0.3 }
+            attachment = nil
+        }
+        route.removeAll(); state = .jumping
+    }
+
+    public mutating func controlGrapple() {
+        guard keyboardControlEnabled, ropeSession == nil, let source = currentSupport,
+              let graph, let terrain,
+              let shot = graph.grappleSteps(from: source).min(by: {
+                  guard let a = TerrainSupport.resolve($0.to, in: terrain), let b = TerrainSupport.resolve($1.to, in: terrain) else { return false }
+                  return hypot(a.x - position.x, a.y - position.y) < hypot(b.x - position.x, b.y - position.y)
+              }) else { return }
+        let finish = graph.frontMantle(from: shot.to) ?? graph.steps.first { $0.kind == .mantling && $0.from == shot.to }
+        _ = follow([shot] + (finish.map { [$0] } ?? []))
+        ropeSession?.climbsAfterSwing = false
+    }
+
+    private mutating func advanceKeyboardControl(by dt: Double) {
+        guard state != .held, let terrain else { return }
+        dropThroughRemaining = max(0, dropThroughRemaining - dt)
+        if state == .traversingEdge { advanceTravel(by: dt); return }
+        if var session = ropeSession, session.mode != .supported || controlVertical != 0 {
+            let mode: RopeSession.Mode = controlVertical > 0 ? .climbing : (controlVertical < 0 ? .descending : .swinging)
+            session.climbsAfterSwing = false
+            if session.mode == .firing { session.modeAfterLatch = mode }
+            else if session.mode != mode { session.switchMode(mode) }
+            if session.mode != .firing, abs(session.body.velocity.x) < 220 {
+                session.addImpulse(.init(x: controlHorizontal * 100 * dt, y: 0))
+            }
+            ropeSession = session
+            advanceRope(by: dt)
+            return
+        }
+        if state == .recovering { state = .jumping; controlVelocity = flightVelocity }
+        if state == .jumping || attachment == nil {
+            let previous = position
+            controlVelocity.x = controlHorizontal * 80
+            controlVelocity.y -= RopeDynamics.gravity * dt
+            position.x += controlVelocity.x * dt; position.y += controlVelocity.y * dt
+            clampPosition()
+            if controlVelocity.y < 0, dropThroughRemaining <= 0,
+               let (anchor, point) = TerrainSupport.landing(from: previous, to: position, in: terrain) {
+                attachment = anchor; position = point; controlVelocity = .zero
+                state = .settling; settlingRemaining = 0.12
+            } else if position.y <= bounds.minimum.y {
+                attachment = TerrainSupport.attach(at: position, in: terrain)?.0
+                controlVelocity = .zero; state = .idle
+            } else { state = .jumping }
+            return
+        }
+        // Up/down grabs an exposed side within arm's reach. Front-of-window
+        // climbing uses G and the shared rope, rather than an invisible wall.
+        if controlVertical != 0, attachment?.edge == .top || attachment?.edge == .floor {
+            if controlVertical < 0, let source = attachment,
+               let lowering = graph?.steps.first(where: { $0.kind == .lowering && $0.from.owner == source.owner && abs($0.from.offset - source.offset) < 4 }) {
+                _ = follow([.init(from: source, to: lowering.to, kind: .lowering)])
+                return
+            }
+            for window in terrain.windows {
+                for edge in [TerrainEdge.left, .right] {
+                    let wall = TerrainAttachment(owner: .window(window.id), edge: edge, offset: position.y - window.frame.minY)
+                    if let point = TerrainSupport.resolve(wall, in: terrain), abs(point.x - position.x) <= 8, position.y < window.frame.maxY - EdgeTraversal.lipHeight {
+                        attachment = wall; position = point; break
+                    }
+                }
+                if attachment?.owner == .window(window.id), attachment?.edge != .top { break }
+            }
+        }
+        if let wall = attachment, wall.edge == .left || wall.edge == .right,
+           case .window(let id) = wall.owner, let window = terrain.windows.first(where: { $0.id == id }) {
+            if controlVertical < 0 {
+                beginRope(.init(from: wall, to: wall, kind: .abseiling), mode: .descending)
+                return
+            }
+            let lift = ClimbingGait.distance(from: climbingTime, to: climbingTime + dt)
+            let height = min(window.frame.height - EdgeTraversal.lipHeight, wall.offset + (controlVertical > 0 ? lift : 0))
+            let next = TerrainAttachment(owner: wall.owner, edge: wall.edge, offset: height)
+            if let point = TerrainSupport.resolve(next, in: terrain) {
+                attachment = next; position = point
+                facing = wall.edge == .left ? 1 : -1
+                state = controlVertical > 0 ? .climbing : .idle
+                if controlVertical > 0 { climbingTime += dt }
+                if controlVertical > 0, height >= window.frame.height - EdgeTraversal.lipHeight - 0.001,
+                   let mantle = graph?.steps.first(where: { $0.kind == .mantling && $0.from == next }) { _ = follow([mantle]) }
+            }
+            return
+        }
+        if controlHorizontal != 0 {
+            ropeSession = nil
+            facing = controlHorizontal
+            let stride = WalkingGait.distance(from: walkingTime, to: walkingTime + dt * 2, tuning: walkingTuning)
+            walkingTime += dt * 2
+            position.x += facing * stride
+            clampPosition()
+            if let (anchor, point) = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1) {
+                attachment = anchor; position = point; state = .walking
+            } else { attachment = nil; controlVelocity = .init(x: facing * 80, y: 0); state = .jumping }
+        } else {
+            if state == .settling { settlingRemaining -= dt; if settlingRemaining > 0 { return } }
+            state = .idle
+        }
+    }
+
 }

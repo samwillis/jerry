@@ -6,11 +6,30 @@ A tiny, deeply unqualified desktop expedition searching for the other sock.
 
 The native macOS shell draws one articulated, approximately 74-point shape explorer on a transparent SpriteKit overlay above normal windows. It breathes gently while idle, sways when held, and displays a parachute during controlled recovery. A hiking icon in the menu bar provides **Pause Expedition**, **Resume Expedition**, **Reset Expedition**, **Activities**, **Gentle Pace**, **Show Debug Guides**, **Animation Playground…** (Debug builds), and **Quit The Other Sock**. Pause, pace, and guide preferences survive relaunch.
 
-The rendering overlay ignores mouse events and cannot become the key or main window. A separate 48 × 76 point, non-activating panel over the explorer accepts dragging. Grab anywhere inside that small character area, drag it aside, and release. The grab offset is preserved, and the explorer remains inside the primary display's usable area. All other overlay space passes mouse events through. There are no global keyboard shortcuts, input monitors, screen capture, or permission prompts.
+The rendering overlay ignores mouse events and cannot become the key or main window. A separate 48 × 76 point, non-activating panel over the explorer accepts dragging. Grab anywhere inside that small character area, drag it aside, and release. The grab offset is preserved, and the explorer remains inside the primary display's usable area. All other overlay space passes mouse events through. Autonomous/dragging mode uses no keyboard monitor or permission prompts. Optional keyboard control uses a local event monitor only while its control window has focus. Optional desktop clicks require Accessibility permission; neither feature captures screen images.
 
 While held, idle movement stops. Release carries recent drag momentum, so quick sideways or upward motions produce an arc. Holding still before release gives a normal drop. The explorer initially falls faster; its chute emerges from behind the backpack, opens overhead, and slows the descent and drift. It lands on the first suitable exposed top below its trajectory. Gentle placement within 16 points of a top snaps it directly onto the edge. It needs its full body width on the platform and 76 points of clear space above it. It follows that window when moved or resized. Losing support starts another recovery. It autonomously walks exposed tops, climbs reachable window sides, abseils from a window-relative rope, and steers parachutes towards safe landing areas. Window changes revalidate each transition; losing support or an invalid route starts recovery. A new grab cancels its route and mission immediately.
 
 On landing, the explorer briefly crouches with planted feet and then rises. A settling interval prevents immediate autonomous movement. Occasional blinks have a tiny timing offset between the eyes. Dragging is still available when paused; pausing freezes visual clocks, settling, recovery, and automatic terrain polling. Resume refreshes geometry immediately. Releasing a dragged explorer refreshes geometry even while paused.
+
+## Play with the keyboard
+
+Choose hiking menu → **Control Explorer with Keyboard…**. A small control window takes focus and shows the keys. The explorer stops choosing adventures until you leave control mode.
+
+| Key | Action |
+| --- | --- |
+| ← / → or A / D | Walk; steer while airborne; push a swing |
+| ↑ / W | Grab/climb a nearby exposed side, or climb the attached rope |
+| ↓ / S | Lower over a nearby window edge and abseil, or descend the attached rope |
+| Space | Jump; jump off/release a rope |
+| ↓ + Space | Drop through the current platform |
+| G | Fire the hook from a supported position; Up then climbs its rope |
+| E | Click the crosshair beside his hand |
+| Esc | End control and return focus to the previous app |
+
+Releasing Up/Down holds the current rope length, allowing a natural swing. Walking uses twice the normal cadence and matches its foot motion. There are no mid-air double jumps. Changing apps, pausing, dragging, resetting, sleeping, or leaving the desktop stops keyboard capture and clears held directions. Movement needs no Accessibility or Input Monitoring permission.
+
+**E** targets the visible crosshair, first using an accessible control's Press action and otherwise sending one ordinary left click there. Choose **Allow Explorer Clicks…** in the hiking menu (or press E once), then enable The Other Sock under **System Settings → Privacy & Security → Accessibility**. Return to keyboard control afterward. Without that permission E performs no click. Native/custom controls that take focus end control mode, so you can type into the target app normally. Buttons and toggles can be pressed; this first version does not route text typing, double-clicks, right-clicks, or drag gestures through the explorer.
 
 ## Trigger an activity
 

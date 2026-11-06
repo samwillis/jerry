@@ -18,6 +18,7 @@ enum OtherSockApp {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--native-checks") {
             application.setActivationPolicy(.accessory)
+            application.finishLaunching()
             let overlay = OverlayController()
             let passed = overlay.runNativeChecks()
             let menusPassed = AppDelegate().runActivityMenuChecks()

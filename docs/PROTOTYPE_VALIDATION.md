@@ -4,7 +4,7 @@
 
 One explorer on the primary macOS display can walk real window tops, climb exposed sides, descend an anchored rope, parachute with limited steering, recover and land, and run a repeating sock/banana adventure. The body remains draggable throughout, including while paused. This is a local prototype, version 0.1.0 (build 1), with an unsigned host-architecture Release app and archive.
 
-The implementation uses window metadata, never titles or window images. No new permissions, global input hooks, network service, or background agent are required. The existing shape rig and painted finish are retained.
+The implementation uses window metadata, never titles or window images. Autonomous adventures require no new permissions, global input hooks, network service, or background agent. The later optional keyboard/desktop-click increment is documented below. The existing shape rig and painted finish are retained.
 
 ## Requirement audit
 
@@ -100,3 +100,11 @@ Omit `--exercise` for a stable layout. Add `--start-low --rope-demo` to begin a 
 ### Higher and front-rim grapple — 6 November 2026
 
 97 core tests and 19 native checks pass; Debug and packaged Release builds succeed. New coverage checks a 1,000-point-high aligned shot through the front of a window, an edge-to-edge window without exposed sides, and moving straight-span anchors. Existing angled rope constraints and overlapping-window mantle regressions pass. Native `--front-only` fixture run fired from (855, 2), climbed straight up the front, mantled at y≈654, and stood on the top at (855, 712). The rendered climb and final planted stance were inspected; frame reports held 30 fps with 91 nodes.
+
+### Player control — 6 November 2026
+
+108 core tests pass, including player-control scenarios: no autonomous drift, gait-matched movement/release, ballistic jumping and air steering, no double jump, ledge falls/drop-through, wall climb/hold/mantle, connected front-rope control, roof lowering/abseil, safe mode exit, changing terrain, takeover mid-walk without snapping, and safe corner completion on exit. 28 native checks pass, including local key routing, opposing/released directions, one-shot jump/click repeat suppression, modifier pass-through, Escape teardown, coordinate conversion, and the denied-Accessibility click gate.
+
+Live native key input through the focused control window moved the explorer from x855 to x≈924 with Right; G fired; Up entered rope climbing; releasing held rope length; Down descended; Space jumped off; Escape closed the key window and returned to autonomous mode. Focused movement was checked interactively because command-line native checks can inspect routing and key-window capability but cannot establish actual activation under macOS focus-stealing rules.
+
+Accessibility access is false in this build's test context. No permission was granted and no external control press/mouse click was executed. The untrusted path performs no click; the permitted AXPress/fallback-click path remains an interactive acceptance check once the user grants access. Only direct E presses request interaction, and repeated keyDown events cannot produce repeated clicks. Movement itself does not require access.

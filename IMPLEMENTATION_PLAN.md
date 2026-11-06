@@ -210,3 +210,10 @@ Use the animation playground for actual-size visual review, contact accuracy, fa
 - [Apple: non-activating panels](https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct/nonactivatingpanel)
 
 These APIs support the proposed approach; the first two implementation stages must establish the combined interaction behaviour on the target system.
+
+
+## Optional player-control increment — 6 November 2026
+
+Implemented explicit local keyboard control through a separate key-capable HUD, keeping the world renderer and drag panel non-activating. Arrows/WASD walk, steer, grab/climb sides, and climb/descend the shared rope; Space jumps or releases a rope; Down+Space drops through a platform; G fires a supported grapple. Holding no directional key pauses climbing/payout while keeping physical swing motion. Esc, loss of focus and lifecycle interruptions clear input and stop capture. Keyboard movement matches doubled walking cadence and uses fixed-step gravity for jumps.
+
+E targets a visible hand crosshair. Accessibility access gates an AXPress attempt with a single native-click fallback for custom controls. The app requests access only from the explicit click/permission command. It does not monitor global keys. Core/native input checks and live keyboard checks pass; granted-permission external clicks are still an interactive acceptance check. Text entry, right-clicks, double-clicks and explorer-driven dragging remain later work.

@@ -9,6 +9,7 @@ final class ExplorerScene: SKScene {
     private let rope = SKShapeNode()
     private let hook = SKShapeNode()
     private let props = ExpeditionProps()
+    private let controlMarker = SKShapeNode()
     private var startedOnWindow = false
     private var startedRopeDemo = false
     private var startedActivityDemo = false
@@ -46,6 +47,14 @@ final class ExplorerScene: SKScene {
         hook.addChild(metal)
         addChild(hook)
         addChild(props)
+        let crosshair = CGMutablePath()
+        crosshair.addEllipse(in: .init(x: -5, y: -5, width: 10, height: 10))
+        crosshair.move(to: .init(x: -9, y: 0)); crosshair.addLine(to: .init(x: 9, y: 0))
+        crosshair.move(to: .init(x: 0, y: -9)); crosshair.addLine(to: .init(x: 0, y: 9))
+        controlMarker.path = crosshair
+        controlMarker.strokeColor = .systemPink; controlMarker.lineWidth = 1.5
+        controlMarker.zPosition = 100; controlMarker.isHidden = true
+        addChild(controlMarker)
         addChild(debug)
         debug.isHidden = true
     }
@@ -76,6 +85,15 @@ final class ExplorerScene: SKScene {
         layout(in: usableFrame)
         if let previousTerrain { updateTerrain(previousTerrain) }
     }
+
+    var keyboardClickPoint: CGPoint? {
+        guard let interaction, interaction.keyboardControlEnabled else { return nil }
+        return .init(x: interaction.position.x + interaction.facing * 32, y: interaction.position.y + 44)
+    }
+    func setKeyboardControl(_ enabled: Bool) { interaction?.setKeyboardControl(enabled); applyPlacement() }
+    func setControlDirection(_ x: Double, _ y: Double) { interaction?.setControlDirection(horizontal: x, vertical: y) }
+    func controlJump() { interaction?.controlJump(); applyPlacement() }
+    func controlGrapple() { interaction?.controlGrapple(); applyPlacement() }
 
     var activityStatus: String { interaction?.activityStatus ?? "Preparing terrain…" }
     var availableActivities: Set<ExplorerActivity> { interaction?.availableActivities ?? [] }
@@ -205,11 +223,14 @@ final class ExplorerScene: SKScene {
 
     private func applyPlacement() {
         guard let interaction else { return }
+        controlMarker.isHidden = !interaction.keyboardControlEnabled
+        if let point = keyboardClickPoint { controlMarker.position = point }
         explorer.position = CGPoint(x: interaction.position.x, y: interaction.position.y)
         var motion: ExplorerMotion
         switch interaction.state {
         case .held: motion = .held
         case .recovering: motion = .parachuting
+        case .jumping: motion = .launching
         case .walking: motion = .walking
         case .climbing: motion = .climbing
         case .abseiling: motion = .abseiling
@@ -230,6 +251,7 @@ final class ExplorerScene: SKScene {
         explorer.tuning = interaction.walkingTuning
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
+        if interaction.state == .jumping { explorer.synchronizedTime = 0.8 }
         explorer.handTargets = nil
         explorer.footTargets = nil
         explorer.ropePose = nil

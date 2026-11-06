@@ -198,6 +198,7 @@ public struct RopeSession {
         let speed = body.velocity.x * tangent.x + body.velocity.y * tangent.y
         if abs(speed) < 40 { body.addImpulse(.init(x: tangent.x * 130, y: tangent.y * 130)) }
     }
+    public mutating func addImpulse(_ impulse: WorldPoint) { body.addImpulse(impulse) }
     public mutating func contact(feet: WorldPoint, horizontal: Bool = false, vertical: Bool = false) {
         body.contact(at: .init(x: feet.x, y: feet.y + Self.harnessHeight), horizontal: horizontal, vertical: vertical)
     }
