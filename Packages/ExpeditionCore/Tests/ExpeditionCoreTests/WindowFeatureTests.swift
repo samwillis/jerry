@@ -46,6 +46,51 @@ final class WindowFeatureTests: XCTestCase {
         XCTAssertTrue(features.contains { $0.edge == .verticalEdge })
         XCTAssertFalse(features.contains { $0.start.y > 530 }, "Short repeated glyph strokes cannot become ledges")
     }
+    func testFaintSinglePixelRulesAndLowContrastColourBoundaries() {
+        let w = 300, h = 220
+        var rgb = [UInt8](repeating: 240, count: w * h * 3)
+        for y in 0..<h {
+            for x in 15..<285 {
+                let value: UInt8 = y >= 45 && y < 85 ? 218 : (y == 130 ? 220 : 240)
+                for c in 0..<3 { rgb[(y * w + x) * 3 + c] = value }
+            }
+        }
+        let image = TerrainPixels(width: w, height: h, rgb: rgb, pointWidth: 600, pointHeight: 440)
+        let features = WindowFeatureDetector.detect(image, windowID: 7)
+        XCTAssertTrue(features.contains { $0.edge == .ledge && abs($0.start.y - 350) <= 3 })
+        XCTAssertTrue(features.contains { $0.edge == .horizontalCrack && abs($0.start.y - 180) <= 3 })
+    }
+    func testTextRegionsRejectLongUnderlinesWithoutHidingNearbyDivider() {
+        let w = 300, h = 220
+        var rgb = [UInt8](repeating: 240, count: w * h * 3)
+        for y in [80, 105] {
+            for x in 20..<280 {
+                for c in 0..<3 { rgb[(y * w + x) * 3 + c] = 80 }
+            }
+        }
+        let unfiltered = TerrainPixels(width: w, height: h, rgb: rgb, pointWidth: 600, pointHeight: 440)
+        XCTAssertTrue(WindowFeatureDetector.detect(unfiltered, windowID: 7).contains { abs($0.start.y - 280) < 2 })
+        let filtered = TerrainPixels(width: w, height: h, rgb: rgb, pointWidth: 600, pointHeight: 440,
+                                     textRegions: [.init(x: 35, y: 275, width: 530, height: 32)])
+        let features = WindowFeatureDetector.detect(filtered, windowID: 7)
+        XCTAssertFalse(features.contains { abs($0.start.y - 280) < 2 }, "A long text underline must not become a crack")
+        XCTAssertTrue(features.contains { abs($0.start.y - 230) < 2 }, "The independent divider below the text must survive")
+        var tracker = WindowFeatureTracker()
+        tracker.update(unfiltered, windowID: 7, at: 1); tracker.confirmUnchanged(at: 1.05)
+        let oldTextID = tracker.features(at: 1.05).first { abs($0.start.y - 280) < 2 }!.id
+        tracker.update(filtered, windowID: 7, at: 1.1)
+        XCTAssertFalse(tracker.features(at: 1.1).contains { $0.id == oldTextID }, "Recognised text must not retain an old hold through missed-frame grace")
+    }
+    func testGentleGradientDoesNotBecomeManyLedges() {
+        let w = 120, h = 120
+        var rgb = [UInt8](repeating: 0, count: w * h * 3)
+        for y in 0..<h {
+            for x in 0..<w {
+                for c in 0..<3 { rgb[(y * w + x) * 3 + c] = UInt8(100 + y / 2) }
+            }
+        }
+        XCTAssertTrue(WindowFeatureDetector.detect(.init(width: w, height: h, rgb: rgb, pointWidth: 360, pointHeight: 360), windowID: 7).isEmpty)
+    }
     func testTrackerKeepsIdentityAcrossFastScrollAndExpires() {
         var tracker = WindowFeatureTracker()
         tracker.update(pixels(), windowID: 7, at: 1)

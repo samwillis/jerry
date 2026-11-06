@@ -1,6 +1,7 @@
 import AppKit
 import ScreenCaptureKit
 import CoreMedia
+import Vision
 import ExpeditionCore
 
 /// One bounded stream: the explorer's host window takes priority over the front window.
@@ -49,7 +50,7 @@ final class WindowFeatureCapture {
                 guard let self, !Task.isCancelled, self.generation == token,
                       let window = content.windows.first(where: { $0.windowID == desired.id }) else { return }
                 let config = SCStreamConfiguration()
-                let scale = min(0.5, 480 / desired.frame.width, 360 / desired.frame.height)
+                let scale = min(1, 960 / desired.frame.width, 720 / desired.frame.height)
                 config.width = max(24, Int(desired.frame.width * scale))
                 config.height = max(24, Int(desired.frame.height * scale))
                 config.pixelFormat = kCVPixelFormatType_32BGRA
@@ -147,8 +148,9 @@ private final class FeatureFrameReader: NSObject, SCStreamOutput, SCStreamDelega
         guard now - lastFrame >= 0.04, !presentation.isFinite || now - presentation < 0.15 else { return }
         lastFrame = now
         CVPixelBufferLockBaseAddress(buffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
-        guard let bytes = CVPixelBufferGetBaseAddress(buffer)?.assumingMemoryBound(to: UInt8.self) else { return }
+        guard let bytes = CVPixelBufferGetBaseAddress(buffer)?.assumingMemoryBound(to: UInt8.self) else {
+            CVPixelBufferUnlockBaseAddress(buffer, .readOnly); return
+        }
         let width = CVPixelBufferGetWidth(buffer), height = CVPixelBufferGetHeight(buffer), stride = CVPixelBufferGetBytesPerRow(buffer)
         var rgb = [UInt8](repeating: 0, count: width * height * 3)
         for y in 0..<height {
@@ -157,13 +159,43 @@ private final class FeatureFrameReader: NSObject, SCStreamOutput, SCStreamDelega
                 rgb[o] = bytes[i + 2]; rgb[o + 1] = bytes[i + 1]; rgb[o + 2] = bytes[i]
             }
         }
-        let pixels = TerrainPixels(width: width, height: height, rgb: rgb, pointWidth: window.frame.width, pointHeight: window.frame.height)
-        if lastPixels?.rgb == pixels.rgb { tracker.confirmUnchanged(at: now) }
-        else { tracker.update(pixels, windowID: window.id, at: now) }
+        CVPixelBufferUnlockBaseAddress(buffer, .readOnly)
+        if lastPixels?.rgb == rgb {
+            tracker.confirmUnchanged(at: now); deliver(tracker.features(at: now), now); return
+        }
+        // Text content is discarded immediately. Only exclusion rectangles survive
+        // this request, on the same serial queue as boundary detection.
+        let textRegions: [WorldRect]
+        do { textRegions = try WindowTextExclusion.regions(in: VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up, options: [:]), width: window.frame.width, height: window.frame.height) }
+        catch {
+            // Never publish unfiltered text as terrain when text detection fails.
+            lastPixels = nil; deliver([], now); return
+        }
+        let pixels = TerrainPixels(width: width, height: height, rgb: rgb, pointWidth: window.frame.width, pointHeight: window.frame.height, textRegions: textRegions)
+        tracker.update(pixels, windowID: window.id, at: now)
         lastPixels = pixels
         deliver(tracker.features(at: now), now)
     }
     func stream(_ stream: SCStream, didStopWithError error: any Error) { deliver([], ProcessInfo.processInfo.systemUptime) }
+}
+
+/// Vision runs locally. No recognized strings are retained, logged or used by the app.
+private enum WindowTextExclusion {
+    static func regions(in handler: VNImageRequestHandler, width: Double, height: Double) throws -> [WorldRect] {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .fast
+        request.usesLanguageCorrection = false
+        request.minimumTextHeight = 0.008
+        try handler.perform([request])
+        return (request.results ?? []).compactMap {
+            guard let text = $0.topCandidates(1).first, text.confidence >= 0.2,
+                  text.string.contains(where: { $0.isLetter || $0.isNumber }),
+                  text.string.contains(where: { !"Il1|_—- .".contains($0) }) else { return nil }
+            let box = $0.boundingBox
+            return WorldRect(x: box.minX * width - 2, y: box.minY * height - 3,
+                             width: box.width * width + 4, height: box.height * height + 6)
+        }
+    }
 }
 
 #if DEBUG
@@ -177,6 +209,13 @@ private final class FeatureCheckCanvas: NSView {
         NSColor.black.setFill()
         CGRect(x: 40, y: 340 + scroll, width: 620, height: 2).fill()
         CGRect(x: 430, y: 30 + scroll, width: 2, height: 120).fill()
+        NSColor(calibratedWhite: 0.84, alpha: 1).setFill()
+        CGRect(x: 40, y: 110 + scroll, width: 620, height: 1).fill()
+        NSColor(calibratedWhite: 0.87, alpha: 1).setFill()
+        CGRect(x: 40, y: 285 + scroll, width: 620, height: 25).fill()
+        ("Some real text should never become a climbing ledge" as NSString).draw(at: .init(x: 60, y: 420 + scroll), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 20), .foregroundColor: NSColor.black, .underlineStyle: NSUnderlineStyle.single.rawValue
+        ])
     }
 }
 
@@ -199,10 +238,20 @@ extension WindowFeatureCapture {
         while Date() < deadline && !capture.currentFeatures().contains(where: { $0.edge == .horizontalCrack }) {
             try? await Task.sleep(for: .milliseconds(50))
         }
+        if let bitmap = canvas.bitmapImageRepForCachingDisplay(in: canvas.bounds) {
+            canvas.cacheDisplay(in: canvas.bounds, to: bitmap)
+            if let image = bitmap.cgImage {
+                let regions = try? WindowTextExclusion.regions(in: VNImageRequestHandler(cgImage: image, orientation: .up, options: [:]), width: 720, height: 520)
+                check(regions?.contains { $0.minY > 400 && $0.minY < 450 } == true, "local text recognition identifies the rendered text region")
+            } else { check(false, "rendered text image available") }
+        } else { check(false, "rendered text image available") }
         let first = capture.currentFeatures()
         check(first.contains { $0.edge == .ledge }, "real captured block creates a standing ledge")
         check(first.contains { $0.edge == .verticalCrack }, "real captured vertical line creates a climbing crack")
-        guard let crack = first.first(where: { $0.edge == .horizontalCrack }) else {
+        check(first.contains { $0.edge == .horizontalCrack && abs($0.start.y - 110) < 4 }, "faint one-point rule survives real capture")
+        check(first.contains { $0.edge == .ledge && abs($0.start.y - 310) < 4 }, "low-contrast block boundary survives real capture")
+        check(!first.contains { $0.edge.isHorizontal && $0.start.y >= 414 && $0.start.y <= 452 }, "real underlined text is excluded from terrain")
+        guard let crack = first.first(where: { $0.edge == .horizontalCrack && abs($0.start.y - 340) < 5 }) else {
             check(false, "real captured hairline creates a hanging traverse — \(capture.status)"); return false
         }
         check(true, "real captured hairline creates a hanging traverse")

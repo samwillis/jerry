@@ -21,9 +21,10 @@ public struct TerrainPixels: Sendable {
     public let rgb: [UInt8]
     public let pointWidth: Double
     public let pointHeight: Double
-    public init(width: Int, height: Int, rgb: [UInt8], pointWidth: Double, pointHeight: Double) {
+    public let textRegions: [WorldRect]
+    public init(width: Int, height: Int, rgb: [UInt8], pointWidth: Double, pointHeight: Double, textRegions: [WorldRect] = []) {
         self.width = width; self.height = height; self.rgb = rgb
-        self.pointWidth = pointWidth; self.pointHeight = pointHeight
+        self.pointWidth = pointWidth; self.pointHeight = pointHeight; self.textRegions = textRegions
     }
     func color(_ x: Int, _ y: Int) -> SIMD3<Double> {
         let i = (min(height - 1, max(0, y)) * width + min(width - 1, max(0, x))) * 3
@@ -47,7 +48,7 @@ public enum WindowFeatureDetector {
             let across = horizontal ? image.height : image.width
             let along = horizontal ? image.width : image.height
             let alongScale = horizontal ? image.pointWidth / Double(image.width) : image.pointHeight / Double(image.height)
-            let minimum = max(24, Int((horizontal ? 80.0 : 90.0) / alongScale))
+            let minimum = max(24, Int((horizontal ? 64.0 : 76.0) / alongScale))
             func color(_ a: Int, _ b: Int) -> SIMD3<Double> { horizontal ? image.color(b, a) : image.color(a, b) }
             for a in 8..<(across - 8) {
                 var runStart = 0
@@ -64,18 +65,28 @@ public enum WindowFeatureDetector {
                         s = .init(x: x, y: image.pointHeight - Double(b) * alongScale)
                         e = .init(x: x, y: image.pointHeight - Double(runStart) * alongScale)
                     }
+                    // OCR boxes use the same bottom-left window-local coordinates.
+                    // Reject the whole response rather than leaving text fragments as holds.
+                    let band = WorldRect(x: min(s.x, e.x) - 1, y: min(s.y, e.y) - 1,
+                                         width: abs(e.x - s.x) + 2, height: abs(e.y - s.y) + 2)
+                    guard !image.textRegions.contains(where: { $0.intersects(band) }) else { return }
                     candidates.append(.init(id: 0, windowID: windowID, edge: edge, start: s, end: e, appearance: [runLow.x, runLow.y, runLow.z, runHigh.x, runHigh.y, runHigh.z, runCenter.x, runCenter.y, runCenter.z]))
                 }
-                for b in 6..<(along - 6) {
-                    let low = color(a - 5, b), high = color(a + 5, b), center = color(a, b)
-                    let sustained = difference(low, high) >= 0.22
-                        && difference(color(a - 1, b), color(a + 1, b)) >= 0.18
-                        && difference(low, color(a - 8, b)) < 0.09
-                        && difference(high, color(a + 8, b)) < 0.09
-                    let thin = difference(low, high) < 0.09 && difference(center, low) >= 0.22
+                for b in stride(from: 6, to: along - 6, by: 2) {
+                    let center = color(a, b), nearLow = color(a - 1, b), nearHigh = color(a + 1, b)
+                    if max(difference(center, nearLow), difference(center, nearHigh), difference(nearLow, nearHigh)) < 0.018 {
+                        finish(b); runStart = b + 2; runEdge = nil
+                        continue
+                    }
+                    let low = color(a - 5, b), high = color(a + 5, b)
+                    let sustained = difference(low, high) >= 0.045
+                        && difference(nearLow, nearHigh) >= 0.02
+                        && difference(low, color(a - 8, b)) < 0.045
+                        && difference(high, color(a + 8, b)) < 0.045
+                    let thin = difference(low, high) < 0.035 && difference(center, (low + high) / 2) >= 0.03
                     let edge: TerrainEdge? = sustained ? (horizontal ? .ledge : .verticalEdge) : (thin ? (horizontal ? .horizontalCrack : .verticalCrack) : nil)
                     let nextCenter = thin ? center : SIMD3<Double>.zero
-                    if edge != runEdge || (edge != nil && max(difference(runLow, low), difference(runHigh, high), difference(runCenter, nextCenter)) > 0.18) {
+                    if edge != runEdge || (edge != nil && max(difference(runLow, low), difference(runHigh, high), difference(runCenter, nextCenter)) > 0.075) {
                         finish(b); runStart = b; runEdge = edge; runLow = low; runHigh = high; runCenter = nextCenter
                     }
                 }
@@ -151,7 +162,12 @@ public struct WindowFeatureTracker: Sendable {
         // A single missed sample is tolerated only for stationary holds. Moving misses
         // are dropped immediately: extrapolating invisible scrolling terrain is unsafe.
         for index in available where time - tracks[index].seen < 0.12 && hypot(tracks[index].velocity.x, tracks[index].velocity.y) < 5 {
-            next.append(tracks[index])
+            let f = tracks[index].feature
+            let band = WorldRect(x: min(f.start.x, f.end.x) - 1, y: min(f.start.y, f.end.y) - 1,
+                                 width: abs(f.end.x - f.start.x) + 2, height: abs(f.end.y - f.start.y) + 2)
+            // Positive text evidence invalidates an old hold immediately; it is
+            // not an ordinary missed-detection frame eligible for grace.
+            if !image.textRegions.contains(where: { $0.intersects(band) }) { next.append(tracks[index]) }
         }
         tracks = next; previous = image; lastTime = time
     }
