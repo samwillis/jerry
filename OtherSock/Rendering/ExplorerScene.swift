@@ -7,9 +7,11 @@ final class ExplorerScene: SKScene {
     private let explorer = ExplorerRig()
     private let debug = SKNode()
     private let rope = SKShapeNode()
+    private let hook = SKShapeNode()
     private let props = ExpeditionProps()
     private var startedOnWindow = false
     private var startedRopeDemo = false
+    private var startedActivityDemo = false
     private var tracedState = ""
     private var frameSamples: [Double] = []
     private var lastInputFrame: CGRect?
@@ -23,6 +25,7 @@ final class ExplorerScene: SKScene {
     private var expeditionPaused = false
     private var interaction: ExplorerInteraction?
     private var previousUpdateTime: TimeInterval?
+    private var lastTerrainReadTime: TimeInterval?
     var onPlacementChanged: ((CGRect, String) -> Void)?
 
     override init(size: CGSize) {
@@ -33,6 +36,15 @@ final class ExplorerScene: SKScene {
         rope.strokeColor = .init(calibratedRed: 0.72, green: 0.57, blue: 0.32, alpha: 1)
         rope.lineWidth = 1.2
         addChild(explorer)
+        let hookPath = CGMutablePath()
+        hookPath.move(to: .init(x: -5, y: 0)); hookPath.addLine(to: .init(x: 4, y: 0))
+        hookPath.move(to: .init(x: 0, y: 0)); hookPath.addQuadCurve(to: .init(x: 1, y: 5), control: .init(x: 7, y: 5))
+        hookPath.move(to: .init(x: 0, y: 0)); hookPath.addQuadCurve(to: .init(x: 1, y: -5), control: .init(x: 7, y: -5))
+        hook.path = hookPath; hook.strokeColor = NSColor(calibratedWhite: 0.13, alpha: 1); hook.lineWidth = 2.4; hook.isHidden = true
+        let metal = SKShapeNode(path: hookPath)
+        metal.strokeColor = NSColor(calibratedWhite: 0.78, alpha: 1); metal.lineWidth = 1.2
+        hook.addChild(metal)
+        addChild(hook)
         addChild(props)
         addChild(debug)
         debug.isHidden = true
@@ -98,6 +110,9 @@ final class ExplorerScene: SKScene {
     }
 
     func updateTerrain(_ snapshot: TerrainSnapshot?) {
+        let now = ProcessInfo.processInfo.systemUptime
+        let sampleElapsed = lastTerrainReadTime.map { max(1.0 / 120, now - $0) } ?? 0.1
+        lastTerrainReadTime = now
         let unavailable = snapshot == nil
         // If window-server metadata fails, retain only the guaranteed rescue boundaries.
         let next = snapshot ?? TerrainSnapshot(windows: [], viewport: WorldRect(x: usableFrame.minX, y: usableFrame.minY + 2, width: usableFrame.width, height: max(0, usableFrame.height - 2)))
@@ -119,8 +134,12 @@ final class ExplorerScene: SKScene {
             }
         }
         #endif
-        interaction?.updateTerrain(next)
+        interaction?.updateTerrain(next, sampleElapsed: sampleElapsed)
         #if DEBUG
+        if !startedActivityDemo, let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--activity=") }),
+           let activity = ExplorerActivity(rawValue: String(argument.dropFirst("--activity=".count))) {
+            startedActivityDemo = interaction?.requestActivity(activity) == true
+        }
         if !startedRopeDemo, ProcessInfo.processInfo.arguments.contains("--rope-demo"), let anchor = interaction?.attachment {
             let steps = NavigationGraph(terrain: next).route(from: anchor, seed: 0, allowParachute: false)
             if steps.contains(where: { $0.kind == .abseiling }) { startedRopeDemo = interaction?.follow(steps) == true }
@@ -152,6 +171,8 @@ final class ExplorerScene: SKScene {
         let previousState = interaction?.state
         interaction?.advance(by: elapsed * playbackRate)
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--freeze-grapple"), interaction?.state == .grappling, (interaction?.ropeSession?.age ?? 0) > 0.15 { setExpeditionPaused(true) }
+        if ProcessInfo.processInfo.arguments.contains("--freeze-swing"), interaction?.state == .swinging, interaction?.ropeSession?.isTakingUp == false, (interaction?.ropeSession?.age ?? 0) > 0.5 { setExpeditionPaused(true) }
         if ProcessInfo.processInfo.arguments.contains("--freeze-rope"), let interaction,
            interaction.state == .abseiling, let anchor = interaction.ropeAnchor,
            interaction.position.y < anchor.y - 90 {
@@ -192,6 +213,9 @@ final class ExplorerScene: SKScene {
         case .walking: motion = .walking
         case .climbing: motion = .climbing
         case .abseiling: motion = .abseiling
+        case .grappling: motion = .grappling
+        case .swinging: motion = .ropeSwinging
+        case .ropeClimbing: motion = .ropeClimbing
         case .traversingEdge: motion = interaction.edgeMotion ?? .idle
         default: motion = .idle
         }
@@ -208,6 +232,16 @@ final class ExplorerScene: SKScene {
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         explorer.handTargets = nil
         explorer.footTargets = nil
+        explorer.ropePose = nil
+        explorer.usesHarnessPivot = false
+        explorer.grappleAim = interaction.grappleTarget.map { .init(x: ($0.x - interaction.position.x) * facing, y: $0.y - interaction.position.y) }
+        if let session = interaction.ropeSession, let guide = interaction.ropeGuide, session.mode != .supported && session.mode != .firing {
+            let path = guide.taut(toward: session.body.position)
+            let dx = (path.sideTangent.x - session.body.position.x) * facing, dy = path.sideTangent.y - session.body.position.y
+            let length = max(0.001, hypot(dx, dy))
+            explorer.ropePose = RopeAnimation.pose(mode: session.mode, direction: .init(x: dx / length, y: dy / length), velocity: .init(x: session.body.velocity.x * facing, y: session.body.velocity.y), pullTime: session.pullTime)
+            explorer.usesHarnessPivot = true
+        }
         if motion == .climbing {
             let contacts = ClimbingContacts(heightAlongWall: interaction.heightAlongWall)
             explorer.handTargets = (contacts.leftHand, contacts.rightHand)
@@ -219,31 +253,44 @@ final class ExplorerScene: SKScene {
             explorer.handTargets = (.init(x: -1, y: 43), .init(x: 16, y: 44))
         }
         let ropeGripHeight = interaction.ropeAnchor.map { min(61, max(0, $0.y - 16 - interaction.position.y)) } ?? 61
-        if motion == .abseiling {
+        if motion == .abseiling && interaction.ropeSession == nil {
             explorer.handTargets = (.init(x: 0, y: ropeGripHeight), .init(x: 8, y: ropeGripHeight + 1))
         }
         props.update(mission: interaction.mission, explorer: interaction.position, target: target, facing: facing, viewport: usableFrame, held: interaction.state == .held)
         explorer.select(motion)
-        rope.isHidden = interaction.ropeAnchor == nil
-        if let supportGuide = interaction.ropeGuide {
-            let grip = WorldPoint(x: interaction.position.x, y: interaction.position.y + ropeGripHeight)
-            let guide = interaction.edgeMotion == .lowering ? supportGuide : supportGuide.taut(toward: grip)
+        explorer.render(delta: 0)
+        rope.isHidden = interaction.ropeAnchor == nil && interaction.hookPosition == nil
+        hook.isHidden = interaction.ropeSession == nil
+        let path = CGMutablePath()
+        if let flying = interaction.hookPosition, let target = interaction.grappleTarget {
+            let muzzle = explorer.grappleMuzzle(in: self)
+            path.move(to: muzzle)
+            path.addQuadCurve(to: .init(x: flying.x, y: flying.y), control: .init(x: (muzzle.x + flying.x) / 2, y: (muzzle.y + flying.y) / 2 - 8))
+            hook.position = .init(x: flying.x, y: flying.y)
+            hook.zRotation = atan2(target.y - flying.y, target.x - flying.x)
+        } else if let support = interaction.ropeGuide {
+            let grip = interaction.ropeSession?.body.position ?? WorldPoint(x: interaction.position.x, y: interaction.position.y + ropeGripHeight)
+            let guide = interaction.edgeMotion == .lowering ? support : support.taut(toward: grip)
             func cg(_ point: WorldPoint) -> CGPoint { .init(x: point.x, y: point.y) }
-            let path = CGMutablePath()
             path.addEllipse(in: .init(x: guide.anchor.x - 2, y: guide.anchor.y - 1, width: 4, height: 2))
-            path.move(to: cg(guide.anchor))
-            path.addLine(to: cg(guide.topTangent))
+            path.move(to: cg(guide.anchor)); path.addLine(to: cg(guide.topTangent))
             path.addCurve(to: cg(guide.sideTangent), control1: cg(guide.control1), control2: cg(guide.control2))
             if interaction.edgeMotion == .lowering {
                 path.addLine(to: .init(x: guide.sideTangent.x, y: guide.sideTangent.y - 50))
             } else {
-                path.addLine(to: .init(x: interaction.position.x, y: interaction.position.y + ropeGripHeight))
-                path.addLine(to: .init(x: interaction.position.x, y: max(usableFrame.minY, interaction.position.y - 30)))
+                let slack = max(0, (interaction.ropeSession?.body.length ?? guide.length(to: grip)) - guide.length(to: grip))
+                if slack > 1 {
+                    let dx = grip.x - guide.sideTangent.x, dy = grip.y - guide.sideTangent.y
+                    // Preserve the corner's outgoing tangent even when the free line bows.
+                    path.addCurve(to: cg(grip), control1: .init(x: guide.sideTangent.x + dx / 3, y: guide.sideTangent.y + dy / 3), control2: .init(x: guide.sideTangent.x + dx * 2 / 3, y: guide.sideTangent.y + dy * 2 / 3 - min(60, slack)))
+                } else { path.addLine(to: cg(grip)) }
+                path.addEllipse(in: .init(x: grip.x - 1.5, y: grip.y - 1.5, width: 3, height: 3))
+                path.move(to: cg(grip)); path.addLine(to: .init(x: grip.x, y: max(usableFrame.minY, interaction.position.y - 16)))
             }
-            rope.path = path
+            hook.position = cg(guide.anchor); hook.zRotation = -.pi / 2
         }
+        rope.path = path
 
-        explorer.render(delta: 0)
         let hitFrame = CGRect(x: explorer.position.x - 24, y: explorer.position.y - 1, width: 48, height: 76)
         if hitFrame != lastInputFrame || interaction.state.rawValue != lastInputState {
             onPlacementChanged?(hitFrame, interaction.state.rawValue)

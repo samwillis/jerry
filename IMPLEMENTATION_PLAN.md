@@ -153,6 +153,8 @@ Implementation status (5 November 2026): fixed 120 Hz stepping with bounded catc
 
 Refinement (6 November 2026): added phase-synchronised walking and climbing, a stable knee branch with lower climbing contacts, explicit mantle/lower/launch beats, a top-pinned rope that follows rounded corners with tangent joins, and a menu for requesting specific real-terrain activities. Manual requests queue through unsafe interruptions and rest when complete; automatic adventures can be restored from the same submenu.
 
+Rope increment (6 November 2026): grappling, swinging, rope climbing and abseiling now share a physical line/session. Hook acquisition adds reachable graph transitions; gravity, slack/tension, reeling/payout, contacts and momentum govern hanging movement. Menu mode changes keep the existing line, and a landed abseiler can climb back up it. Native and numerical verification is in the latest rope section of the validation record.
+
 ## 6. Assemble the banana adventure
 
 1. Implement mission stages: select destination, spot suspected sock, approach launch point, cross, investigate, reveal banana, update map, rest.

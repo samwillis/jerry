@@ -88,3 +88,11 @@ Omit `--exercise` for a stable layout. Add `--start-low --rope-demo` to begin a 
 - 19 native checks pass, including submenu construction, reachable-route enablement, dispatching Walk into the desktop actor, and returning to automatic adventures. The native menu test restores the saved pause preference after checking dispatch.
 - Native playground review covered a lip pull, mirrored weight transfer, jump clearance and the tangent rounded-corner rope preview, all with zero clamped contacts. macOS status-item automation timed out, so menu dispatch was verified through the real NSMenu action mechanism in the native check harness.
 - Debug and Release packages were rebuilt for these changes. Earlier performance measurements remain historical; this refinement did not rerun the hardware benchmark.
+
+
+## Grapple and unified rope simulation — 6 November 2026
+
+- 94 core tests pass. Added checks for slack free fall, pendulum period against `2π√(L/g)`, no spontaneous energy gain, conserved angular momentum while reeling without gravity/friction, 30/120 Hz equivalence, taut-length bounds, rope-pose reach at left/right angles, and complete mirrored grapple → swing → climb → mantle journeys.
+- Integration tests switch climbing/descending/swinging on the same anchor without teleporting or clearing velocity; release retains velocity. A grounded abseiler can climb the same line without another shot. Moving/lost anchors, lost landing supports, simultaneous support loss, long descents and blocked mantle approaches are covered. Existing simulated-hour terrain/mission tests still pass.
+- Native checks retain all 19 passes, including dynamic activity menu construction and dispatch. Native screenshots showed the launcher with its hook and trailing line in flight, then a latched harness/rope pose on real fixture geometry. The unfrozen live trace completed grappling → swinging → rope climbing → mantle → settling → idle on the lower real fixture window. Its sampled 300-frame windows held 30.0 fps, p95 roughly 33.8–34.3 ms, with a stable scene-node count.
+- The rope is a massless unilateral constraint with 240 Hz substeps, controlled payout/reeling, damping and host-wall/platform/display contacts. Rendering models one rounded corner and a slack free span. This does not claim general rope/obstacle wrapping, elastic rope or rope-to-rope collisions.

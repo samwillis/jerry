@@ -66,7 +66,7 @@ public struct BananaMission {
                 let arrivals = [direction, -direction].map { TerrainAttachment(owner: destination.owner, edge: destination.edge, offset: destination.offset + $0 * 32) }
                 for arrival in arrivals {
                     guard let stand = TerrainSupport.resolve(arrival, in: terrain), abs(stand.x - point.x) >= 28 else { continue }
-                    let route = graph.route(from: anchor, to: arrival, seed: 1, allowParachute: allowFlight)
+                    let route = graph.route(from: anchor, to: arrival, seed: 1, allowParachute: allowFlight, allowGrapple: generation % 4 == 3)
                     if !route.isEmpty { choices.append((destination, route)); break }
                 }
             }

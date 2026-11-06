@@ -93,3 +93,12 @@ Climbing boots stay below their hip joints; legs use a consistent canonical knee
 **Mantling**, **Lowering** and **Launching** are available in the playground and share the actual desktop root paths. Mantling pulls up with hands on the lip, brings a boot over, transfers weight over that planted boot, then stands. Lowering reverses that choreography. Launching anticipates, pushes clear, then enters recovery/chute deployment. These states are interruptible and revalidate their supporting geometry.
 
 Rope geometry uses a top pin, a circular corner guide with one point of clearance, and a tangent free lead to the current grip. Cubic arc handles align with both straight leads; the contact angle changes as the hands descend. The playground's scaled window corner matches the guide's estimated radius.
+
+
+## Grapple and shared rope modes — 6 November 2026
+
+`RopeSession` now owns the common window/edge anchor, `RopeDynamics`, paid-out length, firing trajectory, mode and pull clock. Abseiling, hand-over-hand rope climbing and swinging all operate on this session. Motor changes do not replace the rope or reset its momentum. Landing can retain the line; reaching the lip hands off to the existing mantle. Grabbing and invalid anchors cancel it safely.
+
+The solver integrates gravity at 240 Hz inside the fixed simulation step, projects only overstretched lines, and preserves tangential velocity. Slack lines fall freely. Reeling conserves angular momentum before friction/contact losses. The renderer hangs the body around its harness, puts the gloves along the free lead, and preserves the top/corner/free-lead tangents. A real push-off impulse starts a swing from rest against the wall.
+
+The shared rig includes a spool launcher and aiming hands for **Grappling**, plus **Ropeclimbing** and **Ropeswinging** pose previews. The flying hook and full movement use the desktop simulation. For repeatable real-window checks, launch the fixture with `--low-only`, then the Debug app with `--fixture-terrain --activity=grapple --trace-movement`. `--freeze-grapple` freezes the hook in flight; `--freeze-swing` freezes the latched hanging pose. Omit either freeze flag to run the complete journey.

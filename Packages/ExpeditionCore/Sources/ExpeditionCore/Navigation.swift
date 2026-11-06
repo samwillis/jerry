@@ -1,6 +1,6 @@
 import Foundation
 
-public enum TravelKind: String, Sendable { case walking, climbing, abseiling, parachuting, mantling, lowering }
+public enum TravelKind: String, Sendable { case walking, climbing, abseiling, parachuting, mantling, lowering, grappling }
 
 public struct TravelStep: Equatable, Sendable {
     public let from: TerrainAttachment
@@ -60,10 +60,13 @@ public struct NavigationGraph {
                 if drop >= 100, abs(q.x - p.x) <= flightReach(drop), safeLanding(b, at: q), flightClear(p, q) { connect(a, b, .parachuting) }
             }
         }
+        for source in nodes where source.edge == .top || source.edge == .floor {
+            for step in grappleSteps(from: source) { connect(step.from, step.to, .grappling) }
+        }
     }
 
     /// Breadth-first route to a seeded destination. The caller varies the seed after each rest.
-    public func route(from anchor: TerrainAttachment, to destination: TerrainAttachment? = nil, seed: UInt64, allowParachute: Bool = true) -> [TravelStep] {
+    public func route(from anchor: TerrainAttachment, to destination: TerrainAttachment? = nil, seed: UInt64, allowParachute: Bool = true, allowGrapple: Bool = false) -> [TravelStep] {
         guard let point = TerrainSupport.resolve(anchor, in: terrain) else { return [] }
         let starts = vertices.filter { $0.owner == anchor.owner && $0.edge == anchor.edge && clear(anchor, $0) }
             .sorted { distance(point, TerrainSupport.resolve($0, in: terrain)!) < distance(point, TerrainSupport.resolve($1, in: terrain)!) }
@@ -72,7 +75,7 @@ public struct NavigationGraph {
         var paths: [[TravelStep]] = [[]]
         var index = 0
         while index < reached.count {
-            let outgoing = steps.filter { $0.from == reached[index] && (allowParachute || $0.kind != .parachuting) }
+            let outgoing = steps.filter { $0.from == reached[index] && (allowParachute || $0.kind != .parachuting) && (allowGrapple || $0.kind != .grappling) }
             for step in outgoing where !reached.contains(step.to) {
                 reached.append(step.to); paths.append(paths[index] + [step])
             }
@@ -114,6 +117,7 @@ public struct NavigationGraph {
             guard step.from.owner == step.to.owner, step.to.edge == .top, [.left, .right].contains(step.from.edge), abs(q.y - p.y - EdgeTraversal.lipHeight) < 0.1, abs(abs(q.x - p.x) - 48) < 0.1 else { return false }
         case .lowering:
             guard step.from.owner == step.to.owner, step.from.edge == .top, [.left, .right].contains(step.to.edge), abs(p.y - q.y - EdgeTraversal.lipHeight) < 0.1, abs(abs(q.x - p.x) - 48) < 0.1, validRope(step.to) else { return false }
+        case .grappling: return grappleSteps(from: step.from).contains(step)
         case .parachuting: break
         }
         if step.kind == .parachuting {
@@ -121,6 +125,37 @@ public struct NavigationGraph {
             return launch.y - q.y >= 100 && abs(q.x - launch.x) <= flightReach(launch.y - q.y) && safeLanding(step.to, at: q) && flightClear(launch, q)
         }
         return clear(step.from, step.to)
+    }
+
+    public func grappleSteps(from source: TerrainAttachment) -> [TravelStep] {
+        guard source.edge == .top || source.edge == .floor, let point = TerrainSupport.resolve(source, in: terrain) else { return [] }
+        var result: [TravelStep] = []
+        for mantle in steps where mantle.kind == .mantling && mantle.from.owner != source.owner {
+            guard case .window(let id) = mantle.from.owner,
+                  let anchor = RopeAnchor(windowID: id, edge: mantle.from.edge).resolve(in: terrain),
+                  let window = terrain.windows.first(where: { $0.id == id }) else { continue }
+            let outside = mantle.from.edge == .left ? point.x <= window.frame.minX - 24 : point.x >= window.frame.maxX + 24
+            let muzzle = RopeSession.muzzle(feet: point, target: anchor.anchor)
+            let harness = WorldPoint(x: point.x, y: point.y + RopeSession.harnessHeight)
+            guard outside, anchor.anchor.y - muzzle.y >= 65,
+                  hypot(anchor.anchor.x - muzzle.x, anchor.anchor.y - muzzle.y) <= 550,
+                  anchor.length(to: harness) <= 600 else { continue }
+            var clear = true
+            var previous = muzzle
+            for sample in 1...24 {
+                let next = RopeSession.hook(from: muzzle, to: anchor.anchor, fraction: Double(sample) / 24)
+                if next.y < previous.y {
+                    for surface in terrain.surfaces where surface.id.owner != mantle.from.owner && (surface.id.edge == .top || surface.id.edge == .floor) && surface.start.y <= previous.y && surface.start.y >= next.y {
+                        let t = (previous.y - surface.start.y) / max(0.00001, previous.y - next.y)
+                        let x = previous.x + (next.x - previous.x) * t
+                        if x >= surface.start.x, x <= surface.end.x { clear = false }
+                    }
+                }
+                previous = next
+            }
+            if clear { result.append(.init(from: source, to: mantle.from, kind: .grappling)) }
+        }
+        return result
     }
 
     public func launchPoint(from anchor: TerrainAttachment) -> WorldPoint? {
@@ -154,6 +189,7 @@ public struct NavigationGraph {
     private mutating func connect(_ a: TerrainAttachment, _ b: TerrainAttachment, _ kind: TravelKind) {
         if kind == .abseiling && !validRope(a) { return }
         let step = TravelStep(from: a, to: b, kind: kind)
+        if (kind == .mantling || kind == .lowering) && !isValid(step) { return }
         if !steps.contains(step) { steps.append(step) }
     }
     private func distance(_ a: WorldPoint, _ b: WorldPoint) -> Double { hypot(a.x - b.x, a.y - b.y) }

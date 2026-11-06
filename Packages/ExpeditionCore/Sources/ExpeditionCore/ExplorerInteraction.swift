@@ -18,7 +18,7 @@ public struct ExplorerInteraction {
         }
     }
 
-    public enum State: String { case idle, held, settling, recovering, walking, climbing, abseiling, traversingEdge }
+    public enum State: String { case idle, held, settling, recovering, walking, climbing, abseiling, traversingEdge, grappling, swinging, ropeClimbing }
     public private(set) var position: Point
     public private(set) var state: State = .idle
     public private(set) var attachment: TerrainAttachment?
@@ -28,15 +28,26 @@ public struct ExplorerInteraction {
     public private(set) var requestedActivity: ExplorerActivity?
     public private(set) var pendingActivity: ExplorerActivity?
     public private(set) var activityIssue: String?
+    public private(set) var ropeSession: RopeSession?
+    private var ropeContinuation: [TravelStep] = []
+    private var physicalRelease = false
     public var activityStatus: String {
         if let pendingActivity { return "Queued: \(pendingActivity.title)" }
         if let activityIssue { return activityIssue }
+        if let ropeSession {
+            if ropeSession.mode == .supported { return "Rope attached · standing" }
+            return "\(requestedActivity?.title ?? "Rope"): \(ropeSession.mode.rawValue)"
+        }
         guard let requestedActivity else { return "Automatic adventures" }
         return "\(requestedActivity.title): \(hasPendingTravel ? state.rawValue : "finished")"
     }
     public var availableActivities: Set<ExplorerActivity> {
         var result: Set<ExplorerActivity> = [.automatic, .bananaAdventure]
-        if state == .recovering || state == .traversingEdge { return Set(ExplorerActivity.allCases) }
+        if ropeSession != nil {
+            result.formUnion([.abseil, .ropeClimb, .swing, .releaseRope])
+            if ropeSession?.mode != .supported { return result }
+        }
+        if state == .recovering || state == .traversingEdge { return Set(ExplorerActivity.allCases.filter { $0 != .releaseRope }) }
         guard let source = currentSupport, let graph else { return result }
         for activity in ExplorerActivity.allCases where activity.travelKind != nil {
             if graph.activityRoute(activity, from: source) != nil { result.insert(activity) }
@@ -53,6 +64,36 @@ public struct ExplorerInteraction {
     @discardableResult public mutating func requestActivity(_ activity: ExplorerActivity) -> Bool {
         mission.cancel()
         activityIssue = nil
+        if ropeSession != nil && [.abseil, .ropeClimb, .swing, .releaseRope].contains(activity) {
+            requestedActivity = activity; pendingActivity = nil; runsMission = false
+            ropeContinuation.removeAll(); route.removeAll(); afterLanding.removeAll()
+            if activity == .releaseRope {
+                let velocity = ropeSession?.releaseVelocity ?? .zero
+                let grounded = ropeSession?.mode == .supported || ropeSession?.mode == .firing
+                ropeSession = nil
+                if grounded { state = .settling; settlingRemaining = 0.3 }
+                else { releaseRope(velocity: velocity) }
+            } else {
+                let mode: RopeSession.Mode = activity == .abseil ? .descending : (activity == .ropeClimb ? .climbing : .swinging)
+                ropeSession?.climbsAfterSwing = false
+                if ropeSession?.mode == .firing { ropeSession?.modeAfterLatch = mode }
+                else {
+                    ropeSession?.switchMode(mode)
+                    if mode == .swinging, let terrain, let guide = ropeSession?.anchor.resolve(in: terrain) { ropeSession?.pushOff(guide: guide) }
+                }
+                attachment = nil
+                applyRopeState()
+            }
+            return true
+        }
+        if ropeSession != nil && ropeSession?.mode != .supported {
+            pendingActivity = activity; requestedActivity = activity; runsMission = false
+            ropeContinuation.removeAll(); afterLanding.removeAll()
+            ropeSession?.climbsAfterSwing = true
+            if ropeSession?.mode == .swinging { ropeSession?.switchMode(.climbing) }
+            return true
+        }
+        if activity == .releaseRope { activityIssue = "No rope attached"; return false }
         if state == .recovering || state == .traversingEdge || state == .held {
             pendingActivity = activity
             requestedActivity = activity
@@ -63,7 +104,7 @@ public struct ExplorerInteraction {
         }
         if activity == .automatic || activity == .bananaAdventure {
             if let source = currentSupport { attachment = source }
-            route.removeAll(); afterLanding.removeAll()
+            route.removeAll(); afterLanding.removeAll(); ropeSession = nil
             requestedActivity = nil; pendingActivity = nil
             runsMission = true
             state = .settling; settlingRemaining = 0.3
@@ -95,14 +136,23 @@ public struct ExplorerInteraction {
         return position.y - window.frame.minY
     }
     public var activeTravel: TravelStep? { route.first }
-    public var hasPendingTravel: Bool { !route.isEmpty || !afterLanding.isEmpty || flightGoal != nil }
+    public var hasPendingTravel: Bool { !route.isEmpty || !afterLanding.isEmpty || flightGoal != nil || (ropeSession.map { $0.mode != .supported } ?? false) }
     public var ropeGuide: AbseilRope? {
+        if let ropeSession, let terrain, ropeSession.mode != .firing { return ropeSession.anchor.resolve(in: terrain) }
         guard state == .abseiling || edgeMotion == .lowering,
               let step = route.first, let terrain,
               let window = terrain.windows.first(where: { .window($0.id) == step.from.owner }) else { return nil }
         return AbseilRope(window: window.frame, edge: step.kind == .lowering ? step.to.edge : step.from.edge)
     }
     public var ropeAnchor: Point? { ropeGuide?.anchor }
+    public var grappleTarget: Point? {
+        guard let ropeSession, ropeSession.mode == .firing, let terrain else { return nil }
+        return ropeSession.anchor.resolve(in: terrain)?.anchor
+    }
+    public var hookPosition: Point? {
+        guard let ropeSession, ropeSession.mode == .firing, let terrain, let guide = ropeSession.anchor.resolve(in: terrain) else { return nil }
+        return ropeSession.hookPosition(guide: guide)
+    }
 
     private var graph: NavigationGraph?
     private var route: [TravelStep] = []
@@ -131,6 +181,7 @@ public struct ExplorerInteraction {
     public mutating func beginDrag(at pointer: Point, time: Double? = nil) {
         mission.cancel()
         pendingActivity = nil
+        ropeSession = nil; ropeContinuation.removeAll(); physicalRelease = false
         if requestedActivity != nil { activityIssue = "Activity interrupted by dragging" }
         route.removeAll()
         afterLanding.removeAll()
@@ -193,7 +244,9 @@ public struct ExplorerInteraction {
         while accumulator + 0.0000001 >= dt {
             accumulator -= dt
             simulationSteps += 1
-            if state == .walking || state == .climbing || state == .abseiling || state == .traversingEdge {
+            if ropeSession != nil && ropeSession?.mode != .supported {
+                advanceRope(by: dt)
+            } else if state == .walking || state == .climbing || state == .abseiling || state == .traversingEdge {
                 advanceTravel(by: dt)
             } else {
                 advancePhysics(by: dt)
@@ -231,7 +284,12 @@ public struct ExplorerInteraction {
             while remaining > 0.000001, state == .recovering {
                 let dt = min(remaining, 1.0 / 120)
                 remaining -= dt
-                let distance = RecoveryAnimation.distance(from: recoveryTime, to: recoveryTime + dt)
+                let distance = physicalRelease ? 0 : RecoveryAnimation.distance(from: recoveryTime, to: recoveryTime + dt)
+                if physicalRelease {
+                    flightVelocity.y -= RopeDynamics.gravity * dt
+                    let opening = RecoveryAnimation.deployment(at: recoveryTime)
+                    flightVelocity.y += (-RecoveryAnimation.openChuteSpeed - flightVelocity.y) * (1 - exp(-opening * 6 * dt))
+                }
                 let drag = 1.2 + 5 * RecoveryAnimation.deployment(at: recoveryTime + dt / 2)
                 let decay = exp(-drag * dt)
                 if let flightGoal, let terrain, let target = TerrainSupport.resolve(flightGoal, in: terrain) {
@@ -241,7 +299,7 @@ public struct ExplorerInteraction {
                 }
                 var next = Point(x: position.x + flightVelocity.x * (1 - decay) / drag, y: position.y - distance + flightVelocity.y * (1 - decay) / drag)
                 flightVelocity.x *= decay
-                flightVelocity.y *= decay
+                if !physicalRelease { flightVelocity.y *= decay }
                 recoveryTime += dt
                 if next.x < bounds.minimum.x || next.x > bounds.maximum.x { flightVelocity.x = 0 }
                 if next.y > bounds.maximum.y { flightVelocity.y = min(0, flightVelocity.y) }
@@ -273,6 +331,7 @@ public struct ExplorerInteraction {
 
     public mutating func updateBounds(_ bounds: Bounds) {
         self.bounds = bounds
+        ropeSession = nil; ropeContinuation.removeAll(); physicalRelease = false
         mission.cancel()
         route.removeAll()
         afterLanding.removeAll()
@@ -290,10 +349,30 @@ public struct ExplorerInteraction {
         clampPosition()
     }
 
-    public mutating func updateTerrain(_ terrain: TerrainSnapshot) {
+    public mutating func updateTerrain(_ terrain: TerrainSnapshot, sampleElapsed: Double = 0.1) {
         self.terrain = terrain
         if autonomous { graph = NavigationGraph(terrain: terrain) }
         guard state != .held else { return }
+        if var session = ropeSession {
+            if let guide = session.anchor.resolve(in: terrain) {
+                session.followSupport(guide, sampleElapsed: sampleElapsed)
+                if session.mode == .firing, let attachment {
+                    guard let support = TerrainSupport.resolve(attachment, in: terrain) else { releaseRope(velocity: .zero); return }
+                    session.contact(feet: support, horizontal: true, vertical: true)
+                }
+                if session.mode != .supported {
+                    position = session.feet
+                    let unbounded = position
+                    clampPosition()
+                    if position != unbounded { releaseRope(velocity: session.releaseVelocity); return }
+                }
+                ropeSession = session
+                if session.mode != .supported { return }
+            } else if session.mode == .supported {
+                ropeSession = nil
+                // Still validate the landing attachment in this same snapshot.
+            } else { releaseRope(velocity: session.releaseVelocity); return }
+        }
         if let step = route.first {
             if graph?.isValid(step) == true,
                let from = TerrainSupport.resolve(step.from, in: terrain),
@@ -309,12 +388,23 @@ public struct ExplorerInteraction {
             if let supported = TerrainSupport.resolve(attachment, in: terrain) {
                 position = supported
                 clampPosition()
+                if var session = ropeSession, session.mode == .supported {
+                    session.contact(feet: position, horizontal: true, vertical: true)
+                    if let guide = session.anchor.resolve(in: terrain), guide.length(to: session.body.position) > session.body.length + 1 {
+                        session.switchMode(.swinging); session.climbsAfterSwing = false
+                        self.attachment = nil; state = .swinging
+                    }
+                    ropeSession = session
+                }
                 return
             }
             self.attachment = nil
-            recoveryTime = 0
-            flightVelocity = .zero
-            state = .recovering
+            if ropeSession?.mode == .supported {
+                ropeSession?.switchMode(.swinging); ropeSession?.climbsAfterSwing = false
+                state = .swinging
+            } else {
+                recoveryTime = 0; flightVelocity = .zero; state = .recovering
+            }
             return
         }
         guard state != .recovering else { return }
@@ -330,6 +420,7 @@ public struct ExplorerInteraction {
     }
 
     private mutating func recover() {
+        ropeSession = nil; ropeContinuation.removeAll(); physicalRelease = false
         route.removeAll()
         afterLanding.removeAll()
         flightContinuation.removeAll()
@@ -358,13 +449,17 @@ public struct ExplorerInteraction {
               let to = TerrainSupport.resolve(step.to, in: terrain) else { recover(); return }
         switch step.kind {
         case .walking:
+            if hypot(to.x - from.x, to.y - from.y) > 1 { ropeSession = nil }
             let direction: Double = to.x >= from.x ? 1 : -1
             if state != .walking || facing != direction { walkingTime = 0 }
             state = .walking; facing = direction
         case .climbing:
             if state != .climbing { climbingTime = ClimbingGait.time(atHeight: heightAlongWall) }
             state = .climbing; facing = step.from.edge == .left ? 1 : -1
-        case .abseiling: state = .abseiling; facing = step.from.edge == .left ? 1 : -1
+        case .abseiling:
+            beginRope(step, mode: .descending)
+        case .grappling:
+            beginRope(step, mode: .firing)
         case .mantling:
             state = .traversingEdge; facing = step.from.edge == .left ? 1 : -1
         case .lowering:
@@ -422,12 +517,119 @@ public struct ExplorerInteraction {
         return .init(x: from.x + (to.x - from.x) * travelFraction, y: from.y + (to.y - from.y) * travelFraction)
     }
 
+    private mutating func beginRope(_ step: TravelStep, mode: RopeSession.Mode) {
+        guard let terrain,
+              case .window(let id) = (mode == .firing ? step.to.owner : step.from.owner) else { recover(); return }
+        let edge = mode == .firing ? step.to.edge : step.from.edge
+        let anchor = RopeAnchor(windowID: id, edge: edge)
+        guard let guide = anchor.resolve(in: terrain) else { recover(); return }
+        var session = RopeSession(anchor: anchor, guide: guide, feet: position, mode: mode)
+        session.climbsAfterSwing = requestedActivity != .swing
+        if requestedActivity == .ropeClimb { session.modeAfterLatch = .climbing }
+        ropeContinuation = Array(route.dropFirst())
+        route.removeAll(); travelFraction = 0
+        if mode != .firing { attachment = nil }
+        ropeSession = session
+        facing = edge == .left ? 1 : -1
+        applyRopeState()
+    }
+
+    private mutating func applyRopeState() {
+        guard let session = ropeSession else { return }
+        switch session.mode {
+        case .firing: state = .grappling
+        case .swinging: state = .swinging
+        case .climbing: state = .ropeClimbing
+        case .descending: state = .abseiling
+        case .supported: break
+        }
+    }
+
+    private mutating func releaseRope(velocity: Point) {
+        ropeSession = nil; ropeContinuation.removeAll(); route.removeAll(); afterLanding.removeAll()
+        attachment = nil; flightGoal = nil
+        flightVelocity = velocity; physicalRelease = true; recoveryTime = 0
+        state = .recovering
+    }
+
+    private mutating func advanceRope(by dt: Double) {
+        guard var session = ropeSession, let terrain,
+              let guide = session.anchor.resolve(in: terrain),
+              let window = terrain.windows.first(where: { $0.id == session.anchor.windowID }) else {
+            releaseRope(velocity: ropeSession?.releaseVelocity ?? .zero)
+            return
+        }
+        let edge = session.anchor.edge
+        let lip = TerrainAttachment(owner: .window(window.id), edge: edge, offset: window.frame.height - EdgeTraversal.lipHeight)
+        guard let lipPoint = TerrainSupport.resolve(lip, in: terrain) else { releaseRope(velocity: session.releaseVelocity); return }
+        let lipHarness = Point(x: lipPoint.x, y: lipPoint.y + RopeSession.harnessHeight)
+        let minimum = guide.length(to: lipHarness)
+        let previous = position
+        let wasFiring = session.mode == .firing
+        session.advance(by: dt, guide: guide, minimumLength: minimum)
+        var next = session.feet
+        if wasFiring && session.mode != .firing { attachment = nil }
+        if !wasFiring {
+            // Feet brace against the host wall. A swing may pass below its bottom,
+            // but cannot tunnel through the window while the body overlaps its side.
+            var sideContact = false
+            if next.y < window.frame.maxY && next.y + 74 > window.frame.minY {
+                if edge == .left && next.x > window.frame.minX - 24 { next.x = window.frame.minX - 24; sideContact = true }
+                if edge == .right && next.x < window.frame.maxX + 24 { next.x = window.frame.maxX + 24; sideContact = true }
+            }
+            let bounded = Point(x: min(max(next.x, bounds.minimum.x), bounds.maximum.x), y: min(max(next.y, bounds.minimum.y), bounds.maximum.y))
+            session.contact(feet: bounded, horizontal: sideContact || bounded.x != next.x, vertical: bounded.y != next.y)
+            next = bounded
+            if let (landed, point) = TerrainSupport.landing(from: previous, to: next, in: terrain), previous.y >= point.y {
+                session.contact(feet: point, vertical: true)
+                next = point
+                if session.mode == .descending || (session.mode == .swinging && !session.isTakingUp) {
+                    session.contact(feet: point, horizontal: true, vertical: true)
+                    session.switchMode(.supported)
+                    ropeSession = session; position = point; attachment = landed
+                    let continuation = ropeContinuation
+                    ropeContinuation.removeAll()
+                    if let first = continuation.first, let start = TerrainSupport.resolve(first.from, in: terrain), hypot(start.x - point.x, start.y - point.y) < 12 {
+                        route = continuation
+                        travelFraction = 0
+                        startTravel()
+                    } else { settle() }
+                    return
+                }
+            }
+        }
+        position = next
+        ropeSession = session
+        applyRopeState()
+        if session.mode == .descending && session.body.length >= RopeDynamics.maximumLength - 0.01 {
+            releaseRope(velocity: session.releaseVelocity)
+            activityIssue = "Rope end reached — parachuting"
+            return
+        }
+        if session.mode == .climbing && session.body.length <= minimum + 0.5,
+           hypot(next.x - lipPoint.x, next.y - lipPoint.y) < 7 {
+            session.contact(feet: lipPoint, horizontal: true, vertical: true)
+            position = lipPoint; attachment = lip
+            ropeSession = nil
+            let continuation = ropeContinuation
+            ropeContinuation.removeAll()
+            if let first = continuation.first, first.from == lip {
+                route = continuation
+            } else if let mantle = graph?.steps.first(where: { $0.kind == .mantling && $0.from == lip }) {
+                route = [mantle]
+            } else { recover(); return }
+            travelFraction = 0
+            startTravel()
+        }
+    }
+
     private mutating func clampPosition() {
         position.x = min(max(position.x, bounds.minimum.x), bounds.maximum.x)
         position.y = min(max(position.y, bounds.minimum.y), bounds.maximum.y)
     }
 
     private mutating func settle() {
+        physicalRelease = false
         var continuation: [TravelStep] = []
         if let goal = flightGoal, let terrain, let point = TerrainSupport.resolve(goal, in: terrain),
            attachment?.owner == goal.owner, attachment?.edge == goal.edge,

@@ -127,3 +127,14 @@ The latest requirement-by-requirement evidence, native lifecycle checks, real-wi
 ## Movement feedback — 6 November 2026
 
 Updated walking and climbing to follow stance/pull clocks, fixed climbing knee branch changes, added lip/rope/jump transitions and manual Activities controls, and routed the rope over rounded corners with tangent joins. See [the latest validation](PROTOTYPE_VALIDATION.md#movement-and-activity-refinement--6-november-2026) and [animation workflow](ANIMATION_WORKFLOW.md) for coverage and the preview controls.
+
+
+## Connected rope activity checks — 6 November 2026
+
+- Choose Activities → Grappling hook: launcher aims, hook flies and latches, line takes weight, explorer swings, climbs and mantles.
+- During the swing, select Climb rope / Abseil / Swing on rope: confirm the line stays on the same window and motion continues through each mode change.
+- After abseiling onto a floor or lower window, select Climb rope: he uses the deployed line without firing again.
+- Release rope or grab during any rope phase: momentum/recovery or direct dragging replaces the rope immediately.
+- Move/cover/close the anchor window; remove a landing window while the line remains attached: the line follows, catches or releases appropriately.
+
+Automated equivalents and native observations are in [prototype validation](PROTOTYPE_VALIDATION.md#grapple-and-unified-rope-simulation--6-november-2026). These checks supplement earlier user-confirmed focus/dragging behaviour; no new input hooks or permissions are introduced.

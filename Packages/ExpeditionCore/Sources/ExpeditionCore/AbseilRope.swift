@@ -10,6 +10,7 @@ public struct AbseilRope {
     public let control1: WorldPoint
     public let control2: WorldPoint
     public let sideTangent: WorldPoint
+    public let wrappedLength: Double
     private let window: WorldRect
     private let edge: TerrainEdge
 
@@ -30,6 +31,7 @@ public struct AbseilRope {
                 angle = min(.pi, max(.pi / 2, angle))
             }
         }
+        wrappedLength = Self.anchorInset - radius + arcRadius * (angle - .pi / 2)
         let handle = 4.0 / 3 * tan((angle - .pi / 2) / 4)
         anchor = .init(x: cornerX + inward * Self.anchorInset, y: window.maxY + 1)
         topTangent = .init(x: center.x, y: window.maxY + 1)
@@ -38,5 +40,9 @@ public struct AbseilRope {
         control2 = .init(x: sideTangent.x + inward * arcRadius * sin(angle) * handle, y: sideTangent.y - arcRadius * cos(angle) * handle)
     }
 
+    public func length(to grip: WorldPoint) -> Double {
+        let path = taut(toward: grip)
+        return path.wrappedLength + hypot(grip.x - path.sideTangent.x, grip.y - path.sideTangent.y)
+    }
     public func taut(toward grip: WorldPoint) -> AbseilRope { .init(window: window, edge: edge, grip: grip) }
 }

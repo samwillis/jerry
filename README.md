@@ -14,15 +14,25 @@ On landing, the explorer briefly crouches with planted feet and then rises. A se
 
 ## Trigger an activity
 
-Use the hiking menu → **Activities** → **Walk**, **Climb a window**, **Abseil**, **Parachute**, or **Find the sock**. The explorer approaches suitable real terrain first, then performs the activity and rests. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Automatic adventures** restores normal mission selection. Choosing an activity resumes a paused expedition.
+Use the hiking menu → **Activities** → **Walk**, **Climb a window**, **Grappling hook**, **Abseil**, **Climb rope**, **Swing on rope**, **Release rope**, **Parachute**, or **Find the sock**. The explorer approaches suitable real terrain first, then performs the activity and rests. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Automatic adventures** restores normal mission selection. Choosing an activity resumes a paused expedition.
 
 Climbs now pull over the lip into a planted-foot standing pose; rope descents crouch and back over the lip; parachute trips crouch and jump clear before deploying. The rope pins on the top edge, follows an estimated 10-point rounded window corner, and leaves along the mathematical tangent towards the hands. Both straight-to-curve joins remain tangent as the explorer descends.
+
+## Connected rope activities
+
+**Grappling hook** aims a small spool launcher, fires a hook over a reachable window lip, takes up the line, swings under gravity, then climbs and mantles onto the destination. It can reach exposed windows that have no climbable route from the floor. Automatic adventures occasionally consider these grapple routes as well.
+
+While attached, **Swing on rope**, **Climb rope**, and **Abseil** change the motor/holding mode of that same rope; they preserve the anchor, deployed length, position and existing momentum. Swing pushes off if the explorer is resting against the wall. A completed abseil keeps its line attached, so Climb rope can take him back up without refiring. **Release rope** keeps his current velocity and uses parachute recovery. Grabbing always cancels the line immediately.
+
+The physical rope has gravity, tension, slack, damping, a controlled reel/payout rate, corner contact and window/floor contact. Swinging is simulated rather than played as a looping animation. Rendering keeps the rounded corner's tangent joins and shows slack in the free line. The body hangs from its harness and hands follow the line. Rope climbing lifts in time with the hand pulls.
+
+The prototype models one massless line and one rounded corner guide on its supporting window. It does not yet wrap rope around arbitrary intervening windows, collide ropes with each other, or simulate rope elasticity. A missing/covered anchor releases into recovery. The 2,400-point spool covers supported descent routes; reaching its end also releases safely.
 
 ## The banana adventure
 
 The explorer spots a supposed sock through binoculars, approaches a launch point, crosses to a reachable discovery, investigates, discovers a banana, plants a flag, marks its map, and rests before trying again. It prefers a valid parachute crossing; climbing and shorter walks provide alternatives. The prop follows its supporting window. Grabbing the explorer, losing support, or removing the destination cancels or replans the expedition. A sparse desktop permits short floor expeditions; no reachable route means a safe rest.
 
-Movement uses a fixed 120 Hz simulation with at most 0.25 seconds of catch-up after a stall, presented at 30 fps. Walking follows the unchanged foot cycle (40 points/second on average at the default stride/cadence). Climbing follows alternating 12-point arm pulls (24 points/second on average), and abseiling descends at 48 points/second; Gentle Pace runs the expedition at 65% speed. Climb/abseil transitions are limited to 1,200 points and need exposed wall contacts. Planned flights have a 65 points/second steering cap and land farther inside tops than ordinary dropped-character recovery. Windows are platforms, rather than solid boxes: rear windows can form the visual background behind a foreground climb, and the screen floor remains rescue terrain.
+Movement uses a fixed 120 Hz simulation with at most 0.25 seconds of catch-up after a stall, presented at 30 fps. Walking follows the unchanged foot cycle (40 points/second on average at the default stride/cadence). Climbing follows alternating 12-point arm pulls (24 points/second on average), and abseiling descends at 48 points/second; Gentle Pace runs the expedition at 65% speed. Planned wall climb/abseil transitions are limited to 1,200 points and need exposed wall contacts. Planned flights have a 65 points/second steering cap and land farther inside tops than ordinary dropped-character recovery. Windows are platforms, rather than solid boxes: rear windows can form the visual background behind a foreground climb, and the screen floor remains rescue terrain.
 
 ## Animation playground
 

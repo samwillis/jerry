@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ExplorerMotion: String, CaseIterable, Sendable {
-    case idle, walking, climbing, abseiling, parachuting, mantling, lowering, launching, held, investigating, landing, comic
+    case idle, walking, climbing, abseiling, grappling, ropeClimbing, ropeSwinging, parachuting, mantling, lowering, launching, held, investigating, landing, comic
 }
 
 public enum RecoveryAnimation {
@@ -117,6 +117,7 @@ public struct AnimationTuning: Sendable {
 }
 
 public struct ExplorerPose: Sendable {
+    public init() {}
     public var hips = WorldPoint(x: 0, y: ExpeditionConfiguration.standingHipHeight)
     public var leftHand = WorldPoint(x: -20, y: 31.5)
     public var rightHand = WorldPoint(x: 20, y: 31.5)
@@ -193,6 +194,11 @@ public enum AnimationClips {
             pose.leftFoot = .init(x: 10, y: 9)
             pose.rightFoot = .init(x: 20, y: 11)
             pose.backpackTilt = 0.1 + sin(phase * 0.4) * 0.03
+        case .grappling:
+            pose.leftHand = .init(x: 12, y: 46); pose.rightHand = .init(x: 5, y: 42)
+            pose.headTilt = 0.08
+        case .ropeClimbing, .ropeSwinging:
+            pose = RopeAnimation.pose(mode: motion == .ropeClimbing ? .climbing : .swinging, direction: .init(x: 0.3, y: 0.95), velocity: .zero, pullTime: t)
         case .parachuting:
             // First half-second is the crouch/launch anticipation.
             let launch = min(t * 2, 1)
@@ -263,7 +269,7 @@ public struct RigAnimator {
         blendTime = max(0, tuning.blendDuration)
     }
 
-    public mutating func select(_ motion: ExplorerMotion, restart: Bool = false) {
+    public mutating func select(_ motion: ExplorerMotion, restart: Bool = false, from presentedPose: ExplorerPose? = nil) {
         guard motion != self.motion || restart else { return }
         if restart {
             self.motion = motion
@@ -273,7 +279,7 @@ public struct RigAnimator {
             transitionFrom = pose
             return
         }
-        transitionFrom = pose
+        transitionFrom = presentedPose ?? pose
         self.motion = motion
         time = 0
         blendTime = 0
@@ -383,4 +389,37 @@ public enum ClimbingGait {
         return turns + angle / (2 * .pi)
     }
     public static func distance(from start: Double, to end: Double) -> Double { max(0, height(at: end) - height(at: start)) }
+}
+
+
+public enum RopeAnimation {
+    public static func pose(mode: RopeSession.Mode, direction: WorldPoint, velocity: WorldPoint, pullTime: Double) -> ExplorerPose {
+        var pose = AnimationClips.sample(mode == .descending ? .abseiling : .held, time: pullTime, tuning: .init())
+        pose.hips.x = 0
+        pose.sway = min(0.4, max(-0.4, -atan2(direction.x, max(0.1, direction.y)) * 0.35))
+        let c = cos(pose.sway), s = sin(pose.sway)
+        let u = WorldPoint(x: c * direction.x + s * direction.y, y: -s * direction.x + c * direction.y)
+        func distance(_ upper: Double, offset: Double) -> Double {
+            guard mode == .climbing else { return upper }
+            let cycle = (ClimbingGait.height(at: pullTime) + offset) / 24, phase = cycle - floor(cycle)
+            let swing = min(1, max(0, (phase - 0.65) / 0.35))
+            return upper - phase * 24 + swing * swing * (3 - 2 * swing) * 24
+        }
+        let leftHigh = u.x < 0
+        let left = distance(leftHigh ? 22 : 12, offset: 0), right = distance(leftHigh ? 12 : 22, offset: 12)
+        pose.leftHand = .init(x: u.x * left - 2, y: RopeSession.harnessHeight + u.y * left)
+        pose.rightHand = .init(x: u.x * right + 2, y: RopeSession.harnessHeight + u.y * right)
+        pose.elbowPole = .init(x: 24, y: -16)
+        pose.headTilt = min(0.15, max(-0.15, direction.x * 0.12))
+        if mode == .climbing {
+            let phase = pullTime * 2 * Double.pi
+            pose.leftFoot = .init(x: -4 + sin(phase) * 3, y: max(0, sin(phase)) * 8)
+            pose.rightFoot = .init(x: 5 - sin(phase) * 3, y: max(0, -sin(phase)) * 8)
+        } else if mode == .swinging {
+            let trail = min(7, max(-7, -velocity.x / 35))
+            pose.leftFoot = .init(x: -8 + trail, y: 2)
+            pose.rightFoot = .init(x: 8 + trail, y: 1)
+        }
+        return pose
+    }
 }

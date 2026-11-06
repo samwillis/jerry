@@ -80,6 +80,7 @@ final class ExplorerRig: SKNode {
     private let backpack = SKNode()
     private let joints = SKNode()
     private let canopy = SKNode()
+    private let grappleGun = SKNode()
     private let canopyFabric = SKNode()
     private var cords: [(SKShapeNode, CGFloat)] = []
     private let leftEye = SKShapeNode(rect: CGRect(x: -1, y: -1.5, width: 2, height: 3))
@@ -92,7 +93,14 @@ final class ExplorerRig: SKNode {
     private var expressionTime: Double = 0
     private var landingTime: Double?
     private var landingStrength: Double = 1
+    private var presentedPose = ExplorerPose()
+    private var ropeBlendFrom = ExplorerPose()
+    private var ropeBlendTime: Double = 1
+    private var harnessWasUsed = false
     var synchronizedTime: Double?
+    var ropePose: ExplorerPose?
+    var grappleAim: WorldPoint?
+    var usesHarnessPivot = false
     var handTargets: (WorldPoint, WorldPoint)?
     var footTargets: (WorldPoint, WorldPoint)?
     var grabPoint = CGPoint(x: 0, y: 64)
@@ -117,6 +125,8 @@ final class ExplorerRig: SKNode {
         body.addChild(torso)
         body.addChild(head)
         body.addChild(leftArm)
+        body.addChild(grappleGun)
+        buildGrappleGun()
         body.addChild(canopy)
         canopy.zPosition = -4
         body.addChild(joints)
@@ -157,6 +167,23 @@ final class ExplorerRig: SKNode {
             eye.lineWidth = painted ? 0.4 : 1
         }
     }
+
+    private func buildGrappleGun() {
+        func part(_ rect: CGRect, _ color: NSColor, radius: CGFloat = 1) {
+            let shape = SKShapeNode(rect: rect, cornerRadius: radius)
+            shape.fillColor = color; shape.strokeColor = NSColor(calibratedWhite: 0.12, alpha: 1); shape.lineWidth = 0.7
+            grappleGun.addChild(shape)
+        }
+        part(.init(x: -4, y: -4, width: 13, height: 8), NSColor(calibratedRed: 0.27, green: 0.36, blue: 0.37, alpha: 1), radius: 2)
+        part(.init(x: 7, y: -2, width: 10, height: 4), .lightGray)
+        part(.init(x: -2, y: -9, width: 4, height: 6), ExplorerPalette.bag)
+        let spool = SKShapeNode(circleOfRadius: 3)
+        spool.fillColor = ExplorerPalette.jacket; spool.strokeColor = .darkGray; spool.lineWidth = 0.7
+        spool.position = .init(x: 2, y: 0); grappleGun.addChild(spool)
+        grappleGun.zPosition = 4
+    }
+
+    func grappleMuzzle(in node: SKNode) -> CGPoint { grappleGun.convert(.init(x: 17, y: 0), to: node) }
 
     private func buildParachute() {
         let path = CGMutablePath()
@@ -201,7 +228,8 @@ final class ExplorerRig: SKNode {
     func select(_ motion: ExplorerMotion, restart: Bool = false) {
         if restart { expressionTime = 0 }
         if restart || ![ExplorerMotion.idle, .investigating, .landing].contains(motion) { landingTime = nil }
-        animator.select(motion, restart: restart)
+        if motion != animator.motion { ropeBlendFrom = presentedPose; ropeBlendTime = 0 }
+        animator.select(motion, restart: restart, from: presentedPose)
     }
 
     func land(strength: Double = 1) {
@@ -218,6 +246,22 @@ final class ExplorerRig: SKNode {
 
     func render(delta: Double) {
         var pose = animator.advance(by: delta, synchronizedTime: synchronizedTime)
+        ropeBlendTime += delta.isFinite ? min(max(delta, 0), 0.1) : 0
+        if let ropePose {
+            let t = min(1, ropeBlendTime / 0.15)
+            pose = ropePose.blended(from: ropeBlendFrom, fraction: t * t * (3 - 2 * t))
+        }
+        grappleGun.isHidden = motion != .grappling
+        if motion == .grappling {
+            let aim = grappleAim ?? .init(x: 80, y: 130)
+            let angle = atan2(aim.y - 46, aim.x - 8)
+            grappleGun.position = .init(x: 8, y: 46); grappleGun.zRotation = angle
+            func hand(_ x: Double, _ y: Double) -> WorldPoint {
+                .init(x: 8 + cos(angle) * x - sin(angle) * y, y: 46 + sin(angle) * x + cos(angle) * y)
+            }
+            pose.leftHand = hand(4, -3); pose.rightHand = hand(-3, -4)
+            pose.headTilt = min(0.15, max(-0.15, angle * 0.12))
+        }
         let elapsed = delta.isFinite ? min(max(delta, 0), 0.1) : 0
         expressionTime += elapsed
         for (index, eye) in [leftEye, rightEye].enumerated() {
@@ -233,7 +277,9 @@ final class ExplorerRig: SKNode {
         if let handTargets { pose.leftHand = handTargets.0; pose.rightHand = handTargets.1 }
         if let footTargets { pose.leftFoot = footTargets.0; pose.rightFoot = footTargets.1 }
         let held = motion == .held || (motion == .comic && animationTime.truncatingRemainder(dividingBy: 9) >= 5)
-        let origin = held ? grabPoint : CGPoint(x: 0, y: 60)
+        harnessWasUsed = usesHarnessPivot || (harnessWasUsed && abs(pose.sway) > 0.001 && !held)
+        let origin = held ? grabPoint : CGPoint(x: 0, y: harnessWasUsed ? RopeSession.harnessHeight : 60)
+        presentedPose = pose
         pivot.position = origin
         pivot.zRotation = pose.sway
         body.position = CGPoint(x: -origin.x, y: -origin.y)

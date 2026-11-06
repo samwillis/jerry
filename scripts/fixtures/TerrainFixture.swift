@@ -10,7 +10,8 @@ final class Fixture: NSObject, NSApplicationDelegate {
         let base = screen.visibleFrame.minY
         support = makeWindow(title: "Expedition terrain — high window", frame: .init(x: 600, y: base + 260, width: 320, height: 240))
         let lower = makeWindow(title: "Expedition terrain — landing window", frame: .init(x: 240, y: base + 20, width: 320, height: 180))
-        lower.orderFront(nil); support.orderFront(nil)
+        lower.orderFront(nil)
+        if !ProcessInfo.processInfo.arguments.contains("--low-only") { support.orderFront(nil) }
         NSApp.activate(ignoringOtherApps: true)
         if ProcessInfo.processInfo.arguments.contains("--exercise") {
             schedule(5) { self.move() }

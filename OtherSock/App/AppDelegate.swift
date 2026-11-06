@@ -89,7 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let available = overlay?.availableActivities ?? []
         for (index, activity) in ExplorerActivity.allCases.enumerated() {
             if activity == .automatic { menu.addItem(.separator()) }
-            let item = add(activity.title + (available.contains(activity) ? "" : " — no reachable route"), action: #selector(triggerActivity(_:)), to: menu)
+            let unavailable = activity == .releaseRope ? " — no rope attached" : " — no reachable route"
+            let item = add(activity.title + (available.contains(activity) ? "" : unavailable), action: #selector(triggerActivity(_:)), to: menu)
             item.tag = index; item.isEnabled = available.contains(activity)
         }
     }
