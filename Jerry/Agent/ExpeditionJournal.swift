@@ -125,7 +125,7 @@ enum NotebookTheme {
             button.setFrameOrigin(.init(x: converted.x, y: window.toolbar == nil ? converted.y : button.frame.minY))
         }
     }
-    static func install(on window: NSWindow, title: String) -> NSView {
+    static func install(on window: NSWindow, title: String, showsCaption: Bool = true) -> NSView {
         window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
         window.isMovableByWindowBackground = true; window.appearance = NSAppearance(named: .aqua)
@@ -133,6 +133,7 @@ enum NotebookTheme {
         window.contentView = root
         let header = NotebookHeaderView(); header.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(header)
         let caption = NSTextField(labelWithString: "◉  JERRY / " + title.uppercased())
+        caption.isHidden = !showsCaption
         caption.font = .monospacedSystemFont(ofSize: 10, weight: .medium); caption.textColor = faded
         caption.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(caption)
         let body = NSView(); body.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(body)

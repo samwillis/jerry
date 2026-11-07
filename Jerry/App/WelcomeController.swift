@@ -55,7 +55,7 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
         window.title = "Welcome to Jerry"; window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         super.init(window: window); window.delegate = self; window.center()
-        let root = NotebookTheme.install(on: window, title: "Welcome")
+        let root = NotebookTheme.install(on: window, title: "Welcome", showsCaption: false)
         let content = NSStackView(); content.orientation = .vertical; content.alignment = .leading; content.spacing = 16
         content.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(content)
         NSLayoutConstraint.activate([content.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 32), content.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -32), content.topAnchor.constraint(equalTo: root.topAnchor, constant: 18)])
