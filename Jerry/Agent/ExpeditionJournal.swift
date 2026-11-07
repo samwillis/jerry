@@ -120,7 +120,7 @@ enum NotebookTheme {
         for (index, kind) in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].enumerated() {
             guard let button = window.standardWindowButton(kind), let parent = button.superview else { continue }
             let size = button.frame.size
-            let origin = NSPoint(x: marginX + CGFloat(index) * 20, y: content.bounds.height - 16 - size.height / 2)
+            let origin = NSPoint(x: marginX + 12 + CGFloat(index) * 20, y: content.bounds.height - 16 - size.height / 2)
             let converted = content.convert(origin, to: parent)
             button.setFrameOrigin(.init(x: converted.x, y: window.toolbar == nil ? converted.y : button.frame.minY))
         }
@@ -149,6 +149,12 @@ enum NotebookTheme {
 final class NotebookWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+    override func update() {
+        super.update()
+        // AppKit lays out the toolbar after the content view. Apply the paper
+        // inset last, so its native titlebar layout cannot reset the controls.
+        if let contentView { NotebookTheme.alignWindowButtons(in: contentView) }
+    }
 }
 
 private final class NotebookHeaderView: NSView {
@@ -161,6 +167,9 @@ final class NotebookContentView: NSView {
     private var previousTitlebarHeight: CGFloat = -1
     override func layout() {
         super.layout(); NotebookTheme.alignWindowButtons(in: self)
+        DispatchQueue.main.async { [weak self] in
+            if let self { NotebookTheme.alignWindowButtons(in: self) }
+        }
         if let window, window.toolbar != nil {
             let height = max(0, bounds.maxY - convert(window.contentLayoutRect, from: nil).maxY)
             if abs(height - previousTitlebarHeight) > 0.5 {

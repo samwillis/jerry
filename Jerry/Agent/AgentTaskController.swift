@@ -827,6 +827,25 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         journal.orderOut(nil); journalState.isRunning = false; journalState.finishActive(); onStop = previousStop
         return passed
     }
+    func debugCheckTrafficLights() async -> Bool {
+        showActivity()
+        try? await Task.sleep(for: .milliseconds(100))
+        func aligned() -> Bool {
+            guard let content = journal.contentView else { return false }
+            return [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].enumerated().allSatisfy { index, kind in
+                guard let button = journal.standardWindowButton(kind) else { return false }
+                let rect = content.convert(button.bounds, from: button)
+                return abs(rect.minX - (NotebookTheme.marginX + 12 + CGFloat(index) * 20)) < 0.5
+            }
+        }
+        let initial = aligned()
+        let frame = journal.frame
+        journal.setFrame(.init(origin: frame.origin, size: .init(width: frame.width + 40, height: frame.height)), display: true)
+        try? await Task.sleep(for: .milliseconds(100))
+        let resized = aligned()
+        journal.setFrame(frame, display: true); journal.orderOut(nil)
+        return initial && resized
+    }
     func debugCheckLogIsolation() -> Bool {
         let count = journalState.expeditions.count
         runID = UUID(); bindComputerLog(to: runID)

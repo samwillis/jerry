@@ -143,6 +143,7 @@ enum AgentPrototypeChecks {
             let journal = AgentTaskController()
             for (name, passed) in journal.debugCheckSettings() { check(passed, name) }
             check(await journal.debugCheckJournalFocus(), "showing and automatically focusing the journal cannot pause an expedition")
+            check(await journal.debugCheckTrafficLights(), "native traffic lights stay inside the paper margin after toolbar layout and resizing")
             check(journal.debugCheckLogIsolation(), "late progress from a cancelled execution cannot create or change an expedition")
             let journalChecks = journal.debugCheckJournal()
             check(journalChecks.0, "streaming Unicode response updates preserve subsequent tool log entries")
