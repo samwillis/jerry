@@ -274,7 +274,7 @@ final class OverlayController {
     }
     func requestClickAccess() {
         ExplorerDesktopClick.requestAccess()
-        keyboard.showMessage("Enable Jerry in Privacy & Security → Accessibility, then return to keyboard control.")
+        keyboard.showMessage("Enable Jerry in Privacy & Security → \(DesktopAccess.Permission.accessibility.title), then return to keyboard control.")
     }
     private func clickAtExplorer() {
         guard keyboard.isControlling, !clickPending, let local = scene.keyboardClickPoint,

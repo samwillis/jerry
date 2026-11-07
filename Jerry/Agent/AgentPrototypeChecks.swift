@@ -68,6 +68,24 @@ enum AgentPrototypeChecks {
             let covering = ExplorerComputer.VisibleWindow(pid: 202, frame: keyboardFrame, alpha: 1)
             check(!ExplorerComputer.windowIsFrontmost(at: keyPoint, pid: 101, ignoring: 303, in: [covering, keyboard]), "covered keyboard keys cannot receive physical presses")
             check(ExplorerComputer.windowIsFrontmost(at: keyPoint, pid: 101, ignoring: 202, in: [covering, keyboard]), "only the explorer's own withdrawn overlay is ignored")
+            let suite = "JerryPermissionChecks." + UUID().uuidString
+            let permissionDefaults = UserDefaults(suiteName: suite)!
+            defer { permissionDefaults.removePersistentDomain(forName: suite) }
+            let denied = DesktopAccess.Snapshot(accessibility: false, screenRecording: false)
+            check(DesktopAccess.needed(for: denied, defaults: permissionDefaults).isEmpty, "a fresh install does not demand optional desktop permissions")
+            permissionDefaults.set(true, forKey: "exploreInsideWindows")
+            check(DesktopAccess.needed(for: denied, defaults: permissionDefaults) == [.screenRecording], "enabled internal ledges identify missing Screen Recording at startup")
+            permissionDefaults.set("configured-model", forKey: "agentModelID")
+            check(DesktopAccess.needed(for: denied, defaults: permissionDefaults) == [.accessibility, .screenRecording], "configured desktop tasks and terrain identify both missing grants")
+            check(DesktopAccess.needed(for: .init(accessibility: true, screenRecording: true), defaults: permissionDefaults).isEmpty, "valid macOS grants do not trigger startup repair")
+            permissionDefaults.removeObject(forKey: "agentModelID"); permissionDefaults.set(false, forKey: "exploreInsideWindows")
+            permissionDefaults.set(true, forKey: "desktopAccessibilityGranted")
+            check(DesktopAccess.needed(for: denied, defaults: permissionDefaults) == [.accessibility], "a lost previous Accessibility grant is detected after an app change")
+            let drag = JerryApplicationDragView()
+            let board = NSPasteboard.withUniqueName(); defer { board.releaseGlobally() }
+            board.writeObjects([drag.applicationURL as NSURL])
+            let dragged = (board.readObjects(forClasses: [NSURL.self]) as? [URL])?.first
+            check(dragged == Bundle.main.bundleURL && dragged?.pathExtension == "app", "permission drag exports the exact running app as a file URL")
             let journal = AgentTaskController()
             for (name, passed) in journal.debugCheckSettings() { check(passed, name) }
             let journalChecks = journal.debugCheckJournal()

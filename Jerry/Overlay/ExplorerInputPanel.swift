@@ -232,14 +232,13 @@ final class ExplorerKeyboardController: NSObject, NSWindowDelegate {
 final class ExplorerDesktopClick {
     static var hasAccess: Bool { AXIsProcessTrusted() }
     static func requestAccess() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
+        DesktopAccess.shared.present(.accessibility)
     }
     static func quartzPoint(_ point: CGPoint, primaryTop: CGFloat) -> CGPoint {
         .init(x: point.x, y: primaryTop - point.y)
     }
     static func press(at point: CGPoint) -> String {
-        guard hasAccess else { return "Allow Jerry in System Settings → Privacy & Security → Accessibility, then press E again." }
+        guard hasAccess else { return "Allow Jerry in System Settings → Privacy & Security → \(DesktopAccess.Permission.accessibility.title), then press E again." }
         var element: AXUIElement?
         if AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &element) == .success {
             for _ in 0..<6 {

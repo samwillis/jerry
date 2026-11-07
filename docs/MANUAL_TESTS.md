@@ -186,3 +186,18 @@ Automated equivalents and native observations are in [prototype validation](PROT
 - [x] Running preview has visible arm pumps and a brief airborne stride, with zero clamped contacts.
 - [ ] Hold Shift while rope climbing/descending, then release; the same rope must remain attached and hand motion must match the work rate.
 - [ ] Enable Run When Exploring and Faster Rope Work in Settings, relaunch, and verify both remain enabled. Disable Idle Exploration and verify these settings do not start wandering.
+
+
+## Desktop access setup
+
+- [ ] Fresh settings with no enabled desktop features show Welcome without requesting permissions.
+- [ ] Launch with a configured desktop feature and its grant missing: the repair guide appears without an OS permission prompt until Open is chosen.
+- [ ] The setup button opens the correct macOS permission page, with the compact guide remaining visible beside it.
+- [ ] The drag tile represents the running Jerry.app; dropping on the list or selecting it with + adds that exact copy. Approve any macOS authentication yourself.
+- [ ] Changing a grant updates the guide and Privacy & Access status; Next permission… offers the other missing grant when needed.
+- [ ] Check again never claims access solely because a feature preference is on.
+- [ ] Restart Jerry reopens the same app and preserves its preferences and saved connection.
+- [ ] A stale entry for an old/moved copy can be removed and the running copy re-added without touching any other app’s permissions.
+- [ ] Idle exploration, keyboard movement and dragging still work without optional permissions; local terrain and AI image sharing remain independent.
+
+Automated checks use isolated preferences and synthetic grant snapshots; they do not change real macOS grants. Actual acceptance of a drop and system authentication require the user’s interactive permission setup.

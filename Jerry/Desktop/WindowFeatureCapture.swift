@@ -86,9 +86,12 @@ final class WindowFeatureCapture {
                 self.reader = reader; self.stream = stream
                 try stream.addStreamOutput(reader, type: .screen, sampleHandlerQueue: reader.queue)
                 try await stream.startCapture()
+                DesktopAccess.shared.captureStarted()
                 if self.generation != token { try? await stream.stopCapture() }
             } catch {
                 guard let self, self.generation == token else { return }
+                let failure = error as NSError
+                if failure.domain == SCStreamErrorDomain, failure.code == SCStreamError.Code.userDeclined.rawValue { DesktopAccess.shared.captureRejected() }
                 self.status = "Window capture unavailable — check Screen Recording access"
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--trace-features") { print("FEATURE ERROR \(error)"); fflush(stdout) }

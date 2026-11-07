@@ -79,6 +79,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private var catalogID = UUID()
     private var returningToPrompt = false
     private var settingsObserver: NSObjectProtocol?
+    private var accessObserver: NSObjectProtocol?
     var onPreferencesChanged: (() -> Void)?
     var onResetExplorer: (() -> Void)?
     var onWelcomeRequested: (() -> Void)?
@@ -196,6 +197,9 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         for button in [signInButton, cancelSignInButton, disconnectButton, refreshModelsButton, requestSettingsButton, loginSettingsButton, accessSettingsButton, recordingSettingsButton] { NotebookTheme.style(button) }
         for picker in [provider, paceChoice] { picker.contentTintColor = NotebookTheme.ink }
         selectSettings("General")
+        accessObserver = NotificationCenter.default.addObserver(forName: .desktopAccessChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshSettings(); self?.onPreferencesChanged?() }
+        }
         settingsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshSettings() }
         }
@@ -240,10 +244,11 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         accessState.textColor = NotebookTheme.faded; recordingState.textColor = NotebookTheme.faded
         accessSettingsButton.target = self; accessSettingsButton.action = #selector(openAccessibility)
         recordingSettingsButton.target = self; recordingSettingsButton.action = #selector(openRecording)
-        body.addArrangedSubview(card([label("Desktop access", size: 14, weight: .semibold), note("Read controls and click buttons in other apps. Requires Accessibility access."), row([accessState, accessSettingsButton])], width: 532))
-        body.addArrangedSubview(card([label("Window ledges", size: 14, weight: .semibold), preference("Find ledges inside windows", key: "exploreInsideWindows"), note("Finds ledges and cracks locally, without saving or sharing images. Requires Screen Recording access."), row([recordingState, recordingSettingsButton])], width: 532))
+        body.addArrangedSubview(card([label("Desktop access", size: 14, weight: .semibold), note("Let Jerry read controls and click buttons. Set up " + DesktopAccess.Permission.accessibility.title + " in macOS."), row([accessState, accessSettingsButton])], width: 532))
+        body.addArrangedSubview(card([label("Window ledges", size: 14, weight: .semibold), preference("Find ledges inside windows", key: "exploreInsideWindows"), note("Find ledges and cracks locally. Screen Recording access stays separate from AI image sharing."), row([recordingState, recordingSettingsButton])], width: 532))
         let images = NSButton(checkboxWithTitle: "Also share window images", target: self, action: #selector(imagesChanged)); images.contentTintColor = NotebookTheme.ink; images.identifier = .init("agentShareImages"); preferenceButtons["agentShareImages"] = images
         body.addArrangedSubview(card([label("AI sharing", size: 14, weight: .semibold), note("AI tasks share visible text and controls."), images, note("Images go to the AI and also need Screen Recording access.")], width: 532))
+        body.addArrangedSubview(note("Setup opens the right macOS page with a draggable copy of Jerry’s app icon. Status updates as you make changes."))
         body.addArrangedSubview(note("Keys stay in Keychain. The journal clears when you quit; saved logs may include screen content."))
     }
     private func buildControls(_ body: NSStackView) {
@@ -279,10 +284,11 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         NotebookTheme.style(requestSettingsButton)
         paceChoice.selectItem(at: UserDefaults.standard.bool(forKey: "gentlePace") ? 0 : 1)
         computer.shareImages = UserDefaults.standard.bool(forKey: "agentShareImages")
+        DesktopAccess.shared.refresh()
         accessState.stringValue = ExplorerDesktopClick.hasAccess ? "Allowed" : "Access needed"
-        recordingState.stringValue = CGPreflightScreenCaptureAccess() ? "Allowed" : "Access needed"
-        accessSettingsButton.title = ExplorerDesktopClick.hasAccess ? "Manage…" : "Open Settings…"
-        recordingSettingsButton.title = CGPreflightScreenCaptureAccess() ? "Manage…" : "Open Settings…"
+        recordingState.stringValue = DesktopAccess.shared.snapshot.screenRecording ? "Allowed" : "Access needed"
+        accessSettingsButton.title = ExplorerDesktopClick.hasAccess ? "Manage…" : "Set up…"
+        recordingSettingsButton.title = DesktopAccess.shared.snapshot.screenRecording ? "Manage…" : "Set up…"
         NotebookTheme.style(accessSettingsButton); NotebookTheme.style(recordingSettingsButton)
         shortcutState.stringValue = shortcutStatusProvider?() ?? ""
         shortcutState.isHidden = !shortcutState.stringValue.contains("unavailable")
@@ -295,7 +301,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             catch { generalState.stringValue = "Couldn’t update login setting: " + error.localizedDescription }
         } else {
             UserDefaults.standard.set(sender.state == .on, forKey: key)
-            if key == "exploreInsideWindows", sender.state == .on, !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+            if key == "exploreInsideWindows", sender.state == .on, !CGPreflightScreenCaptureAccess() { DesktopAccess.shared.present(.screenRecording) }
             onPreferencesChanged?()
         }
         refreshSettings()
@@ -305,9 +311,8 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     @objc private func showWelcome() { close(); onWelcomeRequested?() }
     @objc private func takeControlFromSettings() { close(); onTakeControlRequested?() }
     @objc private func openLoginItems() { SMAppService.openSystemSettingsLoginItems() }
-    @objc private func openAccessibility() { openPrivacy("Privacy_Accessibility") }
-    @objc private func openRecording() { openPrivacy("Privacy_ScreenCapture") }
-    private func openPrivacy(_ pane: String) { if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?" + pane) { NSWorkspace.shared.open(url) } }
+    @objc private func openAccessibility() { DesktopAccess.shared.present(.accessibility) }
+    @objc private func openRecording() { DesktopAccess.shared.present(.screenRecording) }
     @objc private func selectOfflineTest() { UserDefaults.standard.set(true, forKey: "developerToolsEnabled"); onPreferencesChanged?(); provider.selectItem(at: 0); providerChanged(); selectSettings("AI") }
     @objc private func returnToRequest() { returningToPrompt = false; close(); openPrompt(resumeControl: resumeControlOnCancel) }
     func windowDidBecomeKey(_ notification: Notification) { if notification.object as? NSWindow === window { refreshSettings(); onPreferencesChanged?() } }
@@ -544,7 +549,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     }
     @objc private func imagesChanged(_ sender: NSButton) {
         computer.shareImages = sender.state == .on; UserDefaults.standard.set(computer.shareImages, forKey: "agentShareImages")
-        if computer.shareImages && !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+        if computer.shareImages && !CGPreflightScreenCaptureAccess() { DesktopAccess.shared.present(.screenRecording) }
         refreshSettings()
     }
     @objc private func plan() {
@@ -611,7 +616,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             if returningToPrompt { returningToPrompt = false; DispatchQueue.main.async { [weak self] in self?.openPrompt(resumeControl: self?.resumeControlOnCancel ?? false) } }
         }
     }
-    func closeAll() { returningToPrompt = false; if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }; settingsObserver = nil; stop(); catalogTask?.cancel(); credentials.cancelSignIn(); resumeControlOnCancel = false; promptWindow.close(); journal.close(); close() }
+    func closeAll() { if let accessObserver { NotificationCenter.default.removeObserver(accessObserver) }; accessObserver = nil; returningToPrompt = false; if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }; settingsObserver = nil; stop(); catalogTask?.cancel(); credentials.cancelSignIn(); resumeControlOnCancel = false; promptWindow.close(); journal.close(); close() }
     #if DEBUG
     func debugCheckSettings() -> [(String, Bool)] {
         var results: [(String, Bool)] = []

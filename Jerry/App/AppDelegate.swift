@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let applicationArtwork { NSApp.applicationIconImage = applicationArtwork }
+        DesktopAccess.shared.start()
         installMenu()
         overlay = OverlayController()
         overlay?.onKeyboardControlChanged = { [weak self] enabled in
@@ -75,6 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let previewWelcome = ProcessInfo.processInfo.arguments.contains("--welcome")
         if previewWelcome || needsWelcome {
             DispatchQueue.main.async { [weak self] in self?.showWelcome(markSeen: !previewWelcome) }
+        } else if let permission = DesktopAccess.needed(for: DesktopAccess.shared.snapshot).first {
+            DispatchQueue.main.async { DesktopAccess.shared.present(permission, openSettings: false) }
         }
     }
 
@@ -355,6 +358,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     #endif
     func applicationWillTerminate(_ notification: Notification) {
+        DesktopAccess.shared.stop()
         hotKey.close(); askHotKey.close()
         taskController?.closeAll(); taskController = nil
         welcome?.close(); welcome = nil

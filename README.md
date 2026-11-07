@@ -45,11 +45,13 @@ The **Expedition Journal** keeps your requests, Jerry’s replies and his progre
 
 No account is needed for wandering or keyboard movement. Extra abilities are optional:
 
-- **Accessibility access** lets Jerry press controls in other apps.
+- **Accessibility access** lets Jerry press controls in other apps. Newer macOS versions call this Device Control and Data Access.
 - **Screen Recording access** lets him find ledges and cracks inside windows. This terrain analysis runs locally.
 - **AI connections** send task context to your chosen service. Sharing active-window images with the AI is a separate setting.
 
-Credentials are stored in macOS Keychain. Manage these options in **Settings → Privacy & Access** and **Settings → AI**.
+Jerry checks access at startup for features you’ve enabled. If access is missing, a short guide opens the right System Settings page and gives you a draggable Jerry app icon. You can also start setup from **Settings → Privacy & Access**.
+
+Credentials are stored in macOS Keychain. Manage AI connections in **Settings → AI**.
 
 ## Current availability
 

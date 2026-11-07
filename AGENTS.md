@@ -79,7 +79,7 @@ This produces a host-architecture Release app and `build/Distribution/Jerry-loca
 
 ## Structure
 
-- `Jerry/App`: lifecycle and menu bar controls.
+- `Jerry/App`: lifecycle, menu bar controls and the shared desktop permission/setup flow.
 - `Jerry/Overlay`: transparent, non-activating overlay and display layout.
 - `Jerry/Desktop`: window metadata discovery and platform filtering.
 - `Jerry/Agent`: AI providers, credentials, computer interaction, Settings and the journal.

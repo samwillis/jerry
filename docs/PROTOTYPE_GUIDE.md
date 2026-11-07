@@ -81,3 +81,14 @@ This is deliberately conservative visual terrain, not semantic UI understanding.
 ## Crouch for toolbar clicks
 
 While in keyboard control, hold **C** to crouch with his feet planted. The click marker lowers by 28 points; press **E** while holding C to click there. Release C to rise. C + left/right gives a slower, gait-matched crouched walk; Shift does not turn it into a run. Down keeps its step-off/descent behaviour. Crouching applies to standing surfaces, including internal toolbar ledges; rope and crack poses remain available as before. The animation playground also includes a Crouching clip.
+
+
+## Repairing macOS access
+
+Jerry checks macOS grants at startup without displaying system permission prompts. Missing access for configured desktop tasks, previously used clicks, enabled internal ledges or enabled AI images opens a compact notebook guide. New installations with no enabled desktop features keep the permission-free welcome.
+
+Settings → Privacy & Access → Set up… opens the guide and the matching System Settings page. The draggable tile exports the currently running app’s file URL, including a development build’s actual location. Drag it into the permission list and enable Jerry, or use the + button and Show this app in Finder to select that exact copy. Dragging never moves the application. Older macOS versions call the control permission Accessibility; on macOS 27 the page is Device Control and Data Access.
+
+The guide stays visible beside System Settings and refreshes status while open. When the first permission is granted, Next permission… opens the other missing permission needed by enabled features. If a renamed or moved copy is listed but still denied, remove its stale entry and add the running app again. Check again re-reads the macOS APIs; Restart Jerry handles grants that need a new process. Screen-capture permission failures also reopen the guide rather than trusting a saved feature preference. Local terrain capture and AI image sharing remain separate choices.
+
+The user approves access in macOS; Jerry does not change permission switches or reset the system permission database. Apple documents the manual [Accessibility](https://support.apple.com/guide/mac-help/allow-accessibility-apps-to-access-your-mac-mh43185/mac) and [Screen Recording](https://support.apple.com/guide/mac-help/control-access-screen-system-audio-recording-mchld6aa7d23/mac) permission lists. The drag tile uses AppKit’s native [file drag session](https://developer.apple.com/documentation/appkit/nsview/begindraggingsession(with:event:source:)).
