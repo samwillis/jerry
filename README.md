@@ -6,6 +6,10 @@
 
 Meet Jerry, a small adventurer who lives on your Mac. Take control and turn your windows into a platform game, or give him a mission and send him on an expedition. He keeps a journal along the way.
 
+**[Download Jerry for Mac ↓](https://github.com/samwillis/jerry/releases/download/v0.1.0/Jerry-v0.1.0-macos-arm64.zip)** · [Release notes](https://github.com/samwillis/jerry/releases/tag/v0.1.0)
+
+Apple Silicon · macOS 14+ · v0.1.0 preview. Unsigned and not notarised; macOS may block opening it.
+
 https://github.com/user-attachments/assets/b6b0a2ad-a652-4d23-af81-e2b7e0d47de9
 
 ## Your desktop, his landscape
