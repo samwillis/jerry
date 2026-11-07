@@ -241,7 +241,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func stopTask() { taskController?.stop() }
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
-        var options: [NSApplication.AboutPanelOptionKey: Any] = [.applicationName: "Jerry", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "", .credits: NSAttributedString(string: "Jerry. One small adventurer. One missing sock.")]
+        let credits = NSMutableAttributedString(string: "Your personal desktop explorer.\n\n")
+        credits.append(NSAttributedString(string: "Jerry on GitHub", attributes: [.link: URL(string: "https://github.com/samwillis/jerry")!]))
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [.applicationName: "Jerry", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "", .credits: credits]
         // Avoid the placeholder held by Launch Services for an earlier local build.
         if let applicationArtwork { options[.applicationIcon] = applicationArtwork }
         NSApp.orderFrontStandardAboutPanel(options: options)
