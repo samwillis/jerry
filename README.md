@@ -69,4 +69,6 @@ Jerry guides you through missing permissions for features you’ve enabled. You 
 
 Jerry is a macOS development preview targeting macOS 14 or later. Exploration currently stays on the primary display; multiple displays, full-screen traversal and Windows support are future work.
 
-There is no signed public release yet. To build and run it locally, see the [developer guide](AGENTS.md). The [product plan](docs/PLAN.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md) describe where the expedition goes next.
+Download the [v0.1.0 preview for Apple Silicon](https://github.com/samwillis/jerry/releases/tag/v0.1.0). This experimental build is unsigned and not notarised, so macOS may block it from opening. There is no signed public release yet.
+
+To build and run it locally, see the [developer guide](AGENTS.md). The [product plan](docs/PLAN.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md) describe where the expedition goes next.
