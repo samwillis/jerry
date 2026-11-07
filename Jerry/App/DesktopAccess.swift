@@ -69,7 +69,7 @@ final class DesktopAccess {
     func captureRejected() {
         guard !screenCaptureRejected else { return }
         screenCaptureRejected = true; refresh()
-        present(.screenRecording, openSettings: false)
+        if setup?.window?.isVisible != true { present(.screenRecording, openSettings: false) }
     }
     func captureStarted() {
         guard screenCaptureRejected else { return }
@@ -77,9 +77,17 @@ final class DesktopAccess {
     }
     func present(_ permission: Permission, openSettings: Bool = true) {
         refresh()
-        if setup?.permission != permission { setup?.close(); setup = DesktopAccessController(permission: permission) }
-        setup?.showWindow(nil); setup?.window?.makeKeyAndOrderFront(nil)
-        if openSettings { open(permission) } else { NSApp.activate(ignoringOtherApps: true) }
+        if setup?.permission != permission {
+            let previousFrame = setup?.window?.isVisible == true ? setup?.window?.frame : nil
+            setup?.close(); setup = DesktopAccessController(permission: permission)
+            if let previousFrame { setup?.preservePosition(from: previousFrame) }
+        }
+        setup?.positionBesideSettings()
+        setup?.window?.orderFront(nil)
+        if openSettings { open(permission) }
+        else if NSWorkspace.shared.frontmostApplication?.bundleIdentifier != "com.apple.systempreferences" {
+            NSApp.activate(ignoringOtherApps: true); setup?.window?.makeKeyAndOrderFront(nil)
+        }
     }
     func open(_ permission: Permission) {
         if permission == .accessibility { UserDefaults.standard.set(true, forKey: "desktopAccessibilityRequested") }
@@ -89,7 +97,22 @@ final class DesktopAccess {
             } else { _ = CGRequestScreenCaptureAccess() }
         }
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?" + permission.pane) { NSWorkspace.shared.open(url) }
-        setup?.positionBesideSettings()
+        // Let Settings finish opening before one placement attempt. Permission
+        // polling must never move windows or compete with a user dragging them.
+        let guide = setup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak guide] in guide?.positionBesideSettings() }
+    }
+
+    static func setupFrame(size: CGSize, beside settings: CGRect, in visible: CGRect) -> CGRect? {
+        guard size.width <= visible.width, size.height <= visible.height else { return nil }
+        let y = max(visible.minY, min(visible.maxY - size.height, settings.maxY - size.height))
+        let candidates = [
+            CGRect(x: settings.maxX + 12, y: y, width: size.width, height: size.height),
+            CGRect(x: settings.minX - size.width - 12, y: y, width: size.width, height: size.height)
+        ]
+        // If neither side has room, leave the normal-level window where it is.
+        // Never clamp it into the permission list merely to fit it on screen.
+        return candidates.first { visible.contains($0) && !$0.intersects(settings) }
     }
 }
 
@@ -129,15 +152,17 @@ final class JerryApplicationDragView: NSView, NSDraggingSource {
 }
 
 @MainActor
-private final class DesktopAccessController: NSWindowController {
+private final class DesktopAccessController: NSWindowController, NSWindowDelegate {
     let permission: DesktopAccess.Permission
     private let status = NSTextField(wrappingLabelWithString: "")
     private let done = NSButton(title: "Not now", target: nil, action: nil)
     private var next: DesktopAccess.Permission?
+    private var placed = false
+    private var positioning = false
     init(permission: DesktopAccess.Permission) {
         self.permission = permission
         let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 380, height: 510), styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = "Jerry — " + permission.title; window.isReleasedWhenClosed = false; window.level = .floating
+        window.title = "Jerry — " + permission.title; window.isReleasedWhenClosed = false; window.level = .normal
         window.hidesOnDeactivate = false; window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         super.init(window: window)
         let root = NotebookTheme.install(on: window, title: "Access")
@@ -165,7 +190,7 @@ private final class DesktopAccessController: NSWindowController {
         for view in body.arrangedSubviews { view.widthAnchor.constraint(equalToConstant: 322).isActive = true }
         window.contentView?.layoutSubtreeIfNeeded()
         window.setContentSize(.init(width: 380, height: max(510, body.fittingSize.height + 76)))
-        window.center(); refresh()
+        window.center(); window.delegate = self; shouldCascadeWindows = false; refresh()
     }
     required init?(coder: NSCoder) { fatalError("Use init(permission:)") }
     func refresh() {
@@ -175,19 +200,35 @@ private final class DesktopAccessController: NSWindowController {
         status.textColor = allowed ? NotebookTheme.ink : NotebookTheme.rust; status.font = .systemFont(ofSize: 12, weight: .medium)
         next = allowed ? DesktopAccess.needed(for: access).first : nil
         done.title = next.map { _ in "Next permission…" } ?? (allowed ? "Done" : "Not now"); NotebookTheme.style(done, primary: allowed)
-        if window?.isVisible == true { positionBesideSettings() }
+    }
+    func preservePosition(from frame: CGRect) {
+        positioning = true
+        window?.setFrameTopLeftPoint(.init(x: frame.minX, y: frame.maxY))
+        positioning = false; placed = true
+    }
+    func windowDidMove(_ notification: Notification) {
+        if !positioning { placed = true } // Respect a manually positioned guide.
     }
     func positionBesideSettings() {
-        guard let window, let screen = window.screen ?? NSScreen.screens.first else { return }
-        let visible = screen.visibleFrame
-        let pid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first?.processIdentifier
+        guard !placed, let window,
+              let pid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first?.processIdentifier else { return }
         let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-        if let entry = entries.first(where: { ($0[kCGWindowOwnerPID as String] as? Int32) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }),
-           let dictionary = entry[kCGWindowBounds as String] as? [String: Any], let rect = CGRect(dictionaryRepresentation: dictionary as CFDictionary) {
-            let x = rect.maxX + 12 + window.frame.width <= visible.maxX ? rect.maxX + 12 : max(visible.minX, rect.minX - window.frame.width - 12)
-            let top = (NSScreen.screens.first?.frame.maxY ?? visible.maxY) - rect.minY
-            window.setFrameOrigin(.init(x: x, y: max(visible.minY, min(visible.maxY - window.frame.height, top - window.frame.height))))
+        let settingsFrames = entries.compactMap { entry -> CGRect? in
+            guard (entry[kCGWindowOwnerPID as String] as? Int32) == pid,
+                  (entry[kCGWindowLayer as String] as? Int) == 0,
+                  let dictionary = entry[kCGWindowBounds as String] as? [String: Any],
+                  let rect = CGRect(dictionaryRepresentation: dictionary as CFDictionary),
+                  rect.width >= 400, rect.height >= 300 else { return nil }
+            return CGRect(x: rect.minX, y: (NSScreen.screens.first?.frame.maxY ?? 0) - rect.maxY, width: rect.width, height: rect.height)
         }
+        guard let settings = settingsFrames.max(by: { $0.width * $0.height < $1.width * $1.height }),
+              let screen = NSScreen.screens.max(by: { lhs, rhs in
+                  let a = lhs.frame.intersection(settings), b = rhs.frame.intersection(settings)
+                  return (a.isNull ? 0 : a.width * a.height) < (b.isNull ? 0 : b.width * b.height)
+              }) else { return }
+        placed = true
+        guard let frame = DesktopAccess.setupFrame(size: window.frame.size, beside: settings, in: screen.visibleFrame) else { return }
+        positioning = true; window.setFrameOrigin(frame.origin); positioning = false
     }
     @objc private func openSettings() { DesktopAccess.shared.open(permission) }
     @objc private func showInFinder() { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
