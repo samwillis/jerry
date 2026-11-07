@@ -388,7 +388,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         journal.toolbarStyle = .unifiedCompact; journal.toolbar = toolbar
     }
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.space, .init("journalSidebar"), .flexibleSpace, .init("journalTitle"), .flexibleSpace, .init("journalNew"), .init("journalSave")]
+        [.space, .space, .space, .init("journalSidebar"), .flexibleSpace, .init("journalTitle"), .flexibleSpace, .init("journalNew"), .init("journalSave")]
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(toolbar) + [.init("journalFinish"), .init("journalStop")] }
     private func journalToolbarImage(_ name: String, label: String) -> NSImage? {
