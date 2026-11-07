@@ -1,22 +1,24 @@
 # Jerry
 
-<img src="Jerry/Resources/AppIcon.png" alt="Jerry, the desktop explorer" width="128">
+<img src="Jerry/Resources/AppIcon.png" alt="Jerry, your personal desktop explorer" width="128">
 
-**One small adventurer. One missing sock.**
+**Your own little explorer. Your desktop is his next adventure.**
 
-Meet Jerry, a tiny desktop explorer with more determination than sense. He climbs your windows, abseils down ropes and parachutes between ledges in search of patterned socks.
+Meet Jerry, a small adventurer who lives on your Mac. Take control and turn your windows into a platform game, or give him a mission and send him on an expedition. He keeps a journal along the way.
 
-Let him wander while you work, take control for a little desktop platforming, or give him a task and watch him attempt it the long way round.
+https://github.com/user-attachments/assets/b6b0a2ad-a652-4d23-af81-e2b7e0d47de9
 
-## Meet Jerry
+## Your desktop, his landscape
 
-Jerry treats your open windows as a landscape. He walks along their tops, climbs their sides and uses his grappling hook to reach new places. Move a window and he comes along for the ride. Bring your pointer nearby and he watches it; get in his way and you can simply drag him aside.
+Jerry walks along window tops, climbs their sides, abseils down ropes and parachutes between ledges. His grappling hook takes him to places his boots won’t. Move a window and he comes along for the ride.
 
-His hunt takes him from binocular surveys to precarious crossings, with striped, spotted, argyle and zigzag socks waiting to be discovered. Your desktop stays usable while he explores.
+You can carry on using your Mac while he explores. Bring your pointer nearby and he watches it; if he’s in the way, just drag him aside.
 
-## Take the lead
+## Take control
 
-Use Jerry’s hat-and-face icon in the menu bar to ask him something, open his expedition journal or change his settings.
+Walk, run, jump, climb and swing your way around the desktop. Jerry can even press real buttons in other apps with the marker beside his hand.
+
+Use his hat-and-face icon in the menu bar, or take the lead with the keyboard:
 
 | Shortcut | Action |
 | --- | --- |
@@ -31,29 +33,37 @@ Use Jerry’s hat-and-face icon in the menu bar to ask him something, open his e
 | Return | Ask Jerry while in control |
 | Escape | Leave control and return to your previous app |
 
-The full reference is in **Settings → Controls**. Turn off **Explore when idle** if you’d like Jerry to stay put. You can still drag him, take control or give him a task.
+The full reference is in **Settings → Controls**.
 
-## Give him a mission
+## Send him on an expedition
 
-Connect your ChatGPT account or configure an API key in **Settings → AI**, then type a request in the input beside Jerry.
+Connect your ChatGPT account or configure an API key in **Settings → AI**, then give Jerry a mission using the input beside him.
 
-Jerry can answer questions and attempt tasks on your computer. To operate an app, he travels to its controls before clicking them. Typing means finding and pressing keys on an onscreen keyboard. It is deliberately, wonderfully inefficient—and still experimental.
+Jerry can answer questions and attempt tasks on your computer. He reaches controls by travelling to them, then clicking. To type, he finds and presses keys on an onscreen keyboard. Even a simple job becomes a small expedition. It is deliberately, wonderfully inefficient—and still experimental.
 
-The **Expedition Journal** keeps each expedition in its own sidebar entry. Add a direction in the journal or the prompt beside Jerry to continue it; it stays open until you finish it or start a new one. You can return to an earlier expedition and resume it too.
+You can add directions while he works, pause him, or take control yourself.
 
-The journal keeps its paper-and-ink style, with a native toolbar for the sidebar, new expeditions and saving your notes. Everything scrolls together except the prompt, and new replies follow automatically when you’re near the bottom. It behaves like a normal Mac window. Stop pauses Jerry’s work; **Finish expedition** closes the conversation.
+## Read his journal
+
+Jerry records your requests, his notes and what happens along the way in the **Expedition Journal**. Each expedition has its own place in the sidebar, with technical details tucked into expandable sections.
+
+Continue an expedition from the journal’s prompt box or the input beside Jerry. It stays open for follow-up directions until you finish it or start a new one. You can revisit and resume earlier expeditions during the current app session, and save the journal to keep a copy.
+
+## A little adventure between missions
+
+When Jerry has nothing else to do, he can wander your windows in search of patterned socks. Someone has to find out where they all go.
+
+Turn off **Explore when idle** if you’d rather he stayed put. You can still drag him, take control or give him a mission.
 
 ## Make yourself at home
 
-No account is needed for wandering or keyboard movement. Extra abilities are optional:
+No account is needed for idle exploration or keyboard movement. Extra abilities are optional:
 
 - **Accessibility access** lets Jerry press controls in other apps. Newer macOS versions call this Device Control and Data Access.
 - **Screen Recording access** lets him find ledges and cracks inside windows. This terrain analysis runs locally.
 - **AI connections** send task context to your chosen service. Sharing active-window images with the AI is a separate setting.
 
-Jerry checks access at startup for features you’ve enabled. If access is missing, a short guide opens the right System Settings page and gives you a draggable Jerry app icon. You can also start setup from **Settings → Privacy & Access**.
-
-Credentials are stored in macOS Keychain. Manage AI connections in **Settings → AI**.
+Jerry guides you through missing permissions for features you’ve enabled. You can also manage them in **Settings → Privacy & Access**. Credentials are stored in macOS Keychain; AI connections are managed in **Settings → AI**.
 
 ## Current availability
 
