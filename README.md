@@ -1,10 +1,10 @@
-# The Other Sock
+# Jerry
 
-<img src="OtherSock/Resources/AppIcon.png" alt="Jerry, the desktop explorer" width="128">
+<img src="Jerry/Resources/AppIcon.png" alt="Jerry, the desktop explorer" width="128">
 
 **One small adventurer. One missing sock.**
 
-The Other Sock puts Jerry, a tiny explorer with more determination than sense, on your Mac desktop. He climbs your windows, abseils down ropes and parachutes between ledges in search of patterned socks.
+Meet Jerry, a tiny desktop explorer with more determination than sense. He climbs your windows, abseils down ropes and parachutes between ledges in search of patterned socks.
 
 Let him wander while you work, take control for a little desktop platforming, or give him a task and watch him attempt it the long way round.
 
@@ -53,6 +53,6 @@ Credentials are stored in macOS Keychain. Manage these options in **Settings →
 
 ## Current availability
 
-The Other Sock is a macOS development preview targeting macOS 14 or later. Exploration currently stays on the primary display; multiple displays, full-screen traversal and Windows support are future work.
+Jerry is a macOS development preview targeting macOS 14 or later. Exploration currently stays on the primary display; multiple displays, full-screen traversal and Windows support are future work.
 
 There is no signed public release yet. To build and run it locally, see the [developer guide](AGENTS.md). The [product plan](docs/PLAN.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md) describe where the expedition goes next.

@@ -6,7 +6,7 @@ Build the Debug app, then use **Animation Playground…** in its hiking menu bar
 
 ```sh
 ./scripts/build.sh
-build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --playground
+build/Build/Products/Debug/Jerry.app/Contents/MacOS/Jerry --playground
 ```
 
 The playground is a normal, focusable window separate from the desktop overlay. Closing it stops its rendering. It is excluded from Release builds. The enlarged preview and the actual-size preview use the same rig, clips, clock increments, and tuning values as the desktop character.

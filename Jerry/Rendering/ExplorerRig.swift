@@ -258,7 +258,7 @@ final class ExplorerRig: SKNode {
             context.restoreGState()
             return true
         }
-        image.isTemplate = true; image.accessibilityDescription = "Jerry — The Other Sock"
+        image.isTemplate = true; image.accessibilityDescription = "Jerry"
         return image
     }
 

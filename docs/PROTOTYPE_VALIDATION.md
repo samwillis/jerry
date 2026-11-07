@@ -65,7 +65,7 @@ Use `--performance-report` on Debug to repeat frame/node measurements, and `pyth
 ```sh
 swift test --package-path Packages/ExpeditionCore
 ./scripts/build.sh
-build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --native-checks
+build/Build/Products/Debug/Jerry.app/Contents/MacOS/Jerry --native-checks
 ./scripts/package.sh
 ```
 
@@ -75,7 +75,7 @@ For real-window test terrain:
 ./scripts/terrain-fixture.sh
 build/TerrainFixture.app/Contents/MacOS/TerrainFixture --exercise
 # In another terminal, with the normal explorer copy quit:
-build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock \
+build/Build/Products/Debug/Jerry.app/Contents/MacOS/Jerry \
   --fixture-terrain --start-on-window --trace-movement --performance-report
 ```
 
@@ -362,3 +362,12 @@ Debug and packaged Release builds pass, with 79 native and 28 agent checks passi
 Manual walking off an unsupported ledge and Down + Space drop-through now enter the shared parachute recovery path. Manual control no longer converts an ongoing recovery into a jump, so taking control during a descent, losing a support, and released ropes retain the chute deployment clock. Sideways steering and deliberate Up transfers to nearby internal holds remain available. Ordinary short jumps keep their existing arc and landing; a jump falling beyond that arc transitions into recovery. The drop-through interval prevents immediately landing back on the roof.
 
 166 core tests pass, including regressions for walking off with terrain refreshes during deployment, steering under the canopy, dropping through without re-catching the roof, taking control mid-descent, and a long jump becoming a parachute descent. The lost-support windup expectation now checks recovery instead of a non-deploying jump. The Debug build, 79 native checks and 28 agent checks pass. No new permissions or keyboard capture changes are involved.
+
+
+## Jerry application name — 7 November 2026
+
+Renamed the public app, menu and About panel, window titles, notebook headings, accessibility labels, permission guidance and sign-in copy to Jerry. The source directory, application entry point, Xcode project/target/shared scheme, build scripts, icon exporter and local archive names now use Jerry too. Documentation and image paths follow the new layout. Sock exploration and the core simulation are unchanged.
+
+The persistent bundle identifier and Keychain namespace remain stable for existing preferences and saved connections; they are compatibility identifiers rather than public branding. Fixture and capture-queue names use the new app name.
+
+Debug and packaged Release builds pass, with 79 native and 28 agent checks passing. Verified Jerry display name, executable, bundle name and retained identifier in all three generated app bundles, plus the Jerry executable in the local archive. Local Markdown/image references resolve. Live UI review confirms Jerry as the running app, with About Jerry / Quit Jerry and Jerry’s existing icon and sock tagline in About. The renamed app remains running.

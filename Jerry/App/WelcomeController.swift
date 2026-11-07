@@ -52,7 +52,7 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
     private let illustration = SKView()
     init() {
         let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 560, height: 450), styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = "Welcome to The Other Sock"; window.titlebarAppearsTransparent = true
+        window.title = "Welcome to Jerry"; window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         super.init(window: window); window.delegate = self; window.center()
         let root = NotebookTheme.install(on: window, title: "Welcome")

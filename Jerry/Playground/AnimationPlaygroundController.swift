@@ -12,7 +12,7 @@ final class AnimationPlaygroundController: NSWindowController, NSWindowDelegate 
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "The Other Sock — Animation Playground"
+        window.title = "Jerry — Animation Playground"
         window.minSize = CGSize(width: 980, height: 680)
         window.isReleasedWhenClosed = false
         super.init(window: window)

@@ -123,7 +123,7 @@ final class WindowFeatureCapture {
 }
 
 private final class FeatureFrameReader: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
-    let queue = DispatchQueue(label: "com.othersock.window-features", qos: .userInitiated)
+    let queue = DispatchQueue(label: "com.jerry.window-features", qos: .userInitiated)
     private let window: DesktopWindow
     private var tracker = WindowFeatureTracker()
     private var lastFrame = 0.0

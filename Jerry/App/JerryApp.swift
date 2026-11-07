@@ -3,7 +3,7 @@ import CoreGraphics
 
 @main
 @MainActor
-enum OtherSockApp {
+enum JerryApp {
     static func main() {
         let application = NSApplication.shared
         if ProcessInfo.processInfo.arguments.contains("--terrain-report") {
@@ -43,7 +43,7 @@ enum OtherSockApp {
         #endif
         if let bundleID = Bundle.main.bundleIdentifier,
            NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }) {
-            print("The Other Sock is already running. Use its hiking menu to quit before launching another build.")
+            print("Jerry is already running. Use its hiking menu to quit before launching another build.")
             return
         }
         let delegate = AppDelegate()

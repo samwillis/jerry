@@ -82,14 +82,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if NSApp.mainMenu == nil {
             let bar = NSMenu()
             let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu
-            appMenu.addItem(withTitle: "About The Other Sock", action: #selector(showAbout), keyEquivalent: "").target = self
+            appMenu.addItem(withTitle: "About Jerry", action: #selector(showAbout), keyEquivalent: "").target = self
             appMenu.addItem(.separator())
             let ask = appMenu.addItem(withTitle: "Ask Jerry…", action: #selector(openTasks), keyEquivalent: "\r")
             ask.target = self; ask.keyEquivalentModifierMask = [.control, .option]
             appMenu.addItem(withTitle: "Expedition Journal…", action: #selector(showAgentActivity), keyEquivalent: "").target = self
             appMenu.addItem(.separator())
             appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
-            appMenu.addItem(withTitle: "Quit The Other Sock", action: #selector(quit), keyEquivalent: "q").target = self
+            appMenu.addItem(withTitle: "Quit Jerry", action: #selector(quit), keyEquivalent: "q").target = self
             bar.addItem(appItem)
             let edit = NSMenu(title: "Edit"); let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: ""); editItem.submenu = edit; bar.addItem(editItem)
             for (title, selector, key) in [("Undo", "undo:", "z"), ("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.button?.image = ExplorerRig.menuBarArtwork()
         let menu = NSMenu()
         menu.autoenablesItems = false; menu.delegate = self
-        let heading = NSMenuItem(title: "The Other Sock", action: nil, keyEquivalent: "")
+        let heading = NSMenuItem(title: "Jerry", action: nil, keyEquivalent: "")
         heading.isEnabled = false; menu.addItem(heading); menu.addItem(.separator())
         askItem = add("Ask Jerry…", action: #selector(openTasks), to: menu)
         askItem.keyEquivalent = "\r"; askItem.keyEquivalentModifierMask = [.control, .option]
@@ -115,13 +115,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         _ = add("Settings…", action: #selector(openSettings), to: menu)
         _ = add("Controls & Tips…", action: #selector(showTips), to: menu)
-        _ = add("About The Other Sock", action: #selector(showAbout), to: menu)
+        _ = add("About Jerry", action: #selector(showAbout), to: menu)
 
         developerMenu = NSMenu(title: "Developer Tools"); developerMenu.autoenablesItems = false; developerMenu.delegate = self
         let developmentItem = NSMenuItem(title: "Developer Tools", action: nil, keyEquivalent: ""); developmentItem.submenu = developerMenu; menu.addItem(developmentItem)
         menuNeedsUpdate(developerMenu)
         menu.addItem(.separator())
-        _ = add("Quit The Other Sock", action: #selector(quit), to: menu)
+        _ = add("Quit Jerry", action: #selector(quit), to: menu)
         item.menu = menu; statusItem = item
         updateMenu()
     }
@@ -238,7 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func stopTask() { taskController?.stop() }
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
-        var options: [NSApplication.AboutPanelOptionKey: Any] = [.applicationName: "The Other Sock", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "", .credits: NSAttributedString(string: "Jerry. One small adventurer. One missing sock.")]
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [.applicationName: "Jerry", .applicationVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "", .credits: NSAttributedString(string: "Jerry. One small adventurer. One missing sock.")]
         // Avoid the placeholder held by Launch Services for an earlier local build.
         if let applicationArtwork { options[.applicationIcon] = applicationArtwork }
         NSApp.orderFrontStandardAboutPanel(options: options)
@@ -287,7 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         keyboardItem?.title = overlay?.keyboardControlEnabled == true ? "Release Control" : "Take Control"
         askItem?.toolTip = askHotKey.isRegistered ? "Control–Option–Return opens a prompt from any app." : "The shortcut is unavailable; use this menu item."
         keyboardItem?.toolTip = hotKey.isRegistered ? "Control–Option–Space works from any app." : "The shortcut is unavailable; use this menu item."
-        statusItem?.button?.toolTip = "The Other Sock — \(overlay?.keyboardControlEnabled == true ? "you're in control" : (idleExploration ? "exploring" : "resting"))"
+        statusItem?.button?.toolTip = "Jerry — \(overlay?.keyboardControlEnabled == true ? "you're in control" : (idleExploration ? "exploring" : "resting"))"
     }
     @objc private func displaysChanged() { overlay?.updateDisplay() }
     @objc private func quit() { NSApplication.shared.terminate(nil) }

@@ -21,6 +21,7 @@ final class AgentCredentials {
         var expiresAt: Date
         var scopes: [String]
     }
+    // Persistent Keychain namespace: preserve saved connections across app renames.
     private let service = "com.othersock.desktop.agent"
     private var listener: NWListener?
     private var loginTimeout: Task<Void, Never>?
@@ -131,7 +132,7 @@ final class AgentCredentials {
                                      "scope": "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct",
                                      "resource": "https://api.openai.com/v1", "state": state, "nonce": nonce,
                                      "code_challenge_method": "S256", "code_challenge": Data(SHA256.hash(data: Data(verifier.utf8))).base64URL]
-                        if saved == nil { items["agent_name_hint"] = "The Other Sock" }
+                        if saved == nil { items["agent_name_hint"] = "Jerry" }
                         else { items["id_token_hint"] = saved?.idToken }
                         url.queryItems = items.sorted { $0.key < $1.key }.map { .init(name: $0.key, value: $0.value) }
                         if let address = url.url, NSWorkspace.shared.open(address) { self.status = "Finish sign-in in your browser"; self.onChange?() }
@@ -163,7 +164,7 @@ final class AgentCredentials {
             var duplicate = false
             for item in pairs { if values[item.name] != nil { duplicate = true }; values[item.name] = item.value ?? "" }
             let valid = url?.path == "/auth/callback" && values["state"] == expectedState && !duplicate
-            let body = valid ? "Sign-in received. Return to The Other Sock to see the result. You can close this tab." : "Invalid sign-in callback. Return to The Other Sock and retry."
+            let body = valid ? "Sign-in received. Return to Jerry to see the result. You can close this tab." : "Invalid sign-in callback. Return to Jerry and retry."
             let response = "HTTP/1.1 \(valid ? "200 OK" : "400 Bad Request")\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
             connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel(); if valid { complete(values) } })
         }

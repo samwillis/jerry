@@ -75,7 +75,7 @@ enum NotebookTheme {
         let root = NotebookPaperView(); root.wantsLayer = true; root.layer?.cornerRadius = 12; root.layer?.masksToBounds = true
         window.contentView = root
         let header = NotebookHeaderView(); header.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(header)
-        let caption = NSTextField(labelWithString: "◉  THE OTHER SOCK / " + title.uppercased())
+        let caption = NSTextField(labelWithString: "◉  JERRY / " + title.uppercased())
         caption.font = .monospacedSystemFont(ofSize: 10, weight: .medium); caption.textColor = faded
         caption.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(caption)
         let body = NSView(); body.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(body)
@@ -190,7 +190,7 @@ struct ExpeditionJournalView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 7) {
                 Image(systemName: "safari").font(.system(size: 16, weight: .light))
-                Text("THE OTHER SOCK / FIELD NOTES").font(.system(size: 9, weight: .semibold, design: .monospaced)).tracking(1.1)
+                Text("JERRY / FIELD NOTES").font(.system(size: 9, weight: .semibold, design: .monospaced)).tracking(1.1)
                 Spacer(minLength: 0)
             }.frame(height: 16).foregroundStyle(JournalPalette.faded).padding(.leading, 72)
             Text("Expedition journal").font(.system(size: 28, weight: .medium, design: .serif)).italic()

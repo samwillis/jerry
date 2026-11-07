@@ -1,4 +1,4 @@
-# The Other Sock: implementation plan
+# Jerry: implementation plan
 
 ## Objective and scope
 
@@ -24,8 +24,8 @@ Phases 1–7 are implemented for the local, single-display macOS prototype. The 
 ## Proposed repository structure
 
 ```text
-OtherSock.xcodeproj
-OtherSock/
+Jerry.xcodeproj
+Jerry/
   App/                 # Entry point, menu bar, settings, lifecycle
   Desktop/             # Window discovery, coordinate conversion, display tracking
   Overlay/             # Rendering panels, character input panels, drag handling

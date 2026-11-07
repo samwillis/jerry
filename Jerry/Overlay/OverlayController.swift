@@ -43,7 +43,7 @@ final class OverlayController {
     init() {
         let frame = NSScreen.screens.first?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
         panel = OverlayPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.title = "The Other Sock Overlay"
+        panel.title = "Jerry Overlay"
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.isOpaque = false
@@ -274,7 +274,7 @@ final class OverlayController {
     }
     func requestClickAccess() {
         ExplorerDesktopClick.requestAccess()
-        keyboard.showMessage("Enable The Other Sock in Privacy & Security → Accessibility, then return to keyboard control.")
+        keyboard.showMessage("Enable Jerry in Privacy & Security → Accessibility, then return to keyboard control.")
     }
     private func clickAtExplorer() {
         guard keyboard.isControlling, !clickPending, let local = scene.keyboardClickPoint,

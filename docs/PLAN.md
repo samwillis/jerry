@@ -1,4 +1,4 @@
-# The Other Sock
+# Jerry
 
 A tiny desktop expedition: one hopelessly committed explorer climbs your windows, abseils down their sides, and parachutes across your screen in search of a missing sock.
 

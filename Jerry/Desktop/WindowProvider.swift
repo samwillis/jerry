@@ -76,7 +76,7 @@ final class WindowProvider {
                                        frame: CGRect(x: converted.minX, y: converted.minY, width: converted.width, height: converted.height),
                                        display: CGRect(origin: .zero, size: screen.frame.size)) { continue }
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--fixture-terrain"), bundle != "com.othersock.terrainfixture" { continue }
+            if ProcessInfo.processInfo.arguments.contains("--fixture-terrain"), bundle != "com.jerry.terrainfixture" { continue }
             #endif
             let systemOwner = bundle == "com.apple.dock" || bundle == "com.apple.WindowManager" || bundle == "com.apple.controlcenter" || bundle == "com.apple.notificationcenterui"
             // Shell helper windows often have transparent, screen-sized backing rectangles.

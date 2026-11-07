@@ -239,7 +239,7 @@ final class ExplorerDesktopClick {
         .init(x: point.x, y: primaryTop - point.y)
     }
     static func press(at point: CGPoint) -> String {
-        guard hasAccess else { return "Allow The Other Sock in System Settings → Privacy & Security → Accessibility, then press E again." }
+        guard hasAccess else { return "Allow Jerry in System Settings → Privacy & Security → Accessibility, then press E again." }
         var element: AXUIElement?
         if AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &element) == .success {
             for _ in 0..<6 {

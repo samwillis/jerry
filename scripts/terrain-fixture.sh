@@ -12,7 +12,7 @@ cat > "$task_app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundleDisplayName</key><string>Terrain Fixture</string>
 <key>CFBundleExecutable</key><string>TerrainFixture</string>
-<key>CFBundleIdentifier</key><string>com.othersock.terrainfixture</string>
+<key>CFBundleIdentifier</key><string>com.jerry.terrainfixture</string>
 <key>CFBundleName</key><string>Terrain Fixture</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

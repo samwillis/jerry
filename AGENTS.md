@@ -1,8 +1,10 @@
 # Developer guide
 
-Instructions for coding agents and contributors working on The Other Sock. Run commands from the repository root. The [README](README.md) introduces the app; keep build commands, debugging instructions and implementation details here or in `docs/`.
+Instructions for coding agents and contributors working on Jerry. Run commands from the repository root. The [README](README.md) introduces the app; keep build commands, debugging instructions and implementation details here or in `docs/`.
 
 ## Working on the app
+
+The bundle identifier and Keychain service are persistent compatibility identifiers. Keep them stable when changing the app’s public name, so existing preferences and credentials remain available.
 
 - Use Swift, AppKit and SpriteKit for the native macOS app. Keep platform-independent terrain, movement and mission logic in `Packages/ExpeditionCore`.
 - Jerry is the single explorer. AI actions reach controls through his physical movement and interaction; preserve this behavior when changing task execution.
@@ -19,10 +21,10 @@ Requires Xcode with macOS developer support; deployment target is macOS 14 or la
 
 ```sh
 ./scripts/build.sh
-open build/Build/Products/Debug/OtherSock.app
+open build/Build/Products/Debug/Jerry.app
 ```
 
-Or open `OtherSock.xcodeproj`, select the **OtherSock** scheme and **My Mac**, and run. If Xcode requests signing, select **Sign to Run Locally** for local development. The command-line build disables signing and is intended only for local use.
+Or open `Jerry.xcodeproj`, select the **Jerry** scheme and **My Mac**, and run. If Xcode requests signing, select **Sign to Run Locally** for local development. The command-line build disables signing and is intended only for local use.
 
 Look just above the Dock, near the horizontal centre of the primary display. The app has no Dock icon; its primary interface is the menu bar and desktop overlay. Use the Jerry menu bar icon to control or quit it. Quit a running copy before launching a newly built version.
 
@@ -33,13 +35,13 @@ Window discovery reads IDs, owning process IDs, bounds, layer, and opacity metad
 For a development launch with guides enabled, quit the running copy, then run:
 
 ```sh
-build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --debug-terrain
+build/Build/Products/Debug/Jerry.app/Contents/MacOS/Jerry --debug-terrain
 ```
 
 To inspect geometry availability without launching the overlay:
 
 ```sh
-build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --terrain-report
+build/Build/Products/Debug/Jerry.app/Contents/MacOS/Jerry --terrain-report
 ```
 
 The report prints counts and existing screen-capture permission status, and never requests permission. Permission behavior depends on the local machine; do not assume screen-capture access is granted. Consult the validation notes for tested and untested cases. Apple's [window metadata documentation](https://developer.apple.com/documentation/coregraphics/cgwindowlistcopywindowinfo(_:_:)) describes the geometry API.
@@ -55,13 +57,13 @@ These tests cover input state, coordinates, terrain, IK, contacts, seeded routin
 Quit the running app before native checks to avoid global-shortcut conflicts. For native panel/lifecycle checks (Debug build, no real sleep or Space changes):
 
 ```sh
-build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --native-checks
+build/Build/Products/Debug/Jerry.app/Contents/MacOS/Jerry --native-checks
 ```
 
 For AI integration and journal/settings checks (Debug build):
 
 ```sh
-build/Build/Products/Debug/OtherSock.app/Contents/MacOS/OtherSock --agent-checks
+build/Build/Products/Debug/Jerry.app/Contents/MacOS/Jerry --agent-checks
 ```
 
 For reproducible real-window fixtures, run `./scripts/terrain-fixture.sh`, then launch the printed app executable. `--exercise` makes the fixture move, narrow, cover, and close its own high window. The Debug explorer accepts `--fixture-terrain --start-on-window --trace-movement --performance-report` to isolate those real window records, begin on a top, and report state changes/frame timing. Add `--movement-only` to exercise wandering separately from the mission, or `--start-low --rope-demo --freeze-rope` for a paused rope-descent review. No titles or window images are read. `scripts/measure-process.py PID --seconds 30` reads local CPU time and RSS. See [prototype validation](docs/PROTOTYPE_VALIDATION.md) for results and limitations.
@@ -70,19 +72,19 @@ For reproducible real-window fixtures, run `./scripts/terrain-fixture.sh`, then 
 
 ```sh
 ./scripts/package.sh
-open build/Distribution/OtherSock.app
+open build/Distribution/Jerry.app
 ```
 
-This produces a host-architecture Release app and `build/Distribution/TheOtherSock-local-arm64.zip` on Apple Silicon. It is an unsigned local prototype. Developer ID signing and notarisation are still needed before distributing it to other Macs. The app prevents a second expedition instance from launching; quit the existing copy before switching builds.
+This produces a host-architecture Release app and `build/Distribution/Jerry-local-arm64.zip` on Apple Silicon. It is an unsigned local prototype. Developer ID signing and notarisation are still needed before distributing it to other Macs. The app prevents a second expedition instance from launching; quit the existing copy before switching builds.
 
 ## Structure
 
-- `OtherSock/App`: lifecycle and menu bar controls.
-- `OtherSock/Overlay`: transparent, non-activating overlay and display layout.
-- `OtherSock/Desktop`: window metadata discovery and platform filtering.
-- `OtherSock/Agent`: AI providers, credentials, computer interaction, Settings and the journal.
-- `OtherSock/Rendering`: shared explorer rig, painted parts, mission props, ropes, and development guides.
-- `OtherSock/Playground`: Debug-only clip controls, fake terrain, contact editing, and scale comparison.
+- `Jerry/App`: lifecycle and menu bar controls.
+- `Jerry/Overlay`: transparent, non-activating overlay and display layout.
+- `Jerry/Desktop`: window metadata discovery and platform filtering.
+- `Jerry/Agent`: AI providers, credentials, computer interaction, Settings and the journal.
+- `Jerry/Rendering`: shared explorer rig, painted parts, mission props, ropes, and development guides.
+- `Jerry/Playground`: Debug-only clip controls, fake terrain, contact editing, and scale comparison.
 - `Packages/ExpeditionCore`: platform-independent geometry, terrain construction, attachments, movement, route planning, mission rules, and runtime policy.
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md), [product plan](docs/PLAN.md), and [manual checks](docs/MANUAL_TESTS.md).
 
@@ -104,11 +106,11 @@ The explorer now has a painted material finish with soft highlights, fabric/canv
 
 ## Application icon
 
-The app icon uses Jerry’s actual rig on a warm paper tile. The master is `OtherSock/Resources/AppIcon.png`; both builds bundle `AppIcon.icns`. Run `./scripts/render-app-icon.sh` to regenerate the master and native macOS sizes after character artwork changes. The exporter bakes geometry at icon resolution and leaves normal desktop rendering unchanged.
+The app icon uses Jerry’s actual rig on a warm paper tile. The master is `Jerry/Resources/AppIcon.png`; both builds bundle `AppIcon.icns`. Run `./scripts/render-app-icon.sh` to regenerate the master and native macOS sizes after character artwork changes. The exporter bakes geometry at icon resolution and leaves normal desktop rendering unchanged.
 
 ## Internal-window capture checks
 
-For repeatable development checks, run the Debug executable with `--feature-checks` (uses existing Screen Recording access and creates its own disposable capture window). `scripts/terrain-fixture.sh` builds a scrollable test window; launch its executable with `--internal-terrain`, then launch Debug OtherSock with `--inside-windows --fixture-terrain --debug-terrain`. These flags do not persist the opt-in setting.
+For repeatable development checks, run the Debug executable with `--feature-checks` (uses existing Screen Recording access and creates its own disposable capture window). `scripts/terrain-fixture.sh` builds a scrollable test window; launch its executable with `--internal-terrain`, then launch Debug Jerry with `--inside-windows --fixture-terrain --debug-terrain`. These flags do not persist the opt-in setting.
 
 ## Documentation
 

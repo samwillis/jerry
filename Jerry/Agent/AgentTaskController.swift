@@ -110,7 +110,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     convenience init() {
         let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(624, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         self.init(window: window)
-        window.title = "The Other Sock — Settings"; window.minSize = .init(width: 780, height: 464); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
+        window.title = "Jerry — Settings"; window.minSize = .init(width: 780, height: 464); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
         let settingsBody = NotebookTheme.install(on: window, title: "Base camp")
         buildSettings(in: settingsBody); buildPrompt(); buildJournal()
         computer.progress = { [weak self] in self?.journalState.status = $0; self?.appendLog("Activity", $0) }
@@ -273,7 +273,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             control.state = enabled ? .on : .off
         }
         loginSettingsButton.isHidden = SMAppService.mainApp.status != .requiresApproval
-        if SMAppService.mainApp.status == .requiresApproval { generalState.stringValue = "Allow The Other Sock in System Settings → General → Login Items." }
+        if SMAppService.mainApp.status == .requiresApproval { generalState.stringValue = "Allow Jerry in System Settings → General → Login Items." }
         generalState.isHidden = generalState.stringValue.isEmpty
         requestSettingsButton.title = requestField.stringValue.isEmpty ? "Ask Jerry…" : "Return to Request"
         NotebookTheme.style(requestSettingsButton)

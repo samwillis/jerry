@@ -26,7 +26,7 @@ The explorer is named **Jerry** and answers conversational questions directly. T
 
 ## Play with the keyboard
 
-Press **Control–Option–Space** from any app while The Other Sock is open, or choose Jerry menu → **Take Control**. The same shortcut releases control. Manual mode captures the play keys without opening a controls window. The click marker beside the explorer indicates that you are in control. The explorer stops choosing adventures until you leave control mode.
+Press **Control–Option–Space** from any app while Jerry is open, or choose Jerry menu → **Take Control**. The same shortcut releases control. Manual mode captures the play keys without opening a controls window. The click marker beside the explorer indicates that you are in control. The explorer stops choosing adventures until you leave control mode.
 
 | Key | Action |
 | --- | --- |
@@ -47,7 +47,7 @@ Hold **Shift** for a distinct running gait at about twice manual walking speed, 
 
 Releasing Up/Down holds the current rope length, allowing a natural swing. Walking uses twice the normal cadence and matches its foot motion. Walking off a ledge or dropping through it deploys the parachute while keeping manual control and sideways steering. A ground jump has a short, planted crouch and leg push before take-off, then tucks and reaches for landing; a longer fall beyond its ordinary jump arc transitions to parachute recovery. Air steering accelerates smoothly and retains sideways momentum on release. Landings compress the knees before moving on. There are no mid-air double jumps. Changing apps, pausing, dragging, resetting, sleeping, or leaving the desktop stops keyboard capture and clears held directions. Movement needs no Accessibility or Input Monitoring permission.
 
-**E** targets the visible crosshair, first using an accessible control's Press action and otherwise sending one ordinary left click there. Choose **Settings → Privacy & Access → Open Accessibility Settings…** in the Jerry menu (or press E once), then enable The Other Sock under **System Settings → Privacy & Security → Accessibility**. Return to keyboard control afterward. Without that permission E performs no click. Clicks keep the manual session and rope active. After an action takes focus, the explorer regains keyboard input without opening a window. E works while hanging, climbing or swinging; held movement is reconciled afterward to prevent stuck keys. Use Esc if you want to type in the target app normally. Buttons and toggles can be pressed; this first version does not route text typing, double-clicks, right-clicks, or drag gestures through the explorer.
+**E** targets the visible crosshair, first using an accessible control's Press action and otherwise sending one ordinary left click there. Choose **Settings → Privacy & Access → Open Accessibility Settings…** in the Jerry menu (or press E once), then enable Jerry under **System Settings → Privacy & Security → Accessibility**. Return to keyboard control afterward. Without that permission E performs no click. Clicks keep the manual session and rope active. After an action takes focus, the explorer regains keyboard input without opening a window. E works while hanging, climbing or swinging; held movement is reconciled afterward to prevent stuck keys. Use Esc if you want to type in the target app normally. Buttons and toggles can be pressed; this first version does not route text typing, double-clicks, right-clicks, or drag gestures through the explorer.
 
 ## Connected rope activities
 

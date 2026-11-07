@@ -7,7 +7,7 @@ import ExpeditionCore
     @MainActor static func main() throws {
         _ = NSApplication.shared
         let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
-        let resources = root.appendingPathComponent("OtherSock/Resources", isDirectory: true)
+        let resources = root.appendingPathComponent("Jerry/Resources", isDirectory: true)
         let iconset = root.appendingPathComponent("build/AppIcon.iconset", isDirectory: true)
         try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
