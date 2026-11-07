@@ -84,7 +84,6 @@ public struct ExplorerInteraction {
     private var dropElapsed = 0.0
     private var dropStart = Point.zero
     private var dropEnd = Point.zero
-    private var manualDrop = false
     private var downConsumed = false
     public var dropPose: ExplorerPose? { state == .dropping ? EdgeTraversal.pose(.launching, progress: dropElapsed / EdgeTraversal.duration(.launching)) : nil }
     public var attachedWindowID: UInt32? {
@@ -401,7 +400,8 @@ public struct ExplorerInteraction {
                 if next.y > bounds.maximum.y { flightVelocity.y = min(0, flightVelocity.y) }
                 next.x = min(max(next.x, bounds.minimum.x), bounds.maximum.x)
                 next.y = min(max(next.y, bounds.minimum.y), bounds.maximum.y)
-                if let terrain, let (anchor, landed) = TerrainSupport.landing(from: position, to: next, in: terrain) {
+                if (!keyboardControlEnabled || dropThroughRemaining <= 0),
+                   let terrain, let (anchor, landed) = TerrainSupport.landing(from: position, to: next, in: terrain) {
                     attachment = anchor
                     position = landed
                     settle()
@@ -870,7 +870,7 @@ public struct ExplorerInteraction {
             } else { attachment = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1)?.0 }
         }
         crouchHeld = false; crouchAmount = 0
-        manualDrop = false; downConsumed = false
+        downConsumed = false
         keyboardControlEnabled = enabled
         agentSteering = false
         pointerLowered = false
@@ -886,7 +886,7 @@ public struct ExplorerInteraction {
             controlVelocity = state == .recovering ? flightVelocity : .zero
             if ropeSession != nil { ropeSession?.climbsAfterSwing = false }
             else if attachment != nil { state = .idle }
-            else { state = .jumping }
+            else if state != .recovering { state = .jumping }
         } else if state == .jumping {
             releaseRope(velocity: controlVelocity)
         } else if ropeSession != nil {
@@ -971,7 +971,11 @@ public struct ExplorerInteraction {
                 return
             }
             controlVelocity = .init(x: controlHorizontal * manualTravelSpeed, y: controlVertical < 0 ? -30 : 260)
-            if controlVertical < 0 { dropThroughRemaining = 0.3 }
+            if controlVertical < 0 {
+                dropThroughRemaining = 0.3; downConsumed = true
+                releaseRope(velocity: controlVelocity)
+                return
+            }
             attachment = nil
         }
         jumpAirElapsed = 0
@@ -1001,7 +1005,7 @@ public struct ExplorerInteraction {
         ropeSession = nil; ropeContinuation.removeAll(); route.removeAll(); afterLanding.removeAll()
         flightGoal = nil; holdTransferStart = position; holdTransferElapsed = 0
         attachment = anchor; state = .transferringHold; climbingTime = 0
-        manualDrop = false; controlVelocity = .zero
+        controlVelocity = .zero
         return true
     }
 
@@ -1021,7 +1025,7 @@ public struct ExplorerInteraction {
 
     private mutating func startDrop() {
         guard let support = attachment else { return }
-        downConsumed = true; manualDrop = true
+        downConsumed = true
         route.removeAll(); afterLanding.removeAll(); ropeContinuation.removeAll(); ropeSession = nil
         mission.cancel()
         if support.edge == .horizontalCrack {
@@ -1081,10 +1085,12 @@ public struct ExplorerInteraction {
             return
         }
         dropThroughRemaining = max(0, dropThroughRemaining - dt)
-        if manualDrop, state == .recovering {
+        // Every manual fall shares the chute clock, including walking off an
+        // edge, dropping through one, losing a hold and taking control mid-fall.
+        if state == .recovering {
+            if !agentSteering, controlVertical > 0, transferToWindowHold() { return }
             flightVelocity.x += controlHorizontal * 90 * dt
             advancePhysics(by: dt)
-            if state != .recovering { manualDrop = false }
             return
         }
         if controlVertical < 0, !downConsumed, let support = attachment,
@@ -1123,7 +1129,6 @@ public struct ExplorerInteraction {
             advanceRope(by: dt)
             return
         }
-        if state == .recovering { state = .jumping; controlVelocity = flightVelocity; jumpAirElapsed = 0 }
         if state == .jumping || attachment == nil {
             let previous = position
             jumpAirElapsed += dt
@@ -1146,6 +1151,10 @@ public struct ExplorerInteraction {
                 attachment = TerrainSupport.attach(at: position, in: terrain)?.0
                 lastLandingSpeed = abs(controlVelocity.y); landingCount += 1
                 controlVelocity = .zero; state = .settling; settlingRemaining = LandingAnimation.duration
+            } else if controlVelocity.y < -JumpAnimation.launchSpeed {
+                // A jump that falls beyond its ordinary arc becomes a parachute
+                // descent; short hops still land with the normal jump animation.
+                releaseRope(velocity: controlVelocity)
             } else { state = .jumping }
             return
         }
@@ -1209,7 +1218,7 @@ public struct ExplorerInteraction {
             clampPosition()
             if let (anchor, point) = TerrainSupport.attach(at: position, in: terrain, tolerance: 0.1) {
                 attachment = anchor; position = point; state = runs ? .running : .walking
-            } else { attachment = nil; controlVelocity = .init(x: facing * manualTravelSpeed, y: 0); jumpAirElapsed = 0; state = .jumping }
+            } else { releaseRope(velocity: .init(x: facing * manualTravelSpeed, y: 0)) }
         } else {
             if state == .settling { settlingRemaining -= dt; if settlingRemaining > 0 { return } }
             state = .idle

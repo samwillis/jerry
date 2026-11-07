@@ -81,7 +81,8 @@ final class JumpAnimationTests: XCTestCase {
         value.advance(by: 0.05)
         XCTAssertNil(value.attachment)
         XCTAssertLessThan(value.position.y, 240)
-        XCTAssertEqual(value.state, .jumping)
+        XCTAssertEqual(value.state, .recovering)
+        XCTAssertTrue(value.keyboardControlEnabled)
     }
     func testCeilingContactStopsTheRiseWithoutHovering() {
         var value = actor()

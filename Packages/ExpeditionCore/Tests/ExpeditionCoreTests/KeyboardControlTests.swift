@@ -96,19 +96,64 @@ final class KeyboardControlTests: XCTestCase {
         XCTAssertEqual(value.attachment?.edge, .floor)
         XCTAssertEqual(value.position.y, 0)
     }
-    func testWalkingOffPlatformFallsAndDropThroughDoesNotImmediatelyReland() {
+    func testWalkingOffPlatformDeploysChuteWhileStillUnderControl() {
         var value = explorer(x: 575, y: 370)
         value.setControlDirection(horizontal: 1, vertical: 0)
         advance(&value, seconds: 0.5)
-        XCTAssertEqual(value.state, .jumping)
+        XCTAssertEqual(value.state, .recovering)
         XCTAssertLessThan(value.position.y, 370)
-        value = explorer(x: 450, y: 370)
+        // Terrain polling must not restart deployment while manual control stays on.
+        for _ in 0..<120 {
+            value.updateTerrain(layout)
+            value.advance(by: 1.0 / 120)
+        }
+        XCTAssertEqual(value.state, .recovering)
+        XCTAssertEqual(RecoveryAnimation.deployment(at: value.recoveryElapsed), 1)
+        XCTAssertTrue(value.keyboardControlEnabled)
+        let before = value.position.x
+        value.setControlDirection(horizontal: -1, vertical: 0)
+        advance(&value, seconds: 0.5)
+        XCTAssertLessThan(value.position.x, before)
+        advance(&value, seconds: 12)
+        XCTAssertEqual(value.attachment?.edge, .floor)
+    }
+    func testDropThroughDeploysChuteWithoutRecatchingRoof() {
+        var value = explorer(x: 450, y: 370)
         value.setControlDirection(horizontal: 0, vertical: -1)
         value.controlJump(); advance(&value, seconds: 0.2)
+        XCTAssertEqual(value.state, .recovering)
         XCTAssertNil(value.attachment)
         XCTAssertLessThan(value.position.y, 360)
-        advance(&value, seconds: 2)
+        advance(&value, seconds: 0.8)
+        XCTAssertEqual(value.state, .recovering)
+        XCTAssertEqual(RecoveryAnimation.deployment(at: value.recoveryElapsed), 1)
+        advance(&value, seconds: 12)
         XCTAssertEqual(value.attachment?.edge, .floor)
+        XCTAssertTrue(value.keyboardControlEnabled)
+    }
+    func testTakingControlDuringRecoveryKeepsChuteDeployment() {
+        var value = explorer(x: 575, y: 370)
+        value.setControlDirection(horizontal: 1, vertical: 0)
+        advance(&value, seconds: 0.5)
+        value.setKeyboardControl(false)
+        let elapsed = value.recoveryElapsed
+        value.setKeyboardControl(true)
+        advance(&value, seconds: 0.4)
+        XCTAssertEqual(value.state, .recovering)
+        XCTAssertGreaterThan(value.recoveryElapsed, elapsed + 0.39)
+        XCTAssertGreaterThan(RecoveryAnimation.deployment(at: value.recoveryElapsed), 0.5)
+    }
+    func testJumpBeyondRoofTransitionsToChuteAfterNormalJumpArc() {
+        var value = explorer(x: 575, y: 370)
+        value.setControlDirection(horizontal: 1, vertical: 0)
+        value.controlJump()
+        advance(&value, seconds: 0.5)
+        XCTAssertEqual(value.state, .jumping)
+        XCTAssertGreaterThan(value.position.y, 370)
+        advance(&value, seconds: 1.2)
+        XCTAssertEqual(value.state, .recovering)
+        XCTAssertGreaterThan(RecoveryAnimation.deployment(at: value.recoveryElapsed), 0.8)
+        XCTAssertTrue(value.keyboardControlEnabled)
     }
     func testClimbWallHoldsWhenReleasedThenMantles() {
         var value = explorer(x: 276)

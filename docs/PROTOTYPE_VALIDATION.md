@@ -355,3 +355,10 @@ Welcome, Settings and the journal use native macOS close/minimise/zoom controls 
 The menu-bar template now uses only Jerry’s actual head/hat paths and eye cutouts, in a 22-point image with 20-point artwork (25% larger than the first head-only version). It keeps native template tinting and vector drawing.
 
 Debug and packaged Release builds pass, with 79 native and 28 agent checks passing. Live accessibility review confirmed native controls on all three windows and native welcome close behavior. User visual review confirmed Welcome and Settings alignment and journal paper extending behind the controls; the journal caption was subsequently aligned with an explicit 16-point row. The updated Debug app remains running.
+
+
+## Manual falls deploy the parachute — 7 November 2026
+
+Manual walking off an unsupported ledge and Down + Space drop-through now enter the shared parachute recovery path. Manual control no longer converts an ongoing recovery into a jump, so taking control during a descent, losing a support, and released ropes retain the chute deployment clock. Sideways steering and deliberate Up transfers to nearby internal holds remain available. Ordinary short jumps keep their existing arc and landing; a jump falling beyond that arc transitions into recovery. The drop-through interval prevents immediately landing back on the roof.
+
+166 core tests pass, including regressions for walking off with terrain refreshes during deployment, steering under the canopy, dropping through without re-catching the roof, taking control mid-descent, and a long jump becoming a parachute descent. The lost-support windup expectation now checks recovery instead of a non-deploying jump. The Debug build, 79 native checks and 28 agent checks pass. No new permissions or keyboard capture changes are involved.
