@@ -18,11 +18,15 @@ Traversal uses the existing walking, grappling, swinging and rope motors. It wal
 
 Typing presses keys on an already-visible system onscreen keyboard. The agent must first open it physically, through the Input menu or System Settings → Accessibility → Keyboard. There is no programmatic app launch, shell, clipboard insertion, AXSetValue, or direct text/shortcut injection. Uppercase and special layout changes currently require explicit physical Shift/key clicks. Long text is split into bounded calls. Inspecting the destination establishes whether typing succeeded.
 
-## One explorer, one journal
+## One explorer, separate expeditions
 
 There is one explorer in all modes. Recruitment, roles, survey flags and automatic demo jobs have been removed. Stop simply stops the active task.
 
-The journal reads as a sequence of instructions, short accounts of actions and model responses. Tool arguments, returned control lists and model setup are retained under expandable **Details**, closed by default. Opening details pauses automatic following; **Follow latest** resumes it. History remains across tasks in the running session. **Save log…** exports both the readable entries and their full technical details.
+Each expedition has its own sidebar entry, history and model context. The prompt beside Jerry continues the open expedition; with none open it creates one. The journal’s composer addresses the selected expedition, allowing an archived expedition to resume without merging its history with another. A reply does not finish an expedition: Finish closes it, New expedition starts a fresh conversation, and Stop only pauses execution. Typing a new direction cancels the previous execution and waits for it to drain before starting another.
+
+The journal is a normal Mac window. Its native toolbar toggles the animated sidebar, starts an expedition and saves the complete journal; Finish and Stop appear only when applicable. The date, entries and progress share one scrolling page, with only the composer fixed below it. Near the bottom (within 80 points), new content follows automatically. Scrolling up pauses following; returning to the bottom resumes it. Tool arguments, control lists and metadata stay under expandable Details. Histories and model transcripts remain in memory for the running app session; Save journal exports all expeditions and their details. They are not restored after quitting.
+
+Follow-ups rebuild a native Foundation Models session from its completed transcript, retaining provider reasoning with the expedition and refreshing credentials. Incomplete tool exchanges are removed after cancellation, target IDs are cleared, and the next instruction must inspect again. Switching provider/model retains readable conversational context without transferring opaque provider reasoning. Turning image sharing off removes old screen attachments from continuation context. Progress callbacks are scoped to their execution so cancelled work cannot create an expedition or write into another history.
 
 The accepted crouch animation is unchanged. **Option while crouching** lowers the pointer another 16 points, shown by a short extension. AI uses the same pointer adjustment for low controls. Keyboard presses include a brief hold, then verify the focused text value. A press is retried only when the value provably did not change; focus changes, user edits and autocorrection stop blind retries.
 

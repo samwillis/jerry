@@ -205,3 +205,22 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - [ ] Move the access guide manually, wait through several status updates, and confirm it stays put.
 - [ ] Changing to the next permission preserves the guide’s position.
 - [ ] With no room on either side of Settings, the guide stays where placed rather than being clamped onto its controls.
+
+
+## Expedition journal and steering
+
+- [ ] A prompt with no open expedition creates a sidebar entry; another prompt after the reply continues that same conversation.
+- [ ] Follow-ups remember the first instruction through both the explorer bubble and journal composer.
+- [ ] Stop pauses execution without closing the expedition. Finish closes it; New expedition gives a blank, focused composer.
+- [ ] New directions interrupt ongoing work before another physical action starts; cancelled progress cannot enter a different history.
+- [ ] Browsing an older expedition does not redirect active progress; submitting to its composer resumes it explicitly.
+- [ ] The native toolbar sidebar toggle animates correctly and preserves entries, readable padding and the composer border at wide/narrow sizes.
+- [ ] Date, requests, replies and progress all scroll together and remain clipped below the toolbar. Only the prompt stays fixed below the page.
+- [ ] Scroll up during a reply to pause automatic following; return near the bottom to resume it. There is no Follow latest toggle.
+- [ ] Save journal in the toolbar opens a save panel and exports every expedition with its metadata.
+- [ ] Other apps can cover the journal; AI actions do not force it back to the front.
+- [ ] Jerry can use the journal’s exposed edges, follows it when moved, and cannot attach to an edge hidden behind it.
+
+- [ ] The sidebar divider reaches the window top and slides with the sidebar, without a stationary fading line.
+- [ ] Compact defaults remain readable at 620 × 540; narrower sidebar-hidden windows and reopening near a screen edge keep controls on screen.
+- [ ] Toolbar icons remain smaller than their hit areas, and native traffic lights align with the paper margin beside the stitching.

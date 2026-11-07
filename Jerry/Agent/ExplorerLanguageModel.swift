@@ -11,6 +11,11 @@ struct ExplorerLanguageModel: LanguageModel {
         let bearer: String
         let scriptedPlan: String?
         let sessionID: UUID
+        var reasoning = ExplorerReasoningCache()
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.model == rhs.model && lhs.bearer == rhs.bearer && lhs.scriptedPlan == rhs.scriptedPlan && lhs.sessionID == rhs.sessionID
+        }
+        func hash(into hasher: inout Hasher) { hasher.combine(model); hasher.combine(bearer); hasher.combine(scriptedPlan); hasher.combine(sessionID) }
     }
     let executorConfiguration: Configuration
     var capabilities: LanguageModelCapabilities { .init([.vision, .toolCalling]) }
@@ -18,7 +23,7 @@ struct ExplorerLanguageModel: LanguageModel {
 }
 
 @available(macOS 27.0, *)
-private actor ExplorerReasoningCache {
+actor ExplorerReasoningCache {
     var turns = 0
     var reasoning: [String: Data] = [:]
     func nextTurn() throws -> Int { turns += 1; guard turns <= 160 else { throw AgentConnectionError(message: "The prototype stopped at its 160-turn limit.") }; return turns }
@@ -33,7 +38,7 @@ struct ExplorerModelExecutor: LanguageModelExecutor {
     typealias Model = ExplorerLanguageModel
     typealias Configuration = ExplorerLanguageModel.Configuration
     private let configuration: Configuration
-    private let cache = ExplorerReasoningCache()
+    private var cache: ExplorerReasoningCache { configuration.reasoning }
     init(configuration: Configuration) throws { self.configuration = configuration }
 
     func respond(to request: LanguageModelExecutorGenerationRequest, model: Model, streamingInto channel: LanguageModelExecutorGenerationChannel) async throws {

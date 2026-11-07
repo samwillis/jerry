@@ -27,6 +27,32 @@ enum AgentPrototypeChecks {
                 check(calls == 1 && response.contains("Offline"), "Foundation Models invokes the computer tool and streams its final response")
                 let outputCount = session.transcript.filter { if case .toolOutput = $0 { return true }; return false }.count
                 check(outputCount == 1, "native computer tool output is included exactly once")
+                let continued = LanguageModelSession(model: model, tools: [tool], transcript: AgentTaskController.continuableTranscript(session.transcript))
+                for try await _ in continued.streamResponse(to: "Continue the same expedition with a second direction.") { }
+                let prompts = continued.transcript.compactMap { entry -> String? in
+                    if case .prompt(let prompt) = entry { return prompt.segments.compactMap { if case .text(let text) = $0 { return text.content }; return nil }.joined() }
+                    return nil
+                }
+                check(prompts.count == 2 && prompts.first?.contains("Inspect the active app.") == true && prompts.last?.contains("second direction") == true, "continuing a native model session retains the first request and the new direction")
+                let interrupted = Transcript(entries: session.transcript.filter { if case .toolOutput = $0 { return false }; return true })
+                let repaired = AgentTaskController.continuableTranscript(interrupted)
+                check(!repaired.contains { if case .toolCalls = $0 { return true }; return false }, "interrupted transcript repair removes tool calls without results before continuing")
+                let image = CGContext(data: nil, width: 2, height: 2, bitsPerComponent: 8, bytesPerRow: 8, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!.makeImage()!
+                var pictured = session.transcript
+                for index in pictured.indices {
+                    if case .toolOutput(var output) = pictured[index] {
+                        output.segments.append(.attachment(.init(content: .image(.init(image)))))
+                        pictured[index] = .toolOutput(output)
+                    }
+                }
+                func hasImages(_ transcript: Transcript) -> Bool {
+                    transcript.contains { entry in
+                        if case .toolOutput(let output) = entry { return output.segments.contains { if case .attachment = $0 { return true }; return false } }
+                        return false
+                    }
+                }
+                check(!hasImages(AgentTaskController.continuableTranscript(pictured, includeImages: false)), "continuation removes previous screen images when sharing is off")
+                check(hasImages(AgentTaskController.continuableTranscript(pictured, includeImages: true)), "continuation retains screen context only with image sharing enabled")
                 let definition = Transcript.ToolDefinition(tool: tool)
                 let schema = try JSONSerialization.jsonObject(with: JSONEncoder().encode(definition.parameters)) as? [String: Any]
                 check(schema?["type"] as? String == "object", "computer tool schemas encode to JSON Schema")
@@ -95,8 +121,29 @@ enum AgentPrototypeChecks {
             board.writeObjects([drag.applicationURL as NSURL])
             let dragged = (board.readObjects(forClasses: [NSURL.self]) as? [URL])?.first
             check(dragged == Bundle.main.bundleURL && dragged?.pathExtension == "app", "permission drag exports the exact running app as a file URL")
+            let history = ExpeditionJournal()
+            let first = history.continueExpedition(prompt: "First expedition")
+            history.append(.request, "First expedition")
+            let response = history.append(.response, "First reply")
+            history.isRunning = false
+            check(history.continueExpedition(prompt: "A follow-up") == first && history.expeditions.count == 1, "an expedition stays open between replies and follow-ups reuse it")
+            history.append(.request, "A follow-up")
+            history.prepareNew()
+            check(history.activeID == nil && history.selectedID == nil, "finishing or preparing a new expedition leaves no active conversation")
+            let second = history.continueExpedition(prompt: "Second expedition")
+            history.append(.request, "Second expedition"); history.select(first)
+            history.append(.activity, "Second expedition progress")
+            history.update(response, text: "Updated first reply")
+            check(history.entries.contains { $0.text == "Updated first reply" } && !history.entries.contains { $0.text == "Second expedition progress" }, "browsing an older expedition cannot redirect live progress or response updates")
+            check(history.expeditions.first { $0.id == second }?.entries.contains { $0.text == "Second expedition progress" } == true, "live entries remain attached to the active expedition")
+            check(history.continueExpedition(prompt: "Resume the first", id: first) == first && history.activeID == first && history.expeditions.count == 2, "a selected earlier expedition can be resumed without merging histories")
+            history.finishActive()
+            let third = history.continueExpedition(prompt: "Third expedition")
+            check(third != first && third != second && history.expeditions.count == 3 && history.exportText().contains("Second expedition"), "a prompt after finishing creates a new expedition and export retains all histories")
             let journal = AgentTaskController()
             for (name, passed) in journal.debugCheckSettings() { check(passed, name) }
+            check(await journal.debugCheckJournalFocus(), "showing and automatically focusing the journal cannot pause an expedition")
+            check(journal.debugCheckLogIsolation(), "late progress from a cancelled execution cannot create or change an expedition")
             let journalChecks = journal.debugCheckJournal()
             check(journalChecks.0, "streaming Unicode response updates preserve subsequent tool log entries")
             check(journalChecks.1, "the journal preserves requests across tasks")

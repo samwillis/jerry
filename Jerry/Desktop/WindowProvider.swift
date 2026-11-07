@@ -25,6 +25,13 @@ final class WindowProvider {
             (layer == 0 || (keyboard && layer > 0 && layer < Int(CGWindowLevelForKey(.screenSaverWindow))))
     }
 
+    /// Solid app UI participates in terrain; only the transparent renderer,
+    /// character hit area, invisible keyboard target and prompt stay excluded.
+    static func isAppTerrainWindow(_ window: NSWindow) -> Bool {
+        window.styleMask.contains(.titled) && !window.ignoresMouseEvents
+            && window.frame.width >= 80 && window.frame.height >= 60
+    }
+
     /// Conservatively hide in a full-screen Space. A normally zoomed window occupies only
     /// visibleFrame and leaves the menu bar/Dock strip, so it does not trigger this guard.
     func isSupportedDesktop(on screen: NSScreen) -> Bool {
@@ -58,7 +65,6 @@ final class WindowProvider {
         for record in records {
             guard let id = (record[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   let pid = (record[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
-                  pid != ownPID,
                   let layer = (record[kCGWindowLayer as String] as? NSNumber)?.intValue, layer >= 0,
                   (record[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0.01,
                   let dictionary = record[kCGWindowBounds as String] as? [String: Any],
@@ -70,18 +76,21 @@ final class WindowProvider {
             )
             guard converted.intersects(worldViewport) else { continue }
             let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-            if bundle == Bundle.main.bundleIdentifier { continue }
+            let ownWindow = pid == ownPID ? NSApp.windows.first(where: { $0.windowNumber == Int(id) }) : nil
+            if pid == ownPID {
+                guard let ownWindow, Self.isAppTerrainWindow(ownWindow) else { continue }
+            } else if bundle == Bundle.main.bundleIdentifier { continue }
             if Self.isScreenRecorder(bundle: bundle, owner: record[kCGWindowOwnerName as String] as? String) { continue }
             if Self.isKeyboardBackdrop(bundle: bundle, layer: layer,
                                        frame: CGRect(x: converted.minX, y: converted.minY, width: converted.width, height: converted.height),
                                        display: CGRect(origin: .zero, size: screen.frame.size)) { continue }
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--fixture-terrain"), bundle != "com.jerry.terrainfixture" { continue }
+            if ProcessInfo.processInfo.arguments.contains("--fixture-terrain"), pid != ownPID, bundle != "com.jerry.terrainfixture" { continue }
             #endif
             let systemOwner = bundle == "com.apple.dock" || bundle == "com.apple.WindowManager" || bundle == "com.apple.controlcenter" || bundle == "com.apple.notificationcenterui"
             // Shell helper windows often have transparent, screen-sized backing rectangles.
             guard !systemOwner else { continue }
-            let climbable = Self.canClimbWindow(bundle: bundle, layer: layer, frame: frame)
+            let climbable = ownWindow != nil || Self.canClimbWindow(bundle: bundle, layer: layer, frame: frame)
             windows.append(DesktopWindow(id: id, frame: converted, canClimb: climbable))
             if climbable {
                 if ["com.apple.inputmethod.AssistiveControl", "com.apple.KeyboardViewer"].contains(bundle ?? "") {

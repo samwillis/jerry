@@ -39,7 +39,9 @@ Connect your ChatGPT account or configure an API key in **Settings → AI**, the
 
 Jerry can answer questions and attempt tasks on your computer. To operate an app, he travels to its controls before clicking them. Typing means finding and pressing keys on an onscreen keyboard. It is deliberately, wonderfully inefficient—and still experimental.
 
-The **Expedition Journal** keeps your requests, Jerry’s replies and his progress in a field notebook. Tool details are expandable, and you can save the log. Stop a task from the menu or take manual control to interrupt it.
+The **Expedition Journal** keeps each expedition in its own sidebar entry. Add a direction in the journal or the prompt beside Jerry to continue it; it stays open until you finish it or start a new one. You can return to an earlier expedition and resume it too.
+
+The journal keeps its paper-and-ink style, with a native toolbar for the sidebar, new expeditions and saving your notes. Everything scrolls together except the prompt, and new replies follow automatically when you’re near the bottom. It behaves like a normal Mac window. Stop pauses Jerry’s work; **Finish expedition** closes the conversation.
 
 ## Make yourself at home
 

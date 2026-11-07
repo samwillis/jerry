@@ -11,35 +11,91 @@ final class ExpeditionJournal: ObservableObject {
         var text: String
         var details: String
     }
-    @Published private(set) var entries: [Entry] = []
+    struct Expedition: Identifiable {
+        let id: UUID
+        let date: Date
+        let title: String
+        var entries: [Entry] = []
+        var status = "Ready for your next direction"
+        var isRunning = false
+        var isFinished = false
+    }
+    @Published private(set) var expeditions: [Expedition] = []
+    @Published private(set) var selectedID: UUID?
+    @Published private(set) var activeID: UUID?
     @Published private(set) var revision = 0
-    @Published var taskTitle = ""
-    @Published var status = "Ready"
-    @Published var isRunning = false
     @Published var followsLatest = true
+    @Published var sidebarVisible = true
+    @Published var toolbarHeight: CGFloat = 52
+    @Published var composerFocusRevision = 0
+    var selected: Expedition? { expeditions.first { $0.id == selectedID } }
+    var entries: [Entry] { selected?.entries ?? [] }
+    var taskTitle: String { selected?.title ?? "Ready for an expedition" }
+    var status: String {
+        get { selected?.status ?? "Ask Jerry to start a new expedition." }
+        set { changeActive { $0.status = newValue } }
+    }
+    var isRunning: Bool {
+        get { expeditions.first { $0.id == activeID }?.isRunning ?? false }
+        set { changeActive { $0.isRunning = newValue } }
+    }
+    private func changeActive(_ change: (inout Expedition) -> Void) {
+        guard let index = expeditions.firstIndex(where: { $0.id == activeID }) else { return }
+        change(&expeditions[index]); revision += 1
+    }
+    func select(_ id: UUID) { selectedID = id; followsLatest = true; revision += 1 }
+    func finishActive() {
+        changeActive { $0.isRunning = false; $0.isFinished = true; $0.status = "Expedition finished" }
+        activeID = nil; revision += 1
+    }
+    func prepareNew() { finishActive(); selectedID = nil; revision += 1 }
+    @discardableResult func continueExpedition(prompt: String, id: UUID? = nil) -> UUID {
+        if let target = id ?? activeID, let index = expeditions.firstIndex(where: { $0.id == target }) {
+            if activeID != target { finishActive() }
+            activeID = target; selectedID = target; expeditions[index].isFinished = false
+            followsLatest = true; revision += 1; return target
+        }
+        finishActive()
+        let expedition = Expedition(id: UUID(), date: Date(), title: String(prompt.prefix(100)))
+        expeditions.append(expedition); activeID = expedition.id; selectedID = expedition.id
+        followsLatest = true; revision += 1; return expedition.id
+    }
     @discardableResult func append(_ kind: Kind, _ text: String, details: String = "") -> UUID {
-        let id = UUID(); entries.append(.init(id: id, date: Date(), kind: kind, text: text, details: details)); revision += 1; return id
+        if activeID == nil { continueExpedition(prompt: text) }
+        let id = UUID()
+        changeActive { $0.entries.append(.init(id: id, date: Date(), kind: kind, text: text, details: details)) }
+        return id
     }
     func update(_ id: UUID, text: String) {
-        guard let index = entries.firstIndex(where: { $0.id == id }), entries[index].text != text else { return }
-        entries[index].text = text; revision += 1
+        for expedition in expeditions.indices {
+            guard let row = expeditions[expedition].entries.firstIndex(where: { $0.id == id }) else { continue }
+            if expeditions[expedition].entries[row].text != text { expeditions[expedition].entries[row].text = text; revision += 1 }
+            return
+        }
     }
     func addDetails(_ id: UUID, _ text: String) {
-        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
-        entries[index].details += (entries[index].details.isEmpty ? "" : "\n\n") + text; revision += 1
+        for expedition in expeditions.indices {
+            guard let row = expeditions[expedition].entries.firstIndex(where: { $0.id == id }) else { continue }
+            expeditions[expedition].entries[row].details += (expeditions[expedition].entries[row].details.isEmpty ? "" : "\n\n") + text
+            revision += 1; return
+        }
     }
     func exportText() -> String {
         let clock = ISO8601DateFormatter()
-        return entries.map { entry in
-            let role = entry.kind == .request ? "YOUR INSTRUCTION" : (entry.kind == .response ? "EXPLORER" : "JOURNAL")
-            return "\(clock.string(from: entry.date))  \(role)\n\(entry.text)" + (entry.details.isEmpty ? "" : "\n\nDETAILS\n\(entry.details)")
-        }.joined(separator: "\n\n────────────────────\n\n")
+        return expeditions.map { expedition in
+            let entries = expedition.entries.map { entry in
+                let role = entry.kind == .request ? "YOUR INSTRUCTION" : (entry.kind == .response ? "JERRY" : "JOURNAL")
+                return "\(clock.string(from: entry.date))  \(role)\n\(entry.text)" + (entry.details.isEmpty ? "" : "\n\nDETAILS\n\(entry.details)")
+            }.joined(separator: "\n\n────────────────────\n\n")
+            return "EXPEDITION: \(expedition.title)\n\(clock.string(from: expedition.date))\n\n" + entries
+        }.joined(separator: "\n\n════════════════════\n\n")
     }
 }
 
 /// Shared by the SwiftUI journal and the AppKit welcome/settings notebooks.
 @MainActor
 enum NotebookTheme {
+    static let marginX: CGFloat = 25
     static let paper = NSColor(calibratedRed: 0.98, green: 0.95, blue: 0.86, alpha: 1)
     static let ink = NSColor(calibratedRed: 0.24, green: 0.29, blue: 0.25, alpha: 1)
     static let faded = NSColor(calibratedRed: 0.45, green: 0.45, blue: 0.36, alpha: 1)
@@ -64,8 +120,9 @@ enum NotebookTheme {
         for (index, kind) in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].enumerated() {
             guard let button = window.standardWindowButton(kind), let parent = button.superview else { continue }
             let size = button.frame.size
-            let origin = NSPoint(x: 36 + CGFloat(index) * 20, y: content.bounds.height - 16 - size.height / 2)
-            button.setFrameOrigin(content.convert(origin, to: parent))
+            let origin = NSPoint(x: marginX + CGFloat(index) * 20, y: content.bounds.height - 16 - size.height / 2)
+            let converted = content.convert(origin, to: parent)
+            button.setFrameOrigin(.init(x: converted.x, y: window.toolbar == nil ? converted.y : button.frame.minY))
         }
     }
     static func install(on window: NSWindow, title: String) -> NSView {
@@ -100,7 +157,18 @@ private final class NotebookHeaderView: NSView {
 }
 
 final class NotebookContentView: NSView {
-    override func layout() { super.layout(); NotebookTheme.alignWindowButtons(in: self) }
+    var onTitlebarLayout: ((CGFloat) -> Void)?
+    private var previousTitlebarHeight: CGFloat = -1
+    override func layout() {
+        super.layout(); NotebookTheme.alignWindowButtons(in: self)
+        if let window, window.toolbar != nil {
+            let height = max(0, bounds.maxY - convert(window.contentLayoutRect, from: nil).maxY)
+            if abs(height - previousTitlebarHeight) > 0.5 {
+                previousTitlebarHeight = height
+                DispatchQueue.main.async { [weak self] in self?.onTitlebarLayout?(height) }
+            }
+        }
+    }
 }
 
 private final class NotebookPaperView: NSView {
@@ -112,7 +180,7 @@ private final class NotebookPaperView: NSView {
         let fibres = NSBezierPath(); fibres.lineWidth = 0.5
         for y in stride(from: CGFloat(2), to: bounds.height, by: 4) { fibres.move(to: .init(x: 10, y: y)); fibres.line(to: .init(x: bounds.width, y: y)) }; fibres.stroke()
         NotebookTheme.rust.withAlphaComponent(0.22).setStroke()
-        let margin = NSBezierPath(); margin.lineWidth = 0.7; margin.move(to: .init(x: 25, y: 0)); margin.line(to: .init(x: 25, y: bounds.height)); margin.stroke()
+        let margin = NSBezierPath(); margin.lineWidth = 0.7; margin.move(to: .init(x: NotebookTheme.marginX, y: 0)); margin.line(to: .init(x: NotebookTheme.marginX, y: bounds.height)); margin.stroke()
         NotebookTheme.leather.setFill(); NSRect(x: 0, y: 0, width: 10, height: bounds.height).fill()
         NotebookTheme.paper.withAlphaComponent(0.5).setStroke()
         let stitches = NSBezierPath(); stitches.lineWidth = 1
@@ -134,103 +202,201 @@ private enum JournalPalette {
 struct ExpeditionJournalView: View {
     @ObservedObject var journal: ExpeditionJournal
     let stop: () -> Void
-    let newTask: () -> Void
-    let hide: () -> Void
-    let save: () -> Void
+    let send: (String, UUID?) -> Void
+    @State private var instruction = ""
+    @FocusState private var composing: Bool
+    private var leadingInset: CGFloat { journal.sidebarVisible ? 20 : 36 }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            rule
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 24) {
-                        if journal.entries.isEmpty { emptyPage }
-                        ForEach(journal.entries) { entry in
-                            JournalEntryView(entry: entry, pauseFollowing: { journal.followsLatest = false }).id(entry.id)
+        VStack(spacing: 0) {
+            Color.clear.frame(height: journal.toolbarHeight)
+            HStack(spacing: 0) {
+                if journal.sidebarVisible {
+                    sidebar
+                        .overlay(alignment: .trailing) {
+                            Rectangle().fill(JournalPalette.leather.opacity(0.15)).frame(width: 1)
+                                .padding(.top, -journal.toolbarHeight).allowsHitTesting(false)
                         }
-                        Color.clear.frame(height: 1).id("journal-bottom")
-                    }.padding(.vertical, 24).padding(.leading, 36).padding(.trailing, 24)
+                        .transition(.move(edge: .leading))
                 }
-                .onChange(of: journal.revision) { _, _ in if journal.followsLatest { proxy.scrollTo("journal-bottom", anchor: .bottom) } }
-                .onChange(of: journal.followsLatest) { _, following in if following { proxy.scrollTo("journal-bottom", anchor: .bottom) } }
+                VStack(spacing: 0) { pages; composer }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            rule
-            footer
+            .animation(.easeInOut(duration: 0.2), value: journal.sidebarVisible)
         }
         .foregroundStyle(JournalPalette.ink)
-        .background {
-            ZStack(alignment: .leading) {
-                JournalPalette.paper
-                // Fine paper fibres and a red notebook margin stay fixed behind the writing.
-                Canvas { context, size in
-                    for y in stride(from: 2.0, to: size.height, by: 4) {
-                        var fibre = Path(); fibre.move(to: .init(x: 12, y: y)); fibre.addLine(to: .init(x: size.width, y: y))
-                        context.stroke(fibre, with: .color(JournalPalette.leather.opacity(0.025)), lineWidth: 0.5)
-                    }
-                    var margin = Path(); margin.move(to: .init(x: 25, y: 0)); margin.addLine(to: .init(x: 25, y: size.height))
-                    context.stroke(margin, with: .color(JournalPalette.rust.opacity(0.22)), lineWidth: 0.7)
-                }.allowsHitTesting(false)
-                Rectangle().fill(JournalPalette.leather.gradient).frame(width: 10)
-                Canvas { context, size in
-                    for y in stride(from: 12.0, to: size.height, by: 10) {
-                        var stitch = Path(); stitch.move(to: .init(x: 5, y: y)); stitch.addLine(to: .init(x: 5, y: y + 4))
-                        context.stroke(stitch, with: .color(JournalPalette.paper.opacity(0.5)), lineWidth: 1)
-                    }
-                }.frame(width: 10).allowsHitTesting(false)
-            }
-        }
+        .background(notebookPaper)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(JournalPalette.leather.opacity(0.25), lineWidth: 1).allowsHitTesting(false) }
+        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(JournalPalette.leather.opacity(0.22), lineWidth: 1).allowsHitTesting(false) }
         .ignoresSafeArea(.container, edges: .top)
-        .frame(minWidth: 340, minHeight: 400)
+        .frame(minWidth: journal.sidebarVisible ? 560 : 360, minHeight: 380)
         .environment(\.colorScheme, .light)
         .tint(JournalPalette.ink)
     }
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 7) {
-                Image(systemName: "safari").font(.system(size: 16, weight: .light))
-                Text("JERRY / FIELD NOTES").font(.system(size: 9, weight: .semibold, design: .monospaced)).tracking(1.1)
-                Spacer(minLength: 0)
-            }.frame(height: 16).foregroundStyle(JournalPalette.faded).padding(.leading, 72)
-            Text("Expedition journal").font(.system(size: 28, weight: .medium, design: .serif)).italic()
-            Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
-                .font(.system(size: 11, design: .monospaced)).foregroundStyle(JournalPalette.faded)
-            Text(journal.taskTitle.isEmpty ? "Ready for a mission" : journal.taskTitle)
-                .font(.system(size: 16, weight: .semibold, design: .serif)).lineLimit(3).textSelection(.enabled)
-            HStack(alignment: .top, spacing: 7) {
-                Circle().fill(journal.isRunning ? JournalPalette.rust : JournalPalette.faded.opacity(0.5)).frame(width: 5, height: 5).padding(.top, 5)
-                Text(journal.status).font(.system(size: 11)).foregroundStyle(JournalPalette.faded).lineLimit(2)
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("EXPEDITIONS").font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.2)
+                .foregroundStyle(JournalPalette.faded).padding(.horizontal, 9)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    if journal.expeditions.isEmpty {
+                        Text("No expeditions yet").font(.system(size: 12, design: .serif)).italic()
+                            .foregroundStyle(JournalPalette.faded).padding(9)
+                    }
+                    ForEach(journal.expeditions.reversed()) { expedition in
+                        Button { journal.select(expedition.id); instruction = "" } label: {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(expedition.title).font(.system(size: 12, weight: .medium, design: .serif))
+                                    .lineLimit(2).multilineTextAlignment(.leading)
+                                HStack(spacing: 5) {
+                                    if expedition.id == journal.activeID {
+                                        Circle().fill(expedition.isRunning ? JournalPalette.rust : JournalPalette.ink).frame(width: 4, height: 4)
+                                    }
+                                    Text(expedition.date, format: .dateTime.day().month(.abbreviated).hour().minute())
+                                        .font(.system(size: 9, design: .monospaced))
+                                }.foregroundStyle(JournalPalette.faded)
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                            .background(journal.selectedID == expedition.id ? JournalPalette.leather.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                        }.buttonStyle(.plain).help(expedition.title)
+                    }
+                }
+            }.scrollIndicators(.hidden)
+        }.padding(.leading, 28).padding(.trailing, 10).padding(.vertical, 14).frame(width: 176)
+        .frame(maxHeight: .infinity).background(JournalPalette.leather.opacity(0.025))
+    }
+    private var pages: some View {
+        GeometryReader { viewport in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 20) {
+                        if let expedition = journal.selected {
+                            Text(expedition.date, format: .dateTime.weekday(.wide).day().month(.wide))
+                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(JournalPalette.faded)
+                            ForEach(expedition.entries) { entry in
+                                JournalEntryView(entry: entry, pauseFollowing: { journal.followsLatest = false }).id(entry.id)
+                            }
+                            if expedition.isRunning {
+                                HStack(spacing: 8) {
+                                    ProgressView().controlSize(.small)
+                                    Text("Jerry is working…").font(.system(size: 12, design: .serif)).italic()
+                                }.foregroundStyle(JournalPalette.faded)
+                            } else if expedition.isFinished || expedition.status != "Ready for your next direction" {
+                                Text(expedition.status).font(.system(size: 12, design: .serif)).italic().foregroundStyle(JournalPalette.faded)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 9) {
+                                Text("A new expedition").font(.system(size: 21, weight: .medium, design: .serif)).italic()
+                                Text("Where shall we go?").font(.system(size: 13, design: .serif)).foregroundStyle(JournalPalette.faded)
+                            }.padding(.top, 14)
+                        }
+                        Color.clear.frame(height: 1).id("journal-bottom")
+                    }
+                    .frame(maxWidth: 640, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(.leading, leadingInset).padding(.trailing, 20).padding(.vertical, 18)
+                    .background {
+                        GeometryReader { geometry in
+                            Color.clear.preference(key: JournalLegacyScrollKey.self, value: .init(bottom: geometry.frame(in: .named("journal-scroll")).maxY, height: geometry.size.height))
+                        }
+                    }
+                }
+                .coordinateSpace(name: "journal-scroll")
+                .accessibilityValue(journal.followsLatest ? "Following latest" : "Reading earlier entries")
+                .modifier(JournalScrollTracking(followsLatest: $journal.followsLatest, viewportHeight: viewport.size.height, pin: { proxy.scrollTo("journal-bottom", anchor: .bottom) }))
+                .onChange(of: journal.revision) { _, _ in
+                    if journal.followsLatest && journal.selectedID == journal.activeID { proxy.scrollTo("journal-bottom", anchor: .bottom) }
+                }
+                .onChange(of: journal.selectedID) { _, _ in proxy.scrollTo("journal-bottom", anchor: .bottom) }
             }
-        }.padding(.leading, 36).padding(.trailing, 20).padding(.top, 8).padding(.bottom, 20)
+        }.clipped()
     }
-    private var emptyPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Image(systemName: "map").font(.system(size: 34, weight: .ultraLight)).rotationEffect(.degrees(-8)).foregroundStyle(JournalPalette.faded.opacity(0.6))
-            Text("No tracks yet.").font(.system(size: 21, design: .serif)).italic()
-            Text("Every adventure starts with a small request. What shall we try today?")
-                .font(.system(size: 14, design: .serif)).lineSpacing(5).foregroundStyle(JournalPalette.faded)
-        }.padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
+    private var composer: some View {
+        HStack(spacing: 9) {
+            TextField(journal.selected == nil ? "Give Jerry a mission…" : (journal.selectedID == journal.activeID ? "Add a direction…" : "Resume this expedition…"), text: $instruction)
+                .textFieldStyle(.plain).font(.system(size: 12, design: .serif))
+                .focused($composing).onSubmit(submitInstruction)
+                .onChange(of: journal.composerFocusRevision) { _, _ in instruction = ""; composing = true }
+                .onChange(of: instruction) { _, text in if !text.isEmpty && journal.isRunning { stop() } }
+                .accessibilityLabel("Expedition instruction")
+            Button(action: submitInstruction) { Image(systemName: "arrow.up.circle.fill").font(.system(size: 24)) }
+                .buttonStyle(.plain).disabled(instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Send expedition instruction")
+        }
+        .padding(.horizontal, 11).padding(.vertical, 10)
+        .background(JournalPalette.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(JournalPalette.ink.opacity(composing ? 0.32 : 0.13), lineWidth: 1) }
+        .frame(maxWidth: 640).frame(maxWidth: .infinity)
+        .padding(.leading, leadingInset).padding(.trailing, 20).padding(.top, 10).padding(.bottom, 14)
     }
-    private var rule: some View {
-        Rectangle().fill(JournalPalette.leather.opacity(0.18)).frame(height: 1).padding(.leading, 36).padding(.trailing, 24)
+    private var notebookPaper: some View {
+        ZStack(alignment: .leading) {
+            JournalPalette.paper
+            Canvas { context, size in
+                for y in stride(from: 2.0, to: size.height, by: 4) {
+                    var fibre = Path(); fibre.move(to: .init(x: 12, y: y)); fibre.addLine(to: .init(x: size.width, y: y))
+                    context.stroke(fibre, with: .color(JournalPalette.leather.opacity(0.025)), lineWidth: 0.5)
+                }
+                var margin = Path(); margin.move(to: .init(x: NotebookTheme.marginX, y: 0)); margin.addLine(to: .init(x: NotebookTheme.marginX, y: size.height))
+                context.stroke(margin, with: .color(JournalPalette.rust.opacity(0.22)), lineWidth: 0.7)
+            }.allowsHitTesting(false)
+            Rectangle().fill(JournalPalette.leather.gradient).frame(width: 10)
+            Canvas { context, size in
+                for y in stride(from: 12.0, to: size.height, by: 10) {
+                    var stitch = Path(); stitch.move(to: .init(x: 5, y: y)); stitch.addLine(to: .init(x: 5, y: y + 4))
+                    context.stroke(stitch, with: .color(JournalPalette.paper.opacity(0.5)), lineWidth: 1)
+                }
+            }.frame(width: 10).allowsHitTesting(false)
+        }
     }
-    private var footer: some View {
-        VStack(spacing: 14) {
-            HStack {
-                Button(action: newTask) { Label("New task", systemImage: "square.and.pencil").font(.system(size: 12, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 8) }
-                    .buttonStyle(.plain).background(JournalPalette.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-                Spacer()
-                Button("Stop", action: stop).buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(JournalPalette.rust).disabled(!journal.isRunning).opacity(journal.isRunning ? 1 : 0.35)
+    private func submitInstruction() {
+        let value = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        composing = false; send(value, journal.selectedID); instruction = ""
+    }
+}
+
+private struct JournalLegacyScrollPosition: Equatable {
+    var bottom: CGFloat = 0
+    var height: CGFloat = 0
+}
+private struct JournalLegacyScrollKey: PreferenceKey {
+    static let defaultValue = JournalLegacyScrollPosition()
+    static func reduce(value: inout JournalLegacyScrollPosition, nextValue: () -> JournalLegacyScrollPosition) { value = nextValue() }
+}
+private struct JournalScrollMetrics: Equatable {
+    var nearBottom: Bool
+    var contentHeight: CGFloat
+    var viewportHeight: CGFloat
+    var viewportWidth: CGFloat
+    var offset: CGFloat
+}
+private struct JournalScrollTracking: ViewModifier {
+    @Binding var followsLatest: Bool
+    let viewportHeight: CGFloat
+    let pin: () -> Void
+    @State private var userScrolling = false
+    @State private var previousLegacyHeight: CGFloat = 0
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content
+                .onScrollPhaseChange { _, phase in userScrolling = phase == .tracking || phase == .interacting || phase == .decelerating }
+                .onScrollGeometryChange(for: JournalScrollMetrics.self) { geometry in
+                    .init(nearBottom: geometry.contentSize.height - geometry.contentOffset.y - geometry.containerSize.height < 80, contentHeight: geometry.contentSize.height, viewportHeight: geometry.containerSize.height, viewportWidth: geometry.containerSize.width, offset: geometry.contentOffset.y)
+                } action: { old, new in
+                    let movedUp = new.offset < old.offset - 0.5 && abs(new.contentHeight - old.contentHeight) < 0.5
+                        && new.viewportHeight == old.viewportHeight && new.viewportWidth == old.viewportWidth
+                    if new.nearBottom { followsLatest = true }
+                    else if userScrolling || movedUp { followsLatest = false }
+                    if followsLatest && (old.contentHeight != new.contentHeight || old.viewportHeight != new.viewportHeight) { pin() }
+                }
+        } else {
+            content.onPreferenceChange(JournalLegacyScrollKey.self) { position in
+                let nearBottom = position.bottom < viewportHeight + 80
+                let contentChanged = abs(position.height - previousLegacyHeight) > 0.5
+                if nearBottom || !contentChanged { followsLatest = nearBottom }
+                previousLegacyHeight = position.height
+                if followsLatest && contentChanged { pin() }
             }
-            HStack {
-                Button { journal.followsLatest.toggle() } label: {
-                    Label("Follow latest", systemImage: journal.followsLatest ? "checkmark.circle.fill" : "circle").font(.system(size: 10))
-                }.buttonStyle(.plain).accessibilityValue(journal.followsLatest ? "On" : "Off")
-                Spacer()
-                Button("Save log…", action: save).buttonStyle(.plain).font(.system(size: 10))
-            }.foregroundStyle(JournalPalette.faded)
-        }.padding(.leading, 36).padding(.trailing, 24).padding(.vertical, 16)
+        }
     }
 }
 
@@ -241,7 +407,7 @@ private struct JournalEntryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(entry.kind == .request ? "THE MISSION" : (entry.kind == .response ? "EXPLORER’S NOTES" : "ON THE TRAIL"))
+                Text(entry.kind == .request ? "YOUR DIRECTION" : (entry.kind == .response ? "JERRY’S NOTES" : "ON THE TRAIL"))
                     .font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1)
                 Spacer()
                 Text(entry.date, format: .dateTime.hour().minute()).font(.system(size: 9, design: .monospaced))
@@ -250,20 +416,20 @@ private struct JournalEntryView: View {
                 if entry.kind == .response { Text(.init(entry.text)) }
                 else { Text(entry.text) }
             }
-            .font(.system(size: 15, design: .serif)).lineSpacing(5).textSelection(.enabled)
+            .font(.system(size: 13, design: .serif)).lineSpacing(4).textSelection(.enabled)
             .foregroundStyle(entry.kind == .activity ? JournalPalette.faded : JournalPalette.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
             if !entry.details.isEmpty {
                 DisclosureGroup(isExpanded: $expanded) {
                     ScrollView {
-                        Text(entry.details).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                        Text(entry.details).font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(10)
-                    }.frame(maxHeight: 220).background(JournalPalette.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                    }.frame(maxHeight: 180).background(JournalPalette.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
                 } label: { Text("Details").font(.system(size: 10)).foregroundStyle(JournalPalette.faded) }
                 .onChange(of: expanded) { _, opened in if opened { pauseFollowing() } }
             }
         }
-        .padding(entry.kind == .request ? 12 : 0)
+        .padding(entry.kind == .request ? 10 : 0)
         .background { if entry.kind == .request { RoundedRectangle(cornerRadius: 3).fill(JournalPalette.leather.opacity(0.055)) } }
     }
 }
