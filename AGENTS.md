@@ -106,6 +106,10 @@ The script submits to Apple, staples and validates the ticket, checks Gatekeeper
 - `Packages/ExpeditionCore`: platform-independent geometry, terrain construction, attachments, movement, route planning, mission rules, and runtime policy.
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md), [product plan](docs/PLAN.md), and [manual checks](docs/MANUAL_TESTS.md).
 
+## Journal persistence
+
+The journal saves to `~/Library/Application Support/Jerry/Expeditions/<UUID>/journal.jsonl`. Preserve the versioned append-only records and per-expedition directories for future assets. Keep writes off the main thread, preserve streaming deltas and flush task/shutdown boundaries. A restored task must remain paused until the user gives a direction; never replay saved computer actions automatically. Credentials and opaque provider transcripts do not belong in journal files. Tests must pass `journalDirectory: nil` / `storageDirectory: nil` or use disposable directories, never the real history. See [journal storage](docs/JOURNAL_STORAGE.md).
+
 ## Global shortcuts
 
 **Settings → Controls → Global shortcuts** records the Take/release control and Ask Jerry bindings. Each can be cleared with Delete while recording; Escape cancels, and Restore defaults resets both. Custom combinations require Command, Option or Control and are saved in UserDefaults. The menu and welcome guide reflect the current bindings.

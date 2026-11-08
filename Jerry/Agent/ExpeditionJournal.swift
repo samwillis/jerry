@@ -3,8 +3,8 @@ import SwiftUI
 
 @MainActor
 final class ExpeditionJournal: ObservableObject {
-    enum Kind { case request, response, activity }
-    struct Entry: Identifiable {
+    enum Kind: String, Codable, Sendable { case request, response, activity }
+    struct Entry: Identifiable, Codable, Sendable {
         let id: UUID
         let date: Date
         let kind: Kind
@@ -23,6 +23,38 @@ final class ExpeditionJournal: ObservableObject {
     @Published private(set) var expeditions: [Expedition] = []
     @Published private(set) var selectedID: UUID?
     @Published private(set) var activeID: UUID?
+    @Published private(set) var storageIssue: String?
+    @Published private(set) var saveFailed = false
+    private var store: ExpeditionJournalStore?
+    private var restoreWarning: String?
+    static var defaultDirectory: URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        return support.appendingPathComponent("Jerry/Expeditions", isDirectory: true)
+    }
+    init(storageDirectory: URL? = ExpeditionJournal.defaultDirectory) {
+        guard let storageDirectory else { return }
+        let store = ExpeditionJournalStore(directory: storageDirectory) { [weak self] issue in
+            Task { @MainActor [weak self] in self?.storageIssue = issue ?? self?.restoreWarning; self?.saveFailed = issue != nil }
+        }
+        self.store = store
+        let restored = store.restore(); restoreWarning = restored.warning; storageIssue = restored.warning
+        expeditions = restored.expeditions.map {
+            Expedition(id: $0.header.id, date: $0.header.date, title: $0.header.title, entries: $0.entries,
+                       status: $0.wasRunning ? "Paused after restarting — add a direction to continue" : $0.status,
+                       isRunning: false, isFinished: $0.isFinished)
+        }
+        activeID = expeditions.last(where: { !$0.isFinished })?.id
+        selectedID = activeID ?? expeditions.last?.id
+        for saved in restored.expeditions where saved.wasRunning {
+            if let expedition = expeditions.first(where: { $0.id == saved.header.id }) { recordState(expedition) }
+        }
+    }
+    func flush() { store?.flush() }
+    func retrySaving() { store?.retry() }
+    private func recordState(_ expedition: Expedition) {
+        store?.append(.init(event: .state, status: expedition.status, isRunning: expedition.isRunning, isFinished: expedition.isFinished), to: expedition.id)
+    }
     @Published private(set) var revision = 0
     @Published var followsLatest = true
     @Published var sidebarVisible = true
@@ -41,42 +73,54 @@ final class ExpeditionJournal: ObservableObject {
     }
     private func changeActive(_ change: (inout Expedition) -> Void) {
         guard let index = expeditions.firstIndex(where: { $0.id == activeID }) else { return }
+        let previous = expeditions[index]
         change(&expeditions[index]); revision += 1
+        let current = expeditions[index]
+        if previous.status != current.status || previous.isRunning != current.isRunning || previous.isFinished != current.isFinished { recordState(current) }
     }
     func select(_ id: UUID) { selectedID = id; followsLatest = true; revision += 1 }
     func finishActive() {
         changeActive { $0.isRunning = false; $0.isFinished = true; $0.status = "Expedition finished" }
-        activeID = nil; revision += 1
+        activeID = nil; revision += 1; flush()
     }
     func prepareNew() { finishActive(); selectedID = nil; revision += 1 }
     @discardableResult func continueExpedition(prompt: String, id: UUID? = nil) -> UUID {
         if let target = id ?? activeID, let index = expeditions.firstIndex(where: { $0.id == target }) {
             if activeID != target { finishActive() }
             activeID = target; selectedID = target; expeditions[index].isFinished = false
-            followsLatest = true; revision += 1; return target
+            followsLatest = true; revision += 1; recordState(expeditions[index]); return target
         }
         finishActive()
         let expedition = Expedition(id: UUID(), date: Date(), title: String(prompt.prefix(100)))
         expeditions.append(expedition); activeID = expedition.id; selectedID = expedition.id
-        followsLatest = true; revision += 1; return expedition.id
+        store?.append(.init(event: .created, expedition: .init(id: expedition.id, date: expedition.date, title: expedition.title)), to: expedition.id)
+        followsLatest = true; revision += 1; flush(); return expedition.id
     }
     @discardableResult func append(_ kind: Kind, _ text: String, details: String = "") -> UUID {
         if activeID == nil { continueExpedition(prompt: text) }
-        let id = UUID()
-        changeActive { $0.entries.append(.init(id: id, date: Date(), kind: kind, text: text, details: details)) }
-        return id
+        let entry = Entry(id: UUID(), date: Date(), kind: kind, text: text, details: details)
+        changeActive { $0.entries.append(entry) }
+        if let activeID { store?.append(.init(event: .entry, entry: entry), to: activeID) }
+        return entry.id
     }
     func update(_ id: UUID, text: String) {
         for expedition in expeditions.indices {
             guard let row = expeditions[expedition].entries.firstIndex(where: { $0.id == id }) else { continue }
-            if expeditions[expedition].entries[row].text != text { expeditions[expedition].entries[row].text = text; revision += 1 }
+            let previous = expeditions[expedition].entries[row].text
+            if previous != text {
+                expeditions[expedition].entries[row].text = text; revision += 1
+                let appending = text.hasPrefix(previous)
+                store?.append(.init(event: appending ? .textAppended : .textReplaced, entryID: id, text: appending ? String(text.dropFirst(previous.count)) : text), to: expeditions[expedition].id)
+            }
             return
         }
     }
     func addDetails(_ id: UUID, _ text: String) {
         for expedition in expeditions.indices {
             guard let row = expeditions[expedition].entries.firstIndex(where: { $0.id == id }) else { continue }
-            expeditions[expedition].entries[row].details += (expeditions[expedition].entries[row].details.isEmpty ? "" : "\n\n") + text
+            let addition = (expeditions[expedition].entries[row].details.isEmpty ? "" : "\n\n") + text
+            expeditions[expedition].entries[row].details += addition
+            store?.append(.init(event: .detailsAppended, entryID: id, text: addition), to: expeditions[expedition].id)
             revision += 1; return
         }
     }
@@ -308,6 +352,12 @@ struct ExpeditionJournalView: View {
                                 Text("A new expedition").font(.system(size: 21, weight: .medium, design: .serif)).italic()
                                 Text("Where shall we go?").font(.system(size: 13, design: .serif)).foregroundStyle(JournalPalette.faded)
                             }.padding(.top, 14)
+                        }
+                        if let issue = journal.storageIssue {
+                            HStack(alignment: .top, spacing: 10) {
+                                Text(issue).font(.system(size: 12, design: .serif))
+                                if journal.saveFailed { Button("Retry saving") { journal.retrySaving() }.buttonStyle(.link) }
+                            }.foregroundStyle(JournalPalette.rust)
                         }
                         Color.clear.frame(height: 1).id("journal-bottom")
                     }

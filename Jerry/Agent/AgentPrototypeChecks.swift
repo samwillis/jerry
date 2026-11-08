@@ -39,11 +39,97 @@ enum AgentPrototypeChecks {
         checks.append(("updating a saved key preserves Jerry labels and the other connection", try credentials.apiKey() == "updated-test-key" && label("api-key") == "Jerry — API key" && credentials.account?.clientID == account.clientID))
         return checks
     }
+    private static func checkJournalPersistence() async throws -> [(String, Bool)] {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("jerry-journal-check-\(UUID().uuidString)", isDirectory: true)
+        var journals: [ExpeditionJournal] = []
+        defer { journals.forEach { $0.flush() }; try? FileManager.default.removeItem(at: root) }
+        func journal(_ directory: URL) -> ExpeditionJournal {
+            let model = ExpeditionJournal(storageDirectory: directory); journals.append(model); return model
+        }
+        func appendBytes(_ data: Data, to url: URL) throws {
+            let file = try FileHandle(forWritingTo: url); defer { try? file.close() }
+            try file.seekToEnd(); try file.write(contentsOf: data); try file.synchronize()
+        }
+        let original = journal(root)
+        let first = original.continueExpedition(prompt: "Find a patterned sock")
+        let request = original.append(.request, "Find a patterned sock")
+        let response = original.append(.response, "")
+        var streamed = ""
+        for chunk in ["Hello", " 👩🏽‍🚀", " — café", "\nOne small discovery."] { streamed += chunk; original.update(response, text: streamed) }
+        let corrected = "A corrected note 👩🏽‍🚀\nThe sock has stripes."
+        original.update(response, text: corrected)
+        original.addDetails(response, "Tool metadata"); original.addDetails(response, "A later result")
+        original.status = "Inspecting the window…"; original.isRunning = true; original.flush()
+        let file = root.appendingPathComponent(first.uuidString).appendingPathComponent("journal.jsonl")
+        let lines = try Data(contentsOf: file).split(separator: 10)
+        let objects = try lines.map { try JSONSerialization.jsonObject(with: Data($0)) as! [String: Any] }
+        var checks = [("an expedition gets its own folder containing only a versioned JSONL journal", try FileManager.default.contentsOfDirectory(atPath: file.deletingLastPathComponent().path) == ["journal.jsonl"] && objects.allSatisfy { $0["version"] as? Int == 1 } && objects.contains { $0["event"] as? String == "textAppended" })]
+        let restored = journal(root)
+        checks.append(("journal restart restores IDs, Unicode messages and expandable details", restored.activeID == first && restored.entries.first?.id == request && restored.entries.first { $0.id == response }?.text == corrected && restored.entries.first { $0.id == response }?.details == "Tool metadata\n\nA later result"))
+        checks.append(("a running expedition restores paused without restarting computer actions", !restored.isRunning && restored.selected?.status.contains("Paused after restarting") == true && restored.selected?.isFinished == false))
+        restored.flush()
+        let duplicate = lines.first { line in (try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any])?["event"] as? String == "textAppended" }!
+        try appendBytes(Data(duplicate) + Data([10]), to: file)
+        let deduplicated = journal(root)
+        checks.append(("retrying a previously appended event cannot duplicate streamed text", deduplicated.entries.first { $0.id == response }?.text == corrected))
+        try appendBytes(Data("{\"version\":1,\"event\":\"entry\"".utf8), to: file)
+        let recovered = journal(root)
+        checks.append(("a truncated final record preserves complete notes and reports recovery", recovered.entries.first { $0.id == response }?.text == corrected && recovered.storageIssue != nil))
+        recovered.append(.activity, "Recovered after an interrupted write"); recovered.flush()
+        let continued = journal(root)
+        checks.append(("new notes remain readable after an interrupted JSONL tail", continued.entries.contains { $0.text == "Recovered after an interrupted write" }))
+        continued.finishActive()
+        let second = continued.continueExpedition(prompt: "A second expedition")
+        continued.append(.request, "Keep this mission separate"); continued.finishActive()
+        let separate = journal(root)
+        checks.append(("finished expeditions restore separately with their completion state", separate.expeditions.count == 2 && separate.activeID == nil && separate.expeditions.allSatisfy(\.isFinished) && separate.exportText().contains("Keep this mission separate")))
+        separate.continueExpedition(prompt: "A follow-up direction", id: first)
+        separate.append(.request, "A follow-up direction"); separate.flush()
+        let resumed = journal(root)
+        checks.append(("an earlier expedition remains open and resumable after another restart", resumed.activeID == first && resumed.selectedID == first && resumed.entries.last?.text == "A follow-up direction" && resumed.expeditions.first { $0.id == second }?.isFinished == true))
+        let controller = AgentTaskController(journalDirectory: root)
+        checks.append(("the journal window restores an open expedition with Finish available and no running task", controller.debugCheckRestoredJournal(id: first, text: "A follow-up direction")))
+        resumed.append(.activity, "Saved automatically")
+        var automatic = false
+        for _ in 0..<20 {
+            try await Task.sleep(for: .milliseconds(100))
+            let snapshot = ExpeditionJournalStore(directory: root, report: { _ in }).restore()
+            automatic = snapshot.expeditions.contains { $0.entries.contains { $0.text == "Saved automatically" } }
+            if automatic { break }
+        }
+        checks.append(("batched journal records save automatically without an explicit flush", automatic))
+        let futureID = UUID(), futureFolder = root.appendingPathComponent(futureID.uuidString)
+        try FileManager.default.createDirectory(at: futureFolder, withIntermediateDirectories: true)
+        var future = JournalRecord(event: .created, expedition: .init(id: futureID, date: Date(), title: "Newer format")); future.version = 2
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .millisecondsSince1970
+        let futureBytes = try encoder.encode(future) + Data([10])
+        let futureFile = futureFolder.appendingPathComponent("journal.jsonl"); try futureBytes.write(to: futureFile)
+        let unsupported = journal(root); unsupported.flush()
+        checks.append(("newer journal formats stay untouched and do not hide readable expeditions", try unsupported.expeditions.count == 2 && unsupported.storageIssue != nil && Data(contentsOf: futureFile) == futureBytes))
+        let asset = file.deletingLastPathComponent().appendingPathComponent("future-asset.txt")
+        try Data("Future asset fixture".utf8).write(to: asset)
+        let withAssets = journal(root)
+        checks.append(("unrelated future assets in an expedition folder are preserved", try withAssets.expeditions.count == 2 && String(contentsOf: asset, encoding: .utf8) == "Future asset fixture"))
+        let blocked = root.appendingPathComponent("blocked-storage")
+        let failed = journal(blocked) // Create the obstruction after a clean initial read.
+        try Data("obstruction".utf8).write(to: blocked)
+        failed.continueExpedition(prompt: "Survive a save failure"); failed.append(.request, "Keep this unsaved note"); failed.flush()
+        try await Task.sleep(for: .milliseconds(20))
+        checks.append(("save failures are visible while retaining the journal in memory", failed.saveFailed && failed.storageIssue != nil && failed.entries.first?.text == "Keep this unsaved note"))
+        try FileManager.default.removeItem(at: blocked)
+        failed.retrySaving(); failed.flush()
+        try await Task.sleep(for: .milliseconds(20))
+        let retried = journal(blocked)
+        checks.append(("retry saves retained records after a filesystem failure is fixed", !failed.saveFailed && failed.storageIssue == nil && retried.entries.first?.text == "Keep this unsaved note"))
+        return checks
+    }
+
     static func run() async -> Bool {
         var passed = true
         func check(_ condition: Bool, _ label: String) { print("AGENT \(condition ? "PASS" : "FAIL") \(label)"); fflush(stdout); passed = passed && condition }
         let viewport = WorldRect(x: 0, y: 0, width: 1000, height: 800)
         do {
+            for (name, result) in try await checkJournalPersistence() { check(result, name) }
             for (name, result) in try checkCredentialLabels() { check(result, name) }
             if #available(macOS 27.0, *) {
                 var calls = 0
@@ -154,7 +240,7 @@ enum AgentPrototypeChecks {
             board.writeObjects([drag.applicationURL as NSURL])
             let dragged = (board.readObjects(forClasses: [NSURL.self]) as? [URL])?.first
             check(dragged == Bundle.main.bundleURL && dragged?.pathExtension == "app", "permission drag exports the exact running app as a file URL")
-            let history = ExpeditionJournal()
+            let history = ExpeditionJournal(storageDirectory: nil)
             let first = history.continueExpedition(prompt: "First expedition")
             history.append(.request, "First expedition")
             let response = history.append(.response, "First reply")
@@ -173,7 +259,7 @@ enum AgentPrototypeChecks {
             history.finishActive()
             let third = history.continueExpedition(prompt: "Third expedition")
             check(third != first && third != second && history.expeditions.count == 3 && history.exportText().contains("Second expedition"), "a prompt after finishing creates a new expedition and export retains all histories")
-            let journal = AgentTaskController()
+            let journal = AgentTaskController(journalDirectory: nil)
             for (name, passed) in journal.debugCheckSettings() { check(passed, name) }
             check(await journal.debugCheckJournalFocus(), "showing and automatically focusing the journal cannot pause an expedition")
             check(await journal.debugCheckTrafficLights(), "native traffic lights stay inside the paper margin after toolbar layout and resizing")

@@ -51,7 +51,7 @@ You can add directions while he works, pause him, or take control yourself.
 
 Jerry records your requests, his notes and what happens along the way in the **Expedition Journal**. Each expedition has its own place in the sidebar, with technical details tucked into expandable sections.
 
-Continue an expedition from the journal’s prompt box or the input beside Jerry. It stays open for follow-up directions until you finish it or start a new one. You can revisit and resume earlier expeditions during the current app session, and save the journal to keep a copy.
+Continue an expedition from the journal’s prompt box or the input beside Jerry. It stays open for follow-up directions until you finish it or start a new one. Expeditions are saved automatically on your Mac, so you can revisit and resume them after restarting Jerry. An unfinished mission reopens paused. You can also export a readable copy of the journal.
 
 ## A little adventure between missions
 

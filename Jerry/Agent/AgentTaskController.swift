@@ -48,7 +48,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private let status = NSTextField(wrappingLabelWithString: "Choose a connection for your explorer.")
     private let connection = NSTextField(wrappingLabelWithString: "")
     private let promptHint = NSTextField(wrappingLabelWithString: "")
-    private let journalState = ExpeditionJournal()
+    private var journalState: ExpeditionJournal!
     private var assistantRows: [String: UUID] = [:]
     private var priorResponseIDs: Set<String> = []
     private var lastResponseRow: UUID?
@@ -120,9 +120,11 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     var explorerFrame: (() -> CGRect)?
 
     override init(window: NSWindow?) { super.init(window: window) }
-    convenience init() {
+    convenience init() { self.init(journalDirectory: ExpeditionJournal.defaultDirectory) }
+    convenience init(journalDirectory: URL?) {
         let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(540, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         self.init(window: window)
+        journalState = ExpeditionJournal(storageDirectory: journalDirectory)
         window.title = "Jerry — Settings"; window.minSize = .init(width: 780, height: 464); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
         let toolbar = NSToolbar(identifier: "JerrySettingsToolbar")
         toolbar.delegate = self; toolbar.displayMode = .iconOnly; toolbar.sizeMode = .regular; toolbar.allowsUserCustomization = false
@@ -279,7 +281,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         let images = NSButton(checkboxWithTitle: "Also share window images", target: self, action: #selector(imagesChanged)); images.contentTintColor = NotebookTheme.ink; images.identifier = .init("agentShareImages"); preferenceButtons["agentShareImages"] = images
         body.addArrangedSubview(card([label("AI sharing", size: 14, weight: .semibold), note("AI tasks share visible text and controls."), images, note("Images go to the AI and also need Screen Recording access.")], width: 532))
         body.addArrangedSubview(note("Setup opens the right macOS page with a draggable copy of Jerry’s app icon. Status updates as you make changes."))
-        body.addArrangedSubview(note("Keys stay in Keychain. The journal clears when you quit; saved logs may include screen content."))
+        body.addArrangedSubview(note("Keys stay in Keychain. Journals are saved on this Mac and may include screen content."))
     }
     private func buildControls(_ body: NSStackView) {
         body.spacing = 10
@@ -454,7 +456,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         switch identifier.rawValue {
         case "journalSidebar": definition = ("Hide sidebar", "sidebar.left", #selector(toggleJournalSidebar))
         case "journalNew": definition = ("New expedition", "square.and.pencil", #selector(newJournalExpedition))
-        case "journalSave": definition = ("Save journal", "square.and.arrow.up", #selector(saveLog))
+        case "journalSave": definition = ("Export journal", "square.and.arrow.up", #selector(saveLog))
         case "journalFinish": definition = ("Finish expedition", "checkmark.circle", #selector(finishExpedition))
         case "journalStop": definition = ("Stop Jerry", "stop.circle", #selector(stop))
         default: return nil
@@ -570,6 +572,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         }
     }
     private func showJournal() {
+        updateJournalToolbar()
         if !journalPositioned, let frame = NSScreen.screens.first?.visibleFrame {
             journal.setFrameTopLeftPoint(.init(x: frame.maxX - journal.frame.width - 20, y: frame.maxY - 24))
             journalPositioned = true
@@ -713,10 +716,10 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         appendLog("Your request", prompt)
         appendLog("Model request", "Provider: \(provider.titleOfSelectedItem ?? "AI")\nModel: \(selectedModel.isEmpty ? "Offline connection test" : selectedModel)\n" + Self.computerInstructions)
         requestField.stringValue = ""; updatePromptHint()
-        journalState.status = "Following your direction…"; journalState.isRunning = true; updateJournalToolbar(); showJournal(); onTaskStateChanged?(); onSubmitted?()
+        journalState.status = "Following your direction…"; journalState.isRunning = true; journalState.flush(); updateJournalToolbar(); showJournal(); onTaskStateChanged?(); onSubmitted?()
         task = Task { [weak self] in
             guard let self else { return }
-            defer { if self.runID == id { self.task = nil; self.journalState.isRunning = self.missionActive; self.updateJournalToolbar(); self.onTaskStateChanged?() } }
+            defer { if self.runID == id { self.task = nil; self.journalState.isRunning = self.missionActive; self.updateJournalToolbar(); self.onTaskStateChanged?(); self.journalState.flush() } }
             do {
                 await previousTask?.value
                 try Task.checkCancellation()
@@ -813,7 +816,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         if wasActive { appendLog("Task stopped", "Cancelled the model request and pending physical actions.") }
         if let task { drainingTask = task }
         runID = UUID(); computer.stop(); task?.cancel(); task = nil; missionActive = false; journalState.isRunning = false; onStop?()
-        if wasActive { journalState.status = "Paused — add a direction to continue" }; updateJournalToolbar(); onTaskStateChanged?()
+        if wasActive { journalState.status = "Paused — add a direction to continue" }; journalState.flush(); updateJournalToolbar(); onTaskStateChanged?()
     }
     func windowWillClose(_ notification: Notification) {
         if notification.object as? NSWindow === journal { restoreJournalAfterInput = false }
@@ -856,6 +859,13 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         results.append(("movement changes save immediately and notify the running explorer", changes == 1 && UserDefaults.standard.bool(forKey: "gentlePace") && paceChoice.indexOfSelectedItem == 0))
         onPreferencesChanged = nil
         return results
+    }
+    func debugCheckRestoredJournal(id: UUID, text: String) -> Bool {
+        showActivity()
+        let restored = journalState.activeID == id && journalState.entries.contains { $0.text == text } && !isTaskRunning
+            && journal.toolbar?.items.contains { $0.itemIdentifier.rawValue == "journalFinish" } == true
+        closeAll()
+        return restored
     }
     func debugCheckJournalFocus() async -> Bool {
         let previousStop = onStop

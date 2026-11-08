@@ -217,7 +217,7 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - [ ] The native toolbar sidebar toggle animates correctly and preserves entries, readable padding and the composer border at wide/narrow sizes.
 - [ ] Date, requests, replies and progress all scroll together and remain clipped below the toolbar. Only the prompt stays fixed below the page.
 - [ ] Scroll up during a reply to pause automatic following; return near the bottom to resume it. There is no Follow latest toggle.
-- [ ] Save journal in the toolbar opens a save panel and exports every expedition with its metadata.
+- [ ] Export journal in the toolbar opens a save panel and exports every expedition with its metadata.
 - [ ] Other apps can cover the journal; AI actions do not force it back to the front.
 - [ ] Jerry can use the journal’s exposed edges, follows it when moved, and cannot attach to an edge hidden behind it.
 
@@ -234,3 +234,11 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - [ ] Plain typing is rejected. Escape, changing section, closing Settings and switching apps cancel recording and restore global shortcuts.
 - [ ] Delete clears a shortcut, including after restart. Menu actions remain usable. Restore defaults restores both together.
 - [ ] Restart with custom shortcuts and confirm the menu, welcome guide and recorder show the saved choices. Check a non-US keyboard layout and modified function/navigation keys.
+
+### Persistent expedition journals
+
+- [ ] Start an expedition, receive a response, quit and reopen Jerry. Both the instruction and response, along with expandable details, restore in the sidebar.
+- [ ] Quit during a response or computer action. Reopening must restore the notes as paused and perform no computer actions until a follow-up instruction.
+- [ ] Finish one expedition and start another, then restart. Histories and completion states stay separate; an older expedition can be resumed.
+- [ ] Verify one UUID folder per expedition under Application Support/Jerry/Expeditions, containing only journal.jsonl until assets are introduced.
+- [ ] Export still writes a readable copy of the full history. Saving requires no manual action.
