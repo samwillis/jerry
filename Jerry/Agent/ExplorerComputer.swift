@@ -25,6 +25,13 @@ final class ExplorerComputer {
     var logResult: ((String) -> Void)?
     @available(macOS 27.0, *)
     private func report(_ text: String) -> Prompt { logResult?(text); return Prompt(text) }
+    var nameExpedition: ((String) throws -> Bool)?
+    var photoStage: ((Bool) -> Void)?
+    var photoSubject: (() -> (windowID: UInt32, frame: CGRect)?)?
+    // SCStreamConfiguration.backgroundColor is assign, not retained by the API.
+    private static let photoBackground = CGColor(red: 0.98, green: 0.95, blue: 0.86, alpha: 1)
+    private var lastPhotoTime: TimeInterval = -.infinity
+    private var climbPhotos = 0
     var photograph: ((Data, String) async throws -> Void)?
     var shareImages = false
     private var interrupted = false
@@ -33,7 +40,7 @@ final class ExplorerComputer {
     func moveHand(_ point: CGPoint) { if dragging { post(.leftMouseDragged, at: point) } }
 
     func stop() { if dragging { post(.leftMouseUp, at: CGEvent(source: nil)?.location ?? .zero); dragging = false }; interrupted = true; targets = [:]; reading?(false) }
-    func start() { interrupted = false; lastActionFailed = false; targets = [:] }
+    func start() { interrupted = false; lastActionFailed = false; targets = [:]; lastPhotoTime = -.infinity; climbPhotos = 0 }
     private func check() throws { try Task.checkCancellation(); if interrupted { throw CancellationError() } }
     static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
         var value: CFTypeRef?
@@ -181,17 +188,11 @@ final class ExplorerComputer {
                 }
                 return report(observation)
             }
+            if action == "name_expedition" {
+                return report(try nameExpedition?(text) == true ? "Expedition named: " + text : "Name not changed. Keep an existing expedition name. If it is still untitled, choose 3–7 whimsical words, at most 70 characters, rather than repeating the prompt.")
+            }
             if action == "take_photo" {
-                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return report("Give the photograph a short factual caption in text.") }
-                guard CGPreflightScreenCaptureAccess() else { return report("Photograph unavailable: Screen Recording access is needed. Continue without a photo; no permission was requested.") }
-                progress?("Taking a photograph for my journal…"); reading?(true); defer { reading?(false) }
-                do {
-                    guard let photograph, let image = try await captureFrontWindow(),
-                          let data = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.85]) else { return report("Photograph unavailable: no active app window could be captured. Continue without a photo.") }
-                    try check(); try await photograph(data, text); try check()
-                    return report("Photograph saved locally in the expedition journal. Caption: " + text + ". No photo was sent to the model. This is documentation, not verification of task success.")
-                } catch is CancellationError { throw CancellationError() }
-                catch { return report("Photograph unavailable: " + error.localizedDescription + ". Continue the task without a photo.") }
+                return report(try await takeJournalPhoto(caption: text))
             }
             if action == "type_text" {
                 guard !text.isEmpty, text.count <= 160 else { return report("Type 1–160 characters per call.") }
@@ -356,6 +357,62 @@ final class ExplorerComputer {
         }
         return ("Verified \(typedCount) onscreen key presses in the destination text. The requested text was inserted.", true)
     }
+    @available(macOS 27.0, *)
+    func celebrateClimb() async throws {
+        guard !dragging, climbPhotos < 3, ProcessInfo.processInfo.systemUptime - lastPhotoTime > 45,
+              CGPreflightScreenCaptureAccess() else { return }
+        climbPhotos += 1; lastPhotoTime = ProcessInfo.processInfo.systemUptime
+        logResult?(try await takeJournalPhoto(caption: "That climb deserved a memento. Here I am at the next stop."))
+    }
+    @available(macOS 27.0, *)
+    private func takeJournalPhoto(caption: String) async throws -> String {
+        guard !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "Give the photograph a short factual caption in text." }
+        guard CGPreflightScreenCaptureAccess() else { return "Photograph unavailable: Screen Recording access is needed. Continue without a photo; no permission was requested." }
+        progress?("A moment for the journal — hold that pose…")
+        photoStage?(true); defer { photoStage?(false) }
+        do {
+            try await Task.sleep(for: .milliseconds(650)); try check()
+            guard let photograph, let image = try await captureJournalMoment(),
+                  let data = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.88]) else { return "Photograph unavailable: I couldn’t frame Jerry with enough visible task context. Continue without a photo." }
+            try check(); try await photograph(data, caption); try check()
+            lastPhotoTime = ProcessInfo.processInfo.systemUptime
+            try await Task.sleep(for: .milliseconds(220)); try check()
+            return "Photograph saved locally with Jerry at this screen moment. Caption: " + caption + ". No photo was sent to the model. This documents a moment, not verification of task success."
+        } catch is CancellationError { throw CancellationError() }
+        catch { return "Photograph unavailable: " + error.localizedDescription + ". Continue the task without a photo." }
+    }
+    private func captureJournalMoment() async throws -> CGImage? {
+        guard let subject = photoSubject?(), let app = NSWorkspace.shared.frontmostApplication,
+              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        guard let front = windows.first(where: {
+            ($0[kCGWindowOwnerPID as String] as? Int32) == app.processIdentifier && ($0[kCGWindowLayer as String] as? Int) == 0 && ($0[kCGWindowAlpha as String] as? Double ?? 0) > 0.01
+        }), let windowID = front[kCGWindowNumber as String] as? UInt32 else { return nil }
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }),
+              let taskWindow = content.windows.first(where: { $0.windowID == windowID }),
+              let jerryWindow = content.windows.first(where: { $0.windowID == subject.windowID }),
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else { return nil }
+        // A candid crop around Jerry. Include only the task window and transparent
+        // explorer layer: other apps, the journal and prompt are never photographed.
+        let screen = CGRect(origin: .zero, size: display.frame.size)
+        let frame = subject.frame
+        let crop = CGRect(x: max(0, min(screen.width - min(600, screen.width), frame.midX - 300)),
+                          y: max(0, min(screen.height - min(420, screen.height), frame.midY - 190)),
+                          width: min(600, screen.width), height: min(420, screen.height)).integral
+        let context = crop.intersection(taskWindow.frame)
+        guard !context.isNull, context.width * context.height >= crop.width * crop.height * 0.1,
+              crop.contains(frame.intersection(screen)) else { return nil }
+        let config = SCStreamConfiguration()
+        config.sourceRect = crop; config.width = Int(crop.width * 2); config.height = Int(crop.height * 2)
+        config.showsCursor = false; config.capturesAudio = false
+        config.backgroundColor = Self.photoBackground
+        let filter = SCContentFilter(display: display, including: [taskWindow, jerryWindow])
+        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        try check()
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else { return nil }
+        return image
+    }
     private func captureFrontWindow() async throws -> CGImage? {
         guard #available(macOS 14.0, *), let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -376,11 +433,11 @@ final class ExplorerComputer {
 @available(macOS 27.0, *)
 struct ExplorerComputerTool: Tool {
     let name = "computer_action"
-    let description = "Read the active app with binoculars, or physically reach and click/double_click/scroll/drag a visible control. type_text physically presses an already-open onscreen keyboard. take_photo saves a local active-window photograph with a caption in text, without sharing it with AI. Inspect between actions. No shell, shortcuts, programmatic app launch or direct text injection."
+    let description = "Read the active app with binoculars, or physically reach and click/double_click/scroll/drag a visible control. type_text physically presses an already-open onscreen keyboard. name_expedition sets a short whimsical journal title. take_photo stages and saves a local photograph of Jerry and the task window with a caption in text, without sharing it with AI. Inspect between actions. No shell, shortcuts, programmatic app launch or direct text injection."
     @Generable struct Arguments {
-        @Guide(description: "inspect, hover, click, double_click, scroll, drag, type_text, take_photo") var action: String
+        @Guide(description: "inspect, hover, click, double_click, scroll, drag, type_text, take_photo, name_expedition") var action: String
         @Guide(description: "Target ID from the latest inspect; empty if unused") var targetID: String
-        @Guide(description: "Text for type_text, or a short factual journal caption for take_photo; empty otherwise") var text: String
+        @Guide(description: "Text for type_text, a whimsical title for name_expedition, or a short factual journal caption for take_photo; empty otherwise") var text: String
         @Guide(description: "Hover point or drag destination screen x, otherwise 0") var x: Double
         @Guide(description: "Hover point or drag destination screen y, otherwise 0") var y: Double
         @Guide(description: "Scroll pixels, positive up, negative down; otherwise 0") var amount: Int

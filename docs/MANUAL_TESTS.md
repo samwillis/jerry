@@ -250,3 +250,12 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - Repeat with AI image sharing off: a local photograph should still save, while the tool result contains a receipt rather than an image attachment. No Screen Recording permission: Jerry should continue without a photo.
 - Restart Jerry and revisit the expedition. Confirm the photograph and caption survive; temporarily move its JPEG out of the folder and confirm the caption remains with an unavailable-image placeholder.
 - Toggle the sidebar, resize the journal and read earlier notes while output arrives. Photo mounts must fit the page; the composer stays at the bottom and reading earlier entries must not jump to the latest.
+
+
+### Expedition names and milestone theatre
+
+- A new AI task should receive a short imaginative name, not the literal prompt. Continue it and restart Jerry: the name must remain. A resumed older prompt-derived name may receive its first AI title.
+- Complete a substantial stage and ask for a photo. Verify Jerry is in the crop, with task context, a brief caption/pose and a captioned Polaroid in the journal. Other application windows and journal/prompt windows must not appear.
+- Take a photo while hanging or climbing: supporting grips and the rope must remain intact, without a standing cheer pose. Stop/manual takeover during the pause must cancel safely and restore the ordinary pose.
+- Traverse a route with at least 240 points of ascent. Verify a climb photo occurs on arrival; repeated shorter climbs or repeated routes within 45 seconds should not produce a stream of photos. Verify a long mission includes meaningful task milestones rather than photos of every click.
+- Expand Details on a prompt, a tool activity and a photo. Contents and label should be typewritten, with a separate taped receipt rather than a nested prompt sheet. Check wrapping at 360, 560 and 620 points, sidebar animation and the compact toolbar without a title-only overflow menu.

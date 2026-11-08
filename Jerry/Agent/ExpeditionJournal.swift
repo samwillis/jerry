@@ -16,7 +16,7 @@ final class ExpeditionJournal: ObservableObject {
     struct Expedition: Identifiable {
         let id: UUID
         let date: Date
-        let title: String
+        var title: String
         var entries: [Entry] = []
         var status = "Ready for your next direction"
         var isRunning = false
@@ -93,10 +93,23 @@ final class ExpeditionJournal: ObservableObject {
             followsLatest = true; revision += 1; recordState(expeditions[index]); return target
         }
         finishActive()
-        let expedition = Expedition(id: UUID(), date: Date(), title: String(prompt.prefix(100)))
+        let expedition = Expedition(id: UUID(), date: Date(), title: "An untitled adventure")
         expeditions.append(expedition); activeID = expedition.id; selectedID = expedition.id
         store?.append(.init(event: .created, expedition: .init(id: expedition.id, date: expedition.date, title: expedition.title)), to: expedition.id)
         followsLatest = true; revision += 1; flush(); return expedition.id
+    }
+    var needsTitle: Bool {
+        guard let expedition = expeditions.first(where: { $0.id == activeID }) else { return false }
+        return expedition.title == "An untitled adventure" || expedition.entries.first(where: { $0.kind == .request }).map { expedition.title == String($0.text.prefix(100)) } == true
+    }
+    func nameExpedition(_ text: String) -> Bool {
+        let title = text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").trimmingCharacters(in: .init(charactersIn: "\"“”"))
+        guard needsTitle, !title.isEmpty, title.count <= 70, let id = activeID else { return false }
+        let prompt = expeditions.first(where: { $0.id == id })?.entries.first(where: { $0.kind == .request })?.text
+        if let prompt, prompt.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").caseInsensitiveCompare(title) == .orderedSame { return false }
+        changeActive { $0.title = title }
+        store?.append(.init(event: .titleChanged, text: title), to: id)
+        return true
     }
     @discardableResult func append(_ kind: Kind, _ text: String, details: String = "") -> UUID {
         if activeID == nil { continueExpedition(prompt: text) }
@@ -110,7 +123,7 @@ final class ExpeditionJournal: ObservableObject {
         let filename = try await store.savePhoto(data, to: expedition)
         // Capture may finish after an interruption. Keep the photo in its original expedition.
         guard let index = expeditions.firstIndex(where: { $0.id == expedition }) else { return }
-        let entry = Entry(id: UUID(), date: Date(), kind: .activity, text: String(caption.prefix(300)), details: "Local active-window photograph. Not attached to the AI conversation.", photo: filename)
+        let entry = Entry(id: UUID(), date: Date(), kind: .activity, text: String(caption.prefix(300)), details: "Local photograph of Jerry and the task window. Not attached to the AI conversation.", photo: filename)
         expeditions[index].entries.append(entry); revision += 1
         store.append(.init(event: .entry, entry: entry), to: expedition)
     }
@@ -506,6 +519,25 @@ private struct JournalEntryView: View {
     @State private var expanded = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            entryPaper
+            if !entry.details.isEmpty {
+                DisclosureGroup(isExpanded: $expanded) {
+                    ScrollView {
+                        Text(entry.details).font(.custom("Courier", size: 11)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    }.frame(maxHeight: 180)
+                        .background { JournalPaperCutout().fill(.white).shadow(color: .black.opacity(0.12), radius: 2, x: 1, y: 2) }
+                        .overlay(alignment: .topTrailing) {
+                            JournalTape().frame(width: 43, height: 15).rotationEffect(.degrees(11)).offset(x: -14, y: -6)
+                        }
+                        .padding(.vertical, 10)
+                } label: { Text("Details").font(.custom("Courier", size: 11)).foregroundStyle(JournalPalette.faded) }
+                .onChange(of: expanded) { _, opened in if opened { pauseFollowing() } }
+            }
+        }
+    }
+    private var entryPaper: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(entry.photo != nil ? "A memento" : (entry.kind == .request ? "Your direction" : (entry.kind == .response ? "Jerry’s notes" : "On the trail")))
                     .font(Font(NotebookTheme.journalFont(14))).tracking(0.3)
@@ -539,15 +571,7 @@ private struct JournalEntryView: View {
                 Text("— Jerry").font(Font(NotebookTheme.journalFont(20))).foregroundStyle(JournalPalette.faded)
             }
             }
-            if !entry.details.isEmpty {
-                DisclosureGroup(isExpanded: $expanded) {
-                    ScrollView {
-                        Text(entry.details).font(Font(NotebookTheme.journalFont(14))).textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
-                    }.frame(maxHeight: 180).background(JournalPalette.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-                } label: { Text("Details").font(Font(NotebookTheme.journalFont(15))).foregroundStyle(JournalPalette.faded) }
-                .onChange(of: expanded) { _, opened in if opened { pauseFollowing() } }
-            }
+
         }
         .padding(entry.kind == .request ? 14 : 0)
         .background {

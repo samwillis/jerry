@@ -217,6 +217,12 @@ final class OverlayController {
         panel.level = .init(rawValue: active ? NSWindow.Level.popUpMenu.rawValue + 1 : NSWindow.Level.statusBar.rawValue + 1)
         inputPanel.level = panel.level
     }
+    func setPhotoMoment(_ active: Bool) { scene.setPhotoMoment(active) }
+    var photoSubject: (windowID: UInt32, frame: CGRect)? {
+        guard panel.isVisible, let primary = NSScreen.screens.first else { return nil }
+        let rect = scene.agentPhotoBounds
+        return (UInt32(panel.windowNumber), CGRect(x: rect.minX + displayOrigin.x, y: primary.frame.maxY - displayOrigin.y - rect.maxY, width: rect.width, height: rect.height))
+    }
     func setAgentReading(_ reading: Bool) { scene.agentReading = reading }
     func agentInputVisible(_ visible: Bool) {
         agentInputSuppressed = !visible
@@ -234,12 +240,14 @@ final class OverlayController {
         }
         update(inputPanel)
     }
-    func reachForAgent(_ quartz: CGPoint) async throws {
+    func reachForAgent(_ quartz: CGPoint) async throws -> Bool {
         guard let primary = NSScreen.screens.first, scene.agentMode else { throw CancellationError() }
         let point = CGPoint(x: quartz.x - displayOrigin.x, y: primary.frame.maxY - quartz.y - displayOrigin.y)
         scene.agentTarget = point
         let deadline = ProcessInfo.processInfo.systemUptime + 100
         var stable = 0
+        var ascent = 0.0
+        var previousHeight = scene.agentClimbSample?.height
         var lastTrace = 0.0
         while stable < 4 {
             try Task.checkCancellation(); guard scene.agentMode else { throw CancellationError() }
@@ -250,9 +258,14 @@ final class OverlayController {
                 print("AGENT REACH", scene.agentDiagnostic, "target", point, "paused", view.isPaused); fflush(stdout); lastTrace = now
             }
             #endif
+            if let sample = scene.agentClimbSample {
+                if sample.climbing, let previousHeight { ascent += max(0, sample.height - previousHeight) }
+                previousHeight = sample.height
+            }
             stable = scene.agentAtTarget ? stable + 1 : 0
             try await Task.sleep(for: .milliseconds(50))
         }
+        return ascent >= 240
     }
     func setPaused(_ paused: Bool) {
         if paused { setKeyboardControl(false) }

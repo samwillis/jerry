@@ -227,7 +227,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 guard let self else { return }
                 self.overlay?.stopAgent(); self.overlay?.setIdleExploration(self.idleExploration)
             }
-            controller.computer.reach = { [weak self] point in guard let self else { throw CancellationError() }; try await self.overlay?.reachForAgent(point) }
+            controller.computer.reach = { [weak self, weak controller] point in
+                guard let self else { throw CancellationError() }
+                if try await self.overlay?.reachForAgent(point) == true, #available(macOS 27.0, *) {
+                    try await controller?.computer.celebrateClimb()
+                }
+            }
+            controller.computer.photoStage = { [weak self] active in self?.overlay?.setPhotoMoment(active) }
+            controller.computer.photoSubject = { [weak self] in self?.overlay?.photoSubject }
             controller.computer.reading = { [weak self] in self?.overlay?.setAgentReading($0) }
             overlay?.onAgentHandMoved = { [weak controller] in controller?.computer.moveHand($0) }
             controller.onBeforeInput = { [weak self] in self?.overlay?.agentInputVisible(false) }

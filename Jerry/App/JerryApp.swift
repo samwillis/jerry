@@ -16,12 +16,15 @@ enum JerryApp {
             return
         }
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--journal-preview") {
+        if ProcessInfo.processInfo.arguments.contains("--journal-preview") || ProcessInfo.processInfo.arguments.contains("--live-photo-preview") {
             application.setActivationPolicy(.regular); application.finishLaunching()
             let menu = NSMenu(); let item = NSMenuItem(); let appMenu = NSMenu()
             appMenu.addItem(withTitle: "Quit Jerry", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             item.submenu = appMenu; menu.addItem(item); application.mainMenu = menu
-            Task { do { try await AgentPrototypeChecks.showJournalPreview() } catch { print(error); exit(1) } }
+            Task { do {
+                if ProcessInfo.processInfo.arguments.contains("--live-photo-preview") { try await AgentPrototypeChecks.showLivePhotoPreview() }
+                else { try await AgentPrototypeChecks.showJournalPreview() }
+            } catch { print(error); exit(1) } }
             application.run(); return
         }
         if ProcessInfo.processInfo.arguments.contains("--agent-checks") {

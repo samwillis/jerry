@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import SpriteKit
 import FoundationModels
 import ExpeditionCore
 import Network
@@ -8,12 +9,14 @@ import Security
 
 @MainActor
 enum AgentPrototypeChecks {
+    private static var previewOverlay: OverlayController?
     private static var previewController: AgentTaskController?
     static func showJournalPreview() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("jerry-journal-preview-" + UUID().uuidString)
         let journal = ExpeditionJournal(storageDirectory: folder)
         journal.continueExpedition(prompt: "Write a greeting in TextEdit")
-        journal.append(.request, "Open TextEdit and write hello.")
+        _ = journal.nameExpedition("The Curious Case of Five Little Letters")
+        journal.append(.request, "Open TextEdit and write hello.", details: "Request · 13:13\nProvider: preview fixture\n\nThis is a disposable visual sample.\nNo screen content was read.")
         journal.append(.response, "I found TextEdit in Applications. Next, I’ll climb down to a fresh page and leave your greeting there.")
         // A drawn fixture, never a capture of the user's screen.
         let image = NSImage(size: .init(width: 640, height: 300))
@@ -22,13 +25,41 @@ enum AgentPrototypeChecks {
         NSColor(white: 0.94, alpha: 1).setFill(); NSRect(x: 0, y: 260, width: 640, height: 40).fill()
         ("Untitled — TextEdit" as NSString).draw(at: .init(x: 240, y: 273), withAttributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.darkGray])
         ("hello" as NSString).draw(at: .init(x: 28, y: 206), withAttributes: [.font: NSFont.systemFont(ofSize: 22), .foregroundColor: NSColor.black])
+        let rig = ExplorerRig(); rig.handTargets = (.init(x: -18, y: 75), .init(x: 20, y: 78)); rig.seek(to: 1)
+        let scene = SKScene(size: .init(width: 180, height: 160)); scene.backgroundColor = .clear; scene.addChild(rig)
+        let view = SKView(frame: .init(x: 0, y: 0, width: 180, height: 160)); view.presentScene(scene)
+        if let texture = view.texture(from: rig) {
+            NSImage(cgImage: texture.cgImage(), size: texture.size()).draw(in: .init(x: 450, y: 65, width: 100, height: 145))
+        }
         image.unlockFocus()
         let jpeg = NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .jpeg, properties: [.compressionFactor: 0.85])!
         try await journal.savePhoto(jpeg, caption: "A small greeting, safely on the page.")
         journal.append(.response, "Five letters, one little expedition. I checked the page: “hello” is there in a new document. I’ve left it open for you.")
+        journal.append(.request, "Please keep this document open. Next, add a second line saying: Thanks, Jerry!\nThen check both lines before finishing.", details: "Tool request · inspect\n{\"action\": \"inspect\", \"targetID\": \"\"}\n\nTool response\nA disposable visual fixture with a deliberately longer line to check wrapping in the typed details insert, followed by another paragraph.\n\nNo real computer action was performed.")
         journal.flush()
         let controller = AgentTaskController(journalDirectory: folder)
         previewController = controller; controller.showActivity()
+        if ProcessInfo.processInfo.arguments.contains("--compact") { controller.debugResizeJournal(width: 360, height: 420, sidebar: false) }
+        if ProcessInfo.processInfo.arguments.contains("--wide") { controller.debugResizeJournal(width: 900, height: 650, sidebar: true) }
+    }
+
+    static func showLivePhotoPreview() async throws {
+        guard #available(macOS 27.0, *), CGPreflightScreenCaptureAccess() else { throw AgentConnectionError(message: "Existing Screen Recording access is required for the live photo fixture. No permission requested.") }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("jerry-live-photo-" + UUID().uuidString)
+        let journal = ExpeditionJournal(storageDirectory: folder)
+        journal.continueExpedition(prompt: "Photograph Jerry at the fixture window")
+        _ = journal.nameExpedition("A Small Summit, A Grand Portrait")
+        let overlay = OverlayController(); previewOverlay = overlay
+        overlay.setIdleExploration(false); overlay.show(); overlay.beginAgent()
+        let computer = ExplorerComputer(); computer.start()
+        computer.photoStage = { overlay.setPhotoMoment($0) }; computer.photoSubject = { overlay.photoSubject }
+        computer.photograph = { data, caption in try await journal.savePhoto(data, caption: caption) }
+        try await Task.sleep(for: .milliseconds(500))
+        _ = try await computer.execute(action: "take_photo", targetID: "", text: "One for the journal — Jerry at the fixture window.", x: 0, y: 0, amount: 0)
+        journal.flush()
+        guard let photo = journal.entries.first(where: { $0.photo != nil }), let url = journal.photoURL(for: photo) else { throw AgentConnectionError(message: "The live photo fixture did not produce a photograph.") }
+        print("LIVE PHOTO", url.path); fflush(stdout)
+        let controller = AgentTaskController(journalDirectory: folder); previewController = controller; controller.showActivity()
     }
 
     private static func checkCredentialLabels() throws -> [(String, Bool)] {
@@ -87,6 +118,11 @@ enum AgentPrototypeChecks {
         let lines = try Data(contentsOf: file).split(separator: 10)
         let objects = try lines.map { try JSONSerialization.jsonObject(with: Data($0)) as! [String: Any] }
         var checks = [("an expedition gets its own folder containing only a versioned JSONL journal", try FileManager.default.contentsOfDirectory(atPath: file.deletingLastPathComponent().path) == ["journal.jsonl"] && objects.allSatisfy { $0["version"] as? Int == 1 } && objects.contains { $0["event"] as? String == "textAppended" })]
+        checks.append(("new expeditions wait for an AI name instead of copying the prompt", original.selected?.title == "An untitled adventure"))
+        let rejectsCopiedPrompt = !original.nameExpedition("Find a patterned sock")
+        let named = original.nameExpedition("The Striped Sock Summit")
+        original.flush()
+        checks.append(("an AI expedition name persists and follow-up prompts do not rename it", named && rejectsCopiedPrompt && !original.nameExpedition("A second name") && journal(root).selected?.title == "The Striped Sock Summit"))
         let restored = journal(root)
         checks.append(("journal restart restores IDs, Unicode messages and expandable details", restored.activeID == first && restored.entries.first?.id == request && restored.entries.first { $0.id == response }?.text == corrected && restored.entries.first { $0.id == response }?.details == "Tool metadata\n\nA later result"))
         checks.append(("a running expedition restores paused without restarting computer actions", !restored.isRunning && restored.selected?.status.contains("Paused after restarting") == true && restored.selected?.isFinished == false))

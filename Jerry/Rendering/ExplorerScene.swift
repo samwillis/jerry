@@ -37,6 +37,26 @@ final class ExplorerScene: SKScene {
     private var rawTerrain: TerrainSnapshot?
     private(set) var agentMode = false
     var agentReading = false
+    var agentCelebrating = false
+    private var photoHiddenNodes: [(SKNode, Bool)] = []
+    private let photoMoment = SKLabelNode()
+    var agentPhotoBounds: CGRect { explorer.calculateAccumulatedFrame().insetBy(dx: -12, dy: -20) }
+    var agentClimbSample: (height: Double, climbing: Bool)? {
+        guard let interaction else { return nil }
+        return (interaction.position.y, [.climbing, .ropeClimbing, .traversingEdge].contains(interaction.state))
+    }
+    func setPhotoMoment(_ active: Bool) {
+        guard agentCelebrating != active else { return }
+        agentCelebrating = active
+        if active {
+            photoHiddenNodes = [debug, terrainGuides, controlMarker, pointerExtension, aimGuide].map { ($0, $0.isHidden) }
+            photoHiddenNodes.forEach { $0.0.isHidden = true }
+        } else {
+            photoHiddenNodes.forEach { $0.0.isHidden = $0.1 }; photoHiddenNodes = []
+        }
+        if photoMoment.parent == nil { _ = NotebookTheme.journalFont(18); photoMoment.fontName = "Caveat-Regular"; addChild(photoMoment); photoMoment.fontSize = 18; photoMoment.fontColor = NotebookTheme.ink; photoMoment.zPosition = 999 }
+        photoMoment.text = "One for the journal!"; photoMoment.isHidden = !active
+    }
     var agentTarget: CGPoint?
     #if DEBUG
     var agentDiagnostic: String { "\(interaction?.position ?? .zero) \(interaction?.state.rawValue ?? "none") ceiling=\(interaction?.agentCeilingHanging ?? false)" }
@@ -56,7 +76,7 @@ final class ExplorerScene: SKScene {
     }
     func setAgentMode(_ enabled: Bool) {
         guard agentMode != enabled else { return }
-        agentMode = enabled; agentTarget = nil; agentReading = false
+        agentMode = enabled; agentTarget = nil; agentReading = false; setPhotoMoment(false)
         interaction?.setKeyboardControl(enabled)
         interaction?.setIdleExploration(false)
         if enabled { interaction?.updateBounds(.init(minimum: .init(x: 24, y: 0), maximum: .init(x: size.width - 24, y: size.height - 76))) }
@@ -321,7 +341,7 @@ final class ExplorerScene: SKScene {
 
     private func applyPlacement() {
         guard let interaction else { return }
-        controlMarker.isHidden = !interaction.keyboardControlEnabled
+        controlMarker.isHidden = agentCelebrating || !interaction.keyboardControlEnabled
         if let point = keyboardClickPoint { controlMarker.position = point }
         explorer.position = CGPoint(x: interaction.position.x, y: interaction.position.y)
         var motion: ExplorerMotion
@@ -356,7 +376,7 @@ final class ExplorerScene: SKScene {
         explorer.synchronizedTime = interaction.edgeMotion.map { interaction.edgeProgress * EdgeTraversal.duration($0) }
             ?? (motion == .walking ? interaction.walkingTime : (motion == .climbing && !stationary ? interaction.climbingTime - floor(interaction.climbingTime / 2) * 2 : nil))
         if motion == .running { explorer.synchronizedTime = interaction.runningTime }
-        explorer.usingBinoculars = interaction.state != .held && (agentReading || (stationary && stage == .spotting))
+        explorer.usingBinoculars = !agentCelebrating && interaction.state != .held && (agentReading || (stationary && stage == .spotting))
         explorer.crouchAmount = interaction.canCrouch ? interaction.crouchBlend : 0
         explorer.jumpPose = interaction.dropPose ?? interaction.keyboardJumpPose
         explorer.crackPose = interaction.internalClimbingPose
@@ -399,12 +419,17 @@ final class ExplorerScene: SKScene {
             pose.hips.y += 12; pose.leftHand.y += 18; pose.rightHand.y += 18
             explorer.crackPose = pose; explorer.ropePose = nil; explorer.handTargets = nil; explorer.footTargets = nil
         }
-        if agentMode, let target = agentTarget, agentAtTarget {
+        if agentMode, !agentCelebrating, let target = agentTarget, agentAtTarget {
             let hand = WorldPoint(x: (target.x - interaction.position.x) * facing, y: target.y - interaction.position.y + interaction.controlPointerDrop)
             explorer.handTargets = (.init(x: -8, y: interaction.agentCeilingHanging ? 76 : (interaction.ropeSession == nil ? 44 : 61)), hand)
         }
+        if agentCelebrating, stationary, interaction.ropeSession == nil, !interaction.agentCeilingHanging,
+           interaction.attachment?.edge != .left, interaction.attachment?.edge != .right {
+            explorer.handTargets = (.init(x: -18, y: 75), .init(x: 20, y: 78))
+        }
+        photoMoment.position = .init(x: interaction.position.x, y: interaction.position.y + 112)
         if interaction.hasPendingGrapple { explorer.handTargets = (.init(x: -4, y: 61), .init(x: 20, y: 46)) }
-        pointerExtension.isHidden = interaction.controlPointerDrop < 1
+        pointerExtension.isHidden = agentCelebrating || interaction.controlPointerDrop < 1
         if !pointerExtension.isHidden {
             let tip = agentMode && agentAtTarget ? agentTarget! : CGPoint(x: interaction.controlClickPoint.x, y: interaction.controlClickPoint.y)
             controlMarker.position = tip

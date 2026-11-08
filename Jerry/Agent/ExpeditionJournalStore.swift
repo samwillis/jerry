@@ -3,8 +3,8 @@ import Foundation
 /// Versioned append-only records. Streaming changes store deltas, not repeated
 /// copies of the whole response. The directory is reserved for future assets.
 struct JournalRecord: Codable, Sendable {
-    enum Event: String, Codable, Sendable { case created, entry, textAppended, textReplaced, detailsAppended, state }
-    struct Header: Codable, Sendable { let id: UUID; let date: Date; let title: String }
+    enum Event: String, Codable, Sendable { case created, entry, textAppended, textReplaced, detailsAppended, state, titleChanged }
+    struct Header: Codable, Sendable { let id: UUID; let date: Date; var title: String }
     var version = 1
     var id = UUID()
     var date = Date()
@@ -22,7 +22,7 @@ struct JournalRecord: Codable, Sendable {
 /// transcripts are written here; the journal contains its visible entries/details.
 final class ExpeditionJournalStore: @unchecked Sendable {
     struct Loaded: Sendable {
-        let header: JournalRecord.Header
+        var header: JournalRecord.Header
         var entries: [ExpeditionJournal.Entry] = []
         var status = "Ready for your next direction"
         var wasRunning = false
@@ -150,6 +150,8 @@ final class ExpeditionJournalStore: @unchecked Sendable {
             guard var expedition = loaded else { continue }
             switch record.event {
             case .created: break
+            case .titleChanged:
+                if let title = record.text, !title.isEmpty { expedition.header.title = title }
             case .entry:
                 if let entry = record.entry, !expedition.entries.contains(where: { $0.id == entry.id }) { expedition.entries.append(entry) }
             case .textAppended, .textReplaced, .detailsAppended:
