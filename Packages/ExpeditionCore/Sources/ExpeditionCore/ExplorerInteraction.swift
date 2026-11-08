@@ -647,7 +647,8 @@ public struct ExplorerInteraction {
               case .window(let id) = (mode == .firing ? step.to.owner : step.from.owner) else { recover(); return }
         let edge = mode == .firing ? step.to.edge : step.from.edge
         let anchor = RopeAnchor(windowID: id, edge: edge, offset: edge == .front ? step.to.offset : nil)
-        guard let guide = anchor.resolve(in: terrain) else { recover(); return }
+        guard let guide = anchor.resolve(in: terrain),
+              mode != .firing || GrappleLaunchPolicy.allows(feet: position, anchor: guide.anchor, floorY: terrain.viewport.minY) else { recover(); return }
         var session = RopeSession(anchor: anchor, guide: guide, feet: position, mode: mode)
         session.climbsAfterSwing = requestedActivity != .swing
         if requestedActivity == .ropeClimb { session.modeAfterLatch = .climbing }

@@ -49,7 +49,7 @@ final class KeyboardControlTests: XCTestCase {
         XCTAssertFalse(value.isCrouching)
     }
     func testCrouchIsGroundedAndDoesNotReplaceJumpOrRopePoses() {
-        var value = explorer()
+        var value = explorer(x: 450)
         value.setControlCrouch(true); advance(&value, seconds: 0.2)
         value.controlJump()
         XCTAssertEqual(value.controlClickPoint.y, value.position.y + 44)

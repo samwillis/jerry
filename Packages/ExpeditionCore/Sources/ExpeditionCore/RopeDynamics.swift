@@ -224,3 +224,17 @@ public struct RopeSession {
         body.contact(at: .init(x: feet.x, y: feet.y + Self.harnessHeight), horizontal: horizontal, vertical: vertical)
     }
 }
+
+/// Launch limits are measured from vertical at the gun muzzle. They constrain
+/// new shots, not the swing angle of a rope which is already attached.
+public enum GrappleLaunchPolicy {
+    public static let maximumAngle = 35.0
+    public static let floorMaximumAngle = 10.0
+    public static func allows(feet: WorldPoint, anchor: WorldPoint, floorY: Double) -> Bool {
+        let muzzle = RopeSession.muzzle(feet: feet, target: anchor)
+        let rise = anchor.y - muzzle.y
+        guard rise > 0, rise.isFinite, muzzle.x.isFinite, anchor.x.isFinite else { return false }
+        let limit = feet.y <= floorY + 1 ? floorMaximumAngle : maximumAngle
+        return atan2(abs(anchor.x - muzzle.x), rise) * 180 / .pi <= limit + 0.000001
+    }
+}

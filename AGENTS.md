@@ -122,6 +122,8 @@ Enable **Developer Tools** in **Settings → Advanced**, then use Jerry menu →
 
 Climbs now pull over the lip into a planted-foot standing pose; rope descents crouch and back over the lip; parachute trips crouch and jump clear before deploying. The rope pins on the top edge, follows its window’s rounded corner (12 points for notebook windows, an estimated 16 on macOS 26+ or 10 on older macOS for external windows), and leaves along the mathematical tangent towards the hands. Both straight-to-curve joins remain tangent as the explorer descends.
 
+Grapple launches are limited to 35° from vertical at the muzzle, or 10° within one point of the viewport floor. `GrappleLaunchPolicy` is shared by graph routes, manual/AI aim and the final autonomous launch check. Floor graph vertices include points beneath exposed roofs so a route can walk into position before firing. These limits do not constrain the subsequent swing of an attached rope.
+
 Aiming shows a green snapped rim when it is reachable, or an orange marker when no valid anchor is selected. Starting aim suggests a nearby rim; holding G redirects the arrows from movement/swinging to aiming. Release G to fire and return the arrows to movement. The mouse does not steer the aim. Refiring while hanging keeps the old rope attached while the new hook flies. The explorer transfers to the new line only after it latches; a failed shot leaves the old line intact. Left/right applies force along the rope tangent, with a 260 pt/s drive cap; opposite input brakes the swing.
 
 ## Animation playground

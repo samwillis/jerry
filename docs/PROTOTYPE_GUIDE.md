@@ -105,3 +105,7 @@ The journal, Settings, welcome and other substantial titled Jerry windows now pa
 ### Choosing global shortcuts
 
 Open **Settings → Controls** and click the shortcut beside **Take or release control** or **Ask Jerry**, then press the new combination. Include Command, Option or Control. Delete clears the selected shortcut; Escape cancels recording. Restore defaults restores Control–Option–Space and Control–Option–Return together. Changes save immediately and apply without restarting. Conflicts leave the previous choice intact. The menu and welcome guide show the current combinations, and a cleared binding remains available through the menu.
+
+### Grapple launch angles
+
+New shots are limited to 35° from vertical at the gun muzzle, or 10° when Jerry’s feet are on the screen floor. The same rules apply to idle routes, AI navigation and manual aim/reticle selection. Floor routes include launch points beneath window roofs, so Jerry walks into position first. Existing ropes can still swing beyond these launch angles.

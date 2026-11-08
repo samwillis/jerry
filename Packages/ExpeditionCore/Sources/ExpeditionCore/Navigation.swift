@@ -29,6 +29,14 @@ public struct NavigationGraph {
                 }
             }
         }
+        // A floor launch needs to be nearly vertical. Give routes a real point
+        // beneath each roof so Jerry can walk into position before firing.
+        if let floor = platforms.first(where: { $0.id.edge == .floor }) {
+            for roof in platforms where roof.id.edge == .top && roof.end.x - roof.start.x >= 48 {
+                let x = (roof.start.x + roof.end.x) / 2
+                if x >= floor.start.x + 24, x <= floor.end.x - 24 { _ = add(horizontalAnchor(floor, x: x)) }
+            }
+        }
         for wall in terrain.surfaces where wall.id.owner != .screen && [.left, .right].contains(wall.id.edge) {
             guard case .window(let id) = wall.id.owner,
                   let window = terrain.windows.first(where: { $0.id == id }) else { continue }
@@ -185,7 +193,8 @@ public struct NavigationGraph {
             let outside = mantle.from.edge == .front || (mantle.from.edge == .left ? point.x <= window.frame.minX - 24 : point.x >= window.frame.maxX + 24)
             let muzzle = RopeSession.muzzle(feet: point, target: anchor.anchor)
             let harness = WorldPoint(x: point.x, y: point.y + RopeSession.harnessHeight)
-            guard outside, anchor.anchor.y - muzzle.y >= 65,
+            guard outside, GrappleLaunchPolicy.allows(feet: point, anchor: anchor.anchor, floorY: terrain.viewport.minY),
+                  anchor.anchor.y - muzzle.y >= 65,
                   hypot(anchor.anchor.x - muzzle.x, anchor.anchor.y - muzzle.y) <= RopeDynamics.maximumLength - 100,
                   anchor.length(to: harness) <= RopeDynamics.maximumLength else { continue }
             var clear = true
@@ -218,7 +227,8 @@ public struct NavigationGraph {
             guard let guide = anchor.resolve(in: terrain) else { continue }
             let error = hypot(guide.anchor.x - aim.x, guide.anchor.y - aim.y)
             let muzzle = RopeSession.muzzle(feet: feet, target: guide.anchor)
-            guard error <= 70, guide.anchor.y - feet.y - RopeSession.harnessHeight >= 30,
+            guard error <= 70, GrappleLaunchPolicy.allows(feet: feet, anchor: guide.anchor, floorY: terrain.viewport.minY),
+                  guide.anchor.y - feet.y - RopeSession.harnessHeight >= 30,
                   hypot(guide.anchor.x - muzzle.x, guide.anchor.y - muzzle.y) <= RopeDynamics.maximumLength - 100 else { continue }
             var clear = true
             var previous = muzzle

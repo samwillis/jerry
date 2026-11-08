@@ -481,3 +481,11 @@ Rollback validation: Debug and Developer ID local builds pass, with 75 agent che
 ### Polaroid proportions and shadow — 8 November 2026
 
 Changed journal photographs to a square image with narrow top/side borders and a deep caption strip, using a smaller 320-point print and a 1.7-degree tilt. The print is composited as one opaque surface before applying its soft outer shadow, removing the unintended shadow around the image and lettering. Tape moves with the print; padding keeps tilted corners clear of the page edges. The original saved JPEG is unchanged. Debug visual review of an isolated fixture confirms the square crop, full caption, tilt, tape and frame-only shadow.
+
+### Jerry 0.1.2 release and grapple launch limits — 8 November 2026
+
+Version 0.1.2 (build 3) includes the journal, storage, shortcut and appearance updates since 0.1.1. New grapple launches are restricted to 35° from vertical at the gun muzzle, with a 10° cone on the screen floor. Graph planning, aim selection/manual/AI firing and autonomous launch validation share the policy. Floor launch points beneath roofs support walking into position. Existing rope swing dynamics are unchanged. Older test fixtures were adjusted to use permitted launch positions and allow a walking approach before a grapple begins.
+
+All 172 core tests, 93 native checks and 75 agent checks pass. Five new core cases cover mirrored angle boundaries, nonzero floor coordinates, walking to an aligned roof launch and AI travel across the screen with valid shots. Existing menu-bar/Dock traversal and rope handoff scenarios continue to pass. Native manual aiming at exact angle boundaries and wider live multiwindow navigation still need the manual checklist; simulation checks do not establish those behaviors.
+
+Archived universal arm64/x86_64 Release binaries, signed by Flutterbox Ltd., and submitted through Xcode’s Apple account session. Apple accepted notarisation. The exported app and a fresh extraction of the exact release ZIP both pass strict signature verification, stapled-ticket validation and Gatekeeper assessment as Notarized Developer ID. The extracted executable’s terrain report succeeds. The notarised app launches and About confirms version 0.1.2 (3). Intel execution and other macOS versions remain untested; this is still a preview.

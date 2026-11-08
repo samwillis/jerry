@@ -259,3 +259,9 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - Take a photo while hanging or climbing: supporting grips and the rope must remain intact, without a standing cheer pose. Stop/manual takeover during the pause must cancel safely and restore the ordinary pose.
 - Traverse a route with at least 240 points of ascent. Verify a climb photo occurs on arrival; repeated shorter climbs or repeated routes within 45 seconds should not produce a stream of photos. Verify a long mission includes meaningful task milestones rather than photos of every click.
 - Expand Details on a prompt, a tool activity and a photo. Contents and label should be typewritten, with a separate taped receipt rather than a nested prompt sheet. Check wrapping at 360, 560 and 620 points, sidebar animation and the compact toolbar without a title-only overflow menu.
+
+### Grapple launch cones
+
+- From the screen floor, aim 10° from vertical and just beyond: the former can snap to a reachable roof; the latter must remain invalid. Repeat facing left.
+- From an elevated ledge or rope, repeat at 35° and just beyond. Rejected shots must leave an existing rope attached. Swinging an attached rope remains unrestricted by these launch limits.
+- Request a distant grapple activity while on the floor: Jerry should walk to a suitable point beneath the roof before firing. In AI mode, crossing the desktop should begin with walking instead of a wide diagonal hook.

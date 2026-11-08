@@ -6,8 +6,8 @@ final class ManualControlFollowupTests: XCTestCase {
         .init(id: 2, frame: .init(x: 650, y: 50, width: 300, height: 550)),
         .init(id: 1, frame: .init(x: 300, y: 20, width: 300, height: 350))
     ], viewport: .init(x: 0, y: 0, width: 1200, height: 900))
-    func actor() -> ExplorerInteraction {
-        var value = ExplorerInteraction(position: .init(x: 450, y: 0), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 1176, y: 824)))
+    func actor(x: Double = 450) -> ExplorerInteraction {
+        var value = ExplorerInteraction(position: .init(x: x, y: 0), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 1176, y: 824)))
         value.autonomous = true; value.runsMission = true; value.updateTerrain(layout)
         return value
     }
@@ -48,11 +48,11 @@ final class ManualControlFollowupTests: XCTestCase {
         XCTAssertFalse(value.runsMission)
     }
     func testPointerSelectsTheAimedWindowAndRejectsEmptyOrCoveredRims() {
-        var value = actor(); value.setKeyboardControl(true)
+        var value = actor(x: 780); value.setKeyboardControl(true)
         XCTAssertTrue(value.fireGrapple(toward: .init(x: 780, y: 600)))
         XCTAssertEqual(value.ropeSession?.anchor.windowID, 2)
         XCTAssertEqual(value.grappleTarget?.x, 780)
-        var empty = actor(); empty.setKeyboardControl(true)
+        var empty = actor(x: 780); empty.setKeyboardControl(true)
         XCTAssertFalse(empty.fireGrapple(toward: .init(x: 100, y: 700)))
         let cover = DesktopWindow(id: 3, frame: .init(x: 600, y: 580, width: 400, height: 200), canClimb: false)
         empty.updateTerrain(.init(windows: [cover] + layout.windows, viewport: layout.viewport))
@@ -87,7 +87,7 @@ final class ManualControlFollowupTests: XCTestCase {
         var value = ExplorerInteraction(position: .init(x: 450, y: 170), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 1176, y: 824)))
         value.autonomous = true; value.updateTerrain(sourceTerrain); value.setKeyboardControl(true)
         XCTAssertEqual(value.attachment?.featureID, 9)
-        XCTAssertTrue(value.fireGrapple(toward: .init(x: 780, y: 600)))
+        XCTAssertTrue(value.fireGrapple(toward: .init(x: 680, y: 600)))
         advance(&value, 0.1)
         // The capture prioritiser now supplies the destination window's data,
         // removing the source window's internal holds from the snapshot.

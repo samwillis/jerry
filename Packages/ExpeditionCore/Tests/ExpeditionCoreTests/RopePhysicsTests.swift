@@ -197,8 +197,13 @@ extension RopePhysicsTests {
     func testMirroredGrappleCompletesFromTheRight() {
         var value = explorer(.init(x: 850, y: 0))
         XCTAssertTrue(value.requestActivity(.grapple))
-        XCTAssertTrue([TerrainEdge.right, .front].contains(value.ropeSession!.anchor.edge))
-        for _ in 0..<18000 { value.advance(by: 1.0 / 120); if value.state == .idle && !value.hasPendingTravel { break } }
+        var usedRightOrFrontAnchor = false
+        for _ in 0..<18000 {
+            value.advance(by: 1.0 / 120)
+            if let rope = value.ropeSession { usedRightOrFrontAnchor = usedRightOrFrontAnchor || [.right, .front].contains(rope.anchor.edge) }
+            if value.state == .idle && !value.hasPendingTravel { break }
+        }
+        XCTAssertTrue(usedRightOrFrontAnchor)
         XCTAssertEqual(value.attachment?.owner, .window(1))
         XCTAssertEqual(value.attachment?.edge, .top)
     }
