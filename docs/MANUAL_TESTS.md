@@ -242,3 +242,11 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - [ ] Finish one expedition and start another, then restart. Histories and completion states stay separate; an older expedition can be resumed.
 - [ ] Verify one UUID folder per expedition under Application Support/Jerry/Expeditions, containing only journal.jsonl until assets are introduced.
 - [ ] Export still writes a readable copy of the full history. Saving requires no manual action.
+
+### Journal field notes and photographs
+
+- Start a harmless mission in a disposable document. Jerry should narrate meaningful progress in first person, describe the next step and summarise only verified results.
+- Ask for a photograph of the finished result. With Screen Recording already granted, a captioned paper photograph should appear in that expedition. Verify that the image is the frontmost task window, and that no capture permission prompt opens during the mission.
+- Repeat with AI image sharing off: a local photograph should still save, while the tool result contains a receipt rather than an image attachment. No Screen Recording permission: Jerry should continue without a photo.
+- Restart Jerry and revisit the expedition. Confirm the photograph and caption survive; temporarily move its JPEG out of the folder and confirm the caption remains with an unavailable-image placeholder.
+- Toggle the sidebar, resize the journal and read earlier notes while output arrives. Photo mounts must fit the page; the composer stays at the bottom and reading earlier entries must not jump to the latest.

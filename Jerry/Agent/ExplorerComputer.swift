@@ -25,6 +25,7 @@ final class ExplorerComputer {
     var logResult: ((String) -> Void)?
     @available(macOS 27.0, *)
     private func report(_ text: String) -> Prompt { logResult?(text); return Prompt(text) }
+    var photograph: ((Data, String) async throws -> Void)?
     var shareImages = false
     private var interrupted = false
     private(set) var lastActionFailed = false
@@ -179,6 +180,18 @@ final class ExplorerComputer {
                     return Prompt { observation; Attachment(image) }
                 }
                 return report(observation)
+            }
+            if action == "take_photo" {
+                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return report("Give the photograph a short factual caption in text.") }
+                guard CGPreflightScreenCaptureAccess() else { return report("Photograph unavailable: Screen Recording access is needed. Continue without a photo; no permission was requested.") }
+                progress?("Taking a photograph for my journal…"); reading?(true); defer { reading?(false) }
+                do {
+                    guard let photograph, let image = try await captureFrontWindow(),
+                          let data = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.85]) else { return report("Photograph unavailable: no active app window could be captured. Continue without a photo.") }
+                    try check(); try await photograph(data, text); try check()
+                    return report("Photograph saved locally in the expedition journal. Caption: " + text + ". No photo was sent to the model. This is documentation, not verification of task success.")
+                } catch is CancellationError { throw CancellationError() }
+                catch { return report("Photograph unavailable: " + error.localizedDescription + ". Continue the task without a photo.") }
             }
             if action == "type_text" {
                 guard !text.isEmpty, text.count <= 160 else { return report("Type 1–160 characters per call.") }
@@ -345,22 +358,29 @@ final class ExplorerComputer {
     }
     private func captureFrontWindow() async throws -> CGImage? {
         guard #available(macOS 14.0, *), let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        guard let front = windows.first(where: {
+            ($0[kCGWindowOwnerPID as String] as? Int32) == app.processIdentifier && ($0[kCGWindowLayer as String] as? Int) == 0 && ($0[kCGWindowAlpha as String] as? Double ?? 0) > 0.01
+        }), let windowID = front[kCGWindowNumber as String] as? UInt32 else { return nil }
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-        guard let window = content.windows.first(where: { $0.owningApplication?.processID == app.processIdentifier && $0.windowLayer == 0 && $0.frame.width > 80 }) else { return nil }
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+              let window = content.windows.first(where: { $0.windowID == windowID && $0.frame.width > 80 }) else { return nil }
         let config = SCStreamConfiguration(); let scale = min(1, 1280 / window.frame.width)
         config.width = Int(window.frame.width * scale); config.height = Int(window.frame.height * scale); config.showsCursor = false; config.capturesAudio = false
-        return try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: config)
+        let image = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: config)
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else { return nil }
+        return image
     }
 }
 
 @available(macOS 27.0, *)
 struct ExplorerComputerTool: Tool {
     let name = "computer_action"
-    let description = "Read the active app with binoculars, or physically reach and click/double_click/scroll/drag a visible control. type_text physically presses an already-open onscreen keyboard. Inspect between actions. No shell, shortcuts, programmatic app launch or direct text injection."
+    let description = "Read the active app with binoculars, or physically reach and click/double_click/scroll/drag a visible control. type_text physically presses an already-open onscreen keyboard. take_photo saves a local active-window photograph with a caption in text, without sharing it with AI. Inspect between actions. No shell, shortcuts, programmatic app launch or direct text injection."
     @Generable struct Arguments {
-        @Guide(description: "inspect, hover, click, double_click, scroll, drag, type_text") var action: String
+        @Guide(description: "inspect, hover, click, double_click, scroll, drag, type_text, take_photo") var action: String
         @Guide(description: "Target ID from the latest inspect; empty if unused") var targetID: String
-        @Guide(description: "Text for type_text; empty otherwise") var text: String
+        @Guide(description: "Text for type_text, or a short factual journal caption for take_photo; empty otherwise") var text: String
         @Guide(description: "Hover point or drag destination screen x, otherwise 0") var x: Double
         @Guide(description: "Hover point or drag destination screen y, otherwise 0") var y: Double
         @Guide(description: "Scroll pixels, positive up, negative down; otherwise 0") var amount: Int

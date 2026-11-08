@@ -10,6 +10,7 @@ final class ExpeditionJournal: ObservableObject {
         let kind: Kind
         var text: String
         var details: String
+        var photo: String? = nil
     }
     struct Expedition: Identifiable {
         let id: UUID
@@ -103,6 +104,24 @@ final class ExpeditionJournal: ObservableObject {
         if let activeID { store?.append(.init(event: .entry, entry: entry), to: activeID) }
         return entry.id
     }
+    func savePhoto(_ data: Data, caption: String) async throws {
+        guard let expedition = activeID, let store else { throw AgentConnectionError(message: "A saved expedition is needed for photos.") }
+        let filename = try await store.savePhoto(data, to: expedition)
+        // Capture may finish after an interruption. Keep the photo in its original expedition.
+        guard let index = expeditions.firstIndex(where: { $0.id == expedition }) else { return }
+        let entry = Entry(id: UUID(), date: Date(), kind: .activity, text: String(caption.prefix(300)), details: "Local active-window photograph. Not attached to the AI conversation.", photo: filename)
+        expeditions[index].entries.append(entry); revision += 1
+        store.append(.init(event: .entry, entry: entry), to: expedition)
+    }
+    func photoURL(for entry: Entry) -> URL? {
+        guard let store, let filename = entry.photo, filename.hasSuffix(".jpg"), UUID(uuidString: String(filename.dropLast(4))) != nil,
+              let expedition = expeditions.first(where: { $0.entries.contains(where: { $0.id == entry.id }) }) else { return nil }
+        let folder = store.directory.appendingPathComponent(expedition.id.uuidString)
+        let url = folder.appendingPathComponent(filename)
+        guard (try? folder.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == false,
+              let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey]), values.isSymbolicLink == false, values.isRegularFile == true else { return nil }
+        return url
+    }
     func update(_ id: UUID, text: String) {
         for expedition in expeditions.indices {
             guard let row = expeditions[expedition].entries.firstIndex(where: { $0.id == id }) else { continue }
@@ -129,7 +148,7 @@ final class ExpeditionJournal: ObservableObject {
         return expeditions.map { expedition in
             let entries = expedition.entries.map { entry in
                 let role = entry.kind == .request ? "YOUR INSTRUCTION" : (entry.kind == .response ? "JERRY" : "JOURNAL")
-                return "\(clock.string(from: entry.date))  \(role)\n\(entry.text)" + (entry.details.isEmpty ? "" : "\n\nDETAILS\n\(entry.details)")
+                return "\(clock.string(from: entry.date))  \(role)\n\(entry.text)" + (entry.photo.map { "\n[Photograph: \(expedition.id.uuidString)/\($0)]" } ?? "") + (entry.details.isEmpty ? "" : "\n\nDETAILS\n\(entry.details)")
             }.joined(separator: "\n\n────────────────────\n\n")
             return "EXPEDITION: \(expedition.title)\n\(clock.string(from: expedition.date))\n\n" + entries
         }.joined(separator: "\n\n════════════════════\n\n")
@@ -337,7 +356,7 @@ struct ExpeditionJournalView: View {
                             Text(expedition.date, format: .dateTime.weekday(.wide).day().month(.wide))
                                 .font(.system(size: 10, design: .monospaced)).foregroundStyle(JournalPalette.faded)
                             ForEach(expedition.entries) { entry in
-                                JournalEntryView(entry: entry, pauseFollowing: { journal.followsLatest = false }).id(entry.id)
+                                JournalEntryView(entry: entry, photoURL: journal.photoURL(for: entry), pauseFollowing: { journal.followsLatest = false }).id(entry.id)
                             }
                             if expedition.isRunning {
                                 HStack(spacing: 8) {
@@ -472,23 +491,44 @@ private struct JournalScrollTracking: ViewModifier {
 
 private struct JournalEntryView: View {
     let entry: ExpeditionJournal.Entry
+    let photoURL: URL?
     let pauseFollowing: () -> Void
     @State private var expanded = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(entry.kind == .request ? "YOUR DIRECTION" : (entry.kind == .response ? "JERRY’S NOTES" : "ON THE TRAIL"))
+                Text(entry.photo != nil ? "A MEMENTO" : (entry.kind == .request ? "YOUR DIRECTION" : (entry.kind == .response ? "JERRY’S NOTES" : "ON THE TRAIL")))
                     .font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1)
                 Spacer()
                 Text(entry.date, format: .dateTime.hour().minute()).font(.system(size: 9, design: .monospaced))
             }.foregroundStyle(JournalPalette.faded)
-            Group {
+            if entry.photo != nil {
+                VStack(spacing: 10) {
+                    JournalPhotograph(url: photoURL, caption: entry.text)
+                    Text(entry.text).font(.custom("Noteworthy", size: 15)).foregroundStyle(JournalPalette.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                }
+                .padding(10).padding(.bottom, 8).frame(maxWidth: 360)
+                .background(Color(red: 1, green: 0.99, blue: 0.96))
+                .overlay(Rectangle().stroke(JournalPalette.leather.opacity(0.16), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.13), radius: 3, x: 1, y: 3)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(Color(red: 0.79, green: 0.71, blue: 0.48).opacity(0.35))
+                        .frame(width: 52, height: 16).rotationEffect(.degrees(-4)).offset(y: -8)
+                        .allowsHitTesting(false)
+                }
+                .padding(.vertical, 10)
+            } else { Group {
                 if entry.kind == .response { Text(.init(entry.text)) }
                 else { Text(entry.text) }
             }
-            .font(.system(size: 13, design: .serif)).lineSpacing(4).textSelection(.enabled)
+            .font(entry.kind == .response ? .custom("Noteworthy", size: 14) : .system(size: 13, design: .serif)).lineSpacing(4).textSelection(.enabled)
             .foregroundStyle(entry.kind == .activity ? JournalPalette.faded : JournalPalette.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
+            if entry.kind == .response {
+                Text("— Jerry").font(.custom("Noteworthy", size: 15)).foregroundStyle(JournalPalette.faded)
+            }
+            }
             if !entry.details.isEmpty {
                 DisclosureGroup(isExpanded: $expanded) {
                     ScrollView {
@@ -501,5 +541,29 @@ private struct JournalEntryView: View {
         }
         .padding(entry.kind == .request ? 10 : 0)
         .background { if entry.kind == .request { RoundedRectangle(cornerRadius: 3).fill(JournalPalette.leather.opacity(0.055)) } }
+    }
+}
+
+/// Read photo bytes off the main thread, once per asset rather than on every streamed token.
+private struct JournalPhotograph: View {
+    let url: URL?
+    let caption: String
+    @State private var image: NSImage?
+    @State private var loaded = false
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
+                    .accessibilityLabel("Expedition photograph: " + caption)
+            } else {
+                Label(loaded ? "Photograph unavailable" : "Developing photograph…", systemImage: "photo")
+                    .font(.system(size: 12, design: .serif)).foregroundStyle(JournalPalette.faded)
+                    .frame(maxWidth: .infinity).frame(height: 120)
+            }
+        }.task(id: url) {
+            let data = await Task.detached(priority: .utility) { url.flatMap { try? Data(contentsOf: $0) } }.value
+            guard !Task.isCancelled else { return }
+            image = data.flatMap { NSImage(data: $0) }; loaded = true
+        }
     }
 }

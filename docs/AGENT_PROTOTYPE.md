@@ -43,3 +43,7 @@ The accepted crouch animation is unchanged. **Option while crouching** lowers th
 - [OpenAI ChatGPT sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
 - [Models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
 - [Function tools and image outputs](https://developers.openai.com/api/docs/guides/function-calling)
+
+### Journal field notes and local photographs
+
+Jerry writes first-person field notes about verified progress and his next step. The `take_photo` computer action saves an active-window JPEG and caption in the current expedition folder when Screen Recording is already permitted. It does not share the photo with AI or change image-sharing settings. Notes and captions use handwriting; photographs have paper mounts. See [journal storage](JOURNAL_STORAGE.md) for the asset format and local privacy behavior.

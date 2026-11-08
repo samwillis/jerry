@@ -8,6 +8,29 @@ import Security
 
 @MainActor
 enum AgentPrototypeChecks {
+    private static var previewController: AgentTaskController?
+    static func showJournalPreview() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("jerry-journal-preview-" + UUID().uuidString)
+        let journal = ExpeditionJournal(storageDirectory: folder)
+        journal.continueExpedition(prompt: "Write a greeting in TextEdit")
+        journal.append(.request, "Open TextEdit and write hello.")
+        journal.append(.response, "I found TextEdit in Applications. Next, I’ll climb down to a fresh page and leave your greeting there.")
+        // A drawn fixture, never a capture of the user's screen.
+        let image = NSImage(size: .init(width: 640, height: 300))
+        image.lockFocus()
+        NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 640, height: 300).fill()
+        NSColor(white: 0.94, alpha: 1).setFill(); NSRect(x: 0, y: 260, width: 640, height: 40).fill()
+        ("Untitled — TextEdit" as NSString).draw(at: .init(x: 240, y: 273), withAttributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.darkGray])
+        ("hello" as NSString).draw(at: .init(x: 28, y: 206), withAttributes: [.font: NSFont.systemFont(ofSize: 22), .foregroundColor: NSColor.black])
+        image.unlockFocus()
+        let jpeg = NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .jpeg, properties: [.compressionFactor: 0.85])!
+        try await journal.savePhoto(jpeg, caption: "A small greeting, safely on the page.")
+        journal.append(.response, "Five letters, one little expedition. I checked the page: “hello” is there in a new document. I’ve left it open for you.")
+        journal.flush()
+        let controller = AgentTaskController(journalDirectory: folder)
+        previewController = controller; controller.showActivity()
+    }
+
     private static func checkCredentialLabels() throws -> [(String, Bool)] {
         // Exercise actual Keychain metadata with disposable, non-secret records.
         // The production namespace and real account credentials are never used.
@@ -87,6 +110,20 @@ enum AgentPrototypeChecks {
         separate.append(.request, "A follow-up direction"); separate.flush()
         let resumed = journal(root)
         checks.append(("an earlier expedition remains open and resumable after another restart", resumed.activeID == first && resumed.selectedID == first && resumed.entries.last?.text == "A follow-up direction" && resumed.expeditions.first { $0.id == second }?.isFinished == true))
+        // Photos share the expedition directory; old entries without photo metadata still decode.
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 12, pixelsHigh: 8, bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        bitmap.bitmapData?.initialize(repeating: 240, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        let jpeg = bitmap.representation(using: .jpeg, properties: [:])!
+        try await resumed.savePhoto(jpeg, caption: "I found the result.")
+        resumed.flush()
+        let album = journal(root)
+        let photo = album.entries.first { $0.photo != nil }!
+        let photoURL = album.photoURL(for: photo)!
+        checks.append(("local photographs round-trip as assets beside their expedition notes", try Data(contentsOf: photoURL) == jpeg && NSImage(contentsOf: photoURL) != nil && photo.text == "I found the result." && album.exportText().contains(photo.photo!)))
+        var invalidPhoto = photo; invalidPhoto.photo = "../../outside.jpg"
+        checks.append(("journal photograph paths reject traversal", album.photoURL(for: invalidPhoto) == nil))
+        try FileManager.default.removeItem(at: photoURL)
+        checks.append(("a missing photograph preserves its caption and journal history", album.photoURL(for: photo) == nil && journal(root).entries.contains { $0.id == photo.id && $0.text == photo.text }))
         let controller = AgentTaskController(journalDirectory: root)
         checks.append(("the journal window restores an open expedition with Finish available and no running task", controller.debugCheckRestoredJournal(id: first, text: "A follow-up direction")))
         resumed.append(.activity, "Saved automatically")

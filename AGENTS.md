@@ -108,7 +108,7 @@ The script submits to Apple, staples and validates the ticket, checks Gatekeeper
 
 ## Journal persistence
 
-The journal saves to `~/Library/Application Support/Jerry/Expeditions/<UUID>/journal.jsonl`. Preserve the versioned append-only records and per-expedition directories for future assets. Keep writes off the main thread, preserve streaming deltas and flush task/shutdown boundaries. A restored task must remain paused until the user gives a direction; never replay saved computer actions automatically. Credentials and opaque provider transcripts do not belong in journal files. Tests must pass `journalDirectory: nil` / `storageDirectory: nil` or use disposable directories, never the real history. See [journal storage](docs/JOURNAL_STORAGE.md).
+The journal saves to `~/Library/Application Support/Jerry/Expeditions/<UUID>/journal.jsonl`. Preserve the versioned append-only records and per-expedition directories. Journal photographs are local JPEG assets referenced by optional UUID filenames on entries; never automatically attach them to AI requests. Keep writes off the main thread, preserve streaming deltas and flush task/shutdown boundaries. A restored task must remain paused until the user gives a direction; never replay saved computer actions automatically. Credentials and opaque provider transcripts do not belong in journal files. Tests must pass `journalDirectory: nil` / `storageDirectory: nil` or use disposable directories, never the real history. See [journal storage](docs/JOURNAL_STORAGE.md).
 
 ## Global shortcuts
 

@@ -6,9 +6,10 @@ Jerry automatically saves journals locally. Each expedition has a stable UUID di
 ~/Library/Application Support/Jerry/Expeditions/
   <expedition-uuid>/
     journal.jsonl
+    <photo-uuid>.jpg
 ```
 
-Only `journal.jsonl` is created today. Screenshots and other assets can be added alongside it in future; the loader ignores unrelated files. Folder names do not depend on the mission title.
+Photographs are saved as JPEG assets alongside `journal.jsonl`; the loader ignores unrelated files. Folder names do not depend on the mission title.
 
 ## JSONL format, version 1
 
@@ -17,7 +18,7 @@ Each UTF-8 line is one JSON object. Every record has `version` (currently `1`), 
 | Event | Payload |
 | --- | --- |
 | `created` | `expedition`: its `id`, creation `date` and `title` |
-| `entry` | `entry`: its stable `id`, `date`, `kind` (`request`, `response` or `activity`), `text` and expandable `details` |
+| `entry` | `entry`: its stable `id`, `date`, `kind` (`request`, `response` or `activity`), `text`, expandable `details`, and optional `photo` (a UUID `.jpg` filename) |
 | `textAppended` | `entryID`, `text`: the next streamed text chunk |
 | `textReplaced` | `entryID`, `text`: replacement text when a response revises an earlier prefix |
 | `detailsAppended` | `entryID`, `text`: additional details, including any paragraph separator |
@@ -37,8 +38,18 @@ Visible messages and expandable tool/metadata details are persisted. API keys, O
 
 **Export journal** still produces a separate readable text export of all expeditions and details. It is not needed for automatic saving. No in-app deletion control is implemented yet; quit Jerry before removing an expedition folder manually.
 
+## Field notes and photographs
+
+Jerry’s model instructions ask for first-person observations, verified achievements and the next meaningful step, with a little explorer character. His notes and captions use the native Noteworthy handwriting font. Low-level receipts remain expandable.
+
+The `computer_action` tool accepts `take_photo`, with a factual caption in `text`. It captures the frontmost window of the active app, up to 1280 pixels wide, only with existing Screen Recording access. It neither prompts for permission nor enables AI image sharing. The JPEG is saved before its journal entry is appended, then appears in a paper photo mount with a handwritten caption. Captions are model-written and photographs document a moment; neither replaces verification of task success. Missing assets retain their captions. Photo bytes load off the main thread.
+
+Photos stay local and are not attached to tool results or restored model context. The separate active-window image sharing option still controls AI inspection attachments. Jerry is instructed to photograph sparingly, only relevant non-sensitive results, and continue without photos if unavailable. Local journals and photos may contain screen content; keep that in mind when sharing their folders. Text exports include relative asset references, not embedded images.
+
 ## Development
 
 `ExpeditionJournalStore.swift` owns the JSONL writer and replay. `ExpeditionJournal` owns UI state and emits records as it changes. Passing `storageDirectory: nil` disables persistence; native/agent fixtures use this or a disposable directory and must never write test expeditions into the real Application Support history.
 
 Agent checks cover round trips, Unicode and revisions, state restoration, paused restart, multiple expeditions, resuming an older expedition, automatic batching, interrupted tails, duplicate events, future formats/assets, and recovery after write failure. Store errors are visible in the scrolling journal rather than in a separate blocking window.
+
+Run the Debug executable with `--journal-preview` for an isolated visual fixture with a drawn TextEdit photograph. It uses a temporary directory, performs no computer input and reads no real screen or saved history. Quit that preview before launching the normal app.

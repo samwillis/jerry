@@ -47,6 +47,22 @@ final class ExpeditionJournalStore: @unchecked Sendable {
             scheduled = work; queue.asyncAfter(deadline: .now() + 0.2, execute: work)
         }
     }
+    func savePhoto(_ data: Data, to expedition: UUID) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async { [self] in
+                do {
+                    let folder = directory.appendingPathComponent(expedition.uuidString, isDirectory: true)
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                    guard try folder.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw CocoaError(.fileWriteNoPermission) }
+                    let filename = UUID().uuidString + ".jpg"
+                    let url = folder.appendingPathComponent(filename)
+                    try data.write(to: url, options: .atomic)
+                    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                    continuation.resume(returning: filename)
+                } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
     func retry() { queue.async { [self] in writePending() } }
     /// Used at task boundaries and shutdown; drains preceding queued records too.
     func flush() { queue.sync { writePending() } }
