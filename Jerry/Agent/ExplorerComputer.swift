@@ -7,12 +7,24 @@ import ExpeditionCore
 /// All input goes through a reached hand target. AX is used for observation only.
 @MainActor
 final class ExplorerComputer {
+    struct LocalMenuControl {
+        let label: String
+        let role: String
+        let frame: CGRect
+        let currentFrame: () -> CGRect?
+    }
+    var localMenuControls: (() -> [LocalMenuControl])?
     struct Target {
         let element: AXUIElement
         let pid: pid_t
         let label: String
         let role: String
         let frame: CGRect
+        var localMenuFrame: (() -> CGRect?)? = nil
+    }
+    private func targetFrame(_ target: Target) -> CGRect? {
+        if let local = target.localMenuFrame { return local() }
+        return Self.frame(target.element)
     }
     private var targets: [String: Target] = [:]
     private var revision = 0
@@ -165,6 +177,13 @@ final class ExplorerComputer {
             }
             for child in children { visit(child, depth: depth + 1, clip: childClip) }
         }
+        let own = ProcessInfo.processInfo.processIdentifier
+        for control in localMenuControls?() ?? [] {
+            let id = "\(revision):\(targets.count + 1)"
+            targets[id] = .init(element: AXUIElementCreateApplication(own), pid: own, label: control.label, role: control.role, frame: control.frame, localMenuFrame: control.currentFrame)
+            let f = control.frame
+            lines.append("\(id) \(control.role) \(control.label) [\(Int(f.minX)),\(Int(f.minY)),\(Int(f.width)),\(Int(f.height))] Jerry’s own menu control; physically click this exact target. Inspect after opening the menu to find Show Onscreen Keyboard.")
+        }
         for (name, root) in roots().reversed() { count = 0; lines.append("APP: \(name)"); visit(root, depth: 0, clip: screenBounds) }
         return lines.joined(separator: "\n")
     }
@@ -207,10 +226,10 @@ final class ExplorerComputer {
                 post(.mouseMoved, at: point); try await Task.sleep(for: .milliseconds(900)); try check()
                 return report("Pointer reached the requested point. Inspect again for revealed controls or Dock icons.")
             }
-            guard ["click", "double_click", "scroll", "drag"].contains(action), let target = targets[targetID], Self.attribute(target.element, kAXEnabledAttribute) as? Bool != false else { return report("Target unavailable. Inspect again and use a visible target ID from that observation.") }
+            guard ["click", "double_click", "scroll", "drag"].contains(action), let target = targets[targetID], (target.localMenuFrame != nil || Self.attribute(target.element, kAXEnabledAttribute) as? Bool != false) else { return report("Target unavailable. Inspect again and use a visible target ID from that observation.") }
             for attempt in 0..<3 {
                 try check()
-                guard let frame = Self.frame(target.element), frame.intersects(target.frame.insetBy(dx: -1000, dy: -1000)) else { return report("The target disappeared. Inspect again.") }
+                guard let frame = targetFrame(target), frame.intersects(target.frame.insetBy(dx: -1000, dy: -1000)) else { return report("The target disappeared. Inspect again.") }
                 func contact(_ rect: CGRect) -> CGPoint { .init(x: target.role == kAXMenuItemRole ? rect.minX + min(16, rect.width / 2) : rect.midX, y: rect.midY) }
                 let visible = frame.intersection(CGRect(origin: .zero, size: NSScreen.screens.first?.frame.size ?? .zero))
                 guard !visible.isNull, visible.width > 4, visible.height > 4 else { lastActionFailed = true; return report("The control is offscreen or hidden. Reveal it (hover for the Dock), then inspect again. No input was sent.") }
@@ -218,12 +237,12 @@ final class ExplorerComputer {
                 progress?("Reaching \(target.label.isEmpty ? "the control" : target.label)…")
                 guard let reach else { throw AgentConnectionError(message: "Explorer movement is not connected.") }
                 try await reachWithoutStealingPointer(point); try check()
-                guard let current = Self.frame(target.element), hypot(contact(current.intersection(CGRect(origin: .zero, size: NSScreen.screens.first?.frame.size ?? .zero))).x - point.x, contact(current.intersection(CGRect(origin: .zero, size: NSScreen.screens.first?.frame.size ?? .zero))).y - point.y) < 5 else {
+                guard let current = targetFrame(target), hypot(contact(current.intersection(CGRect(origin: .zero, size: NSScreen.screens.first?.frame.size ?? .zero))).x - point.x, contact(current.intersection(CGRect(origin: .zero, size: NSScreen.screens.first?.frame.size ?? .zero))).y - point.y) < 5 else {
                     if attempt == 2 { return report("The control moved while approaching. Inspect again.") }; continue
                 }
                 beforeInput?(); defer { afterInput?() }
                 try await Task.sleep(for: .milliseconds(50)); try check()
-                let systemTarget = ["com.apple.dock", "com.apple.systemuiserver", "com.apple.controlcenter", "com.apple.KeyboardViewer", "com.apple.inputmethod.AssistiveControl"].contains(NSRunningApplication(processIdentifier: target.pid)?.bundleIdentifier ?? "")
+                let systemTarget = target.localMenuFrame != nil || ["com.apple.dock", "com.apple.systemuiserver", "com.apple.controlcenter", "com.apple.KeyboardViewer", "com.apple.inputmethod.AssistiveControl"].contains(NSRunningApplication(processIdentifier: target.pid)?.bundleIdentifier ?? "")
                 guard systemTarget || NSWorkspace.shared.frontmostApplication?.processIdentifier == target.pid else {
                     lastActionFailed = true
                     return report("The front app changed while approaching. No input was sent. Inspect again before acting; do not use another app’s menu coordinates.")

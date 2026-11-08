@@ -1,10 +1,14 @@
 import AppKit
+import ApplicationServices
 import ExpeditionCore
 @preconcurrency import Carbon
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
+    private var onscreenKeyboardItem: NSMenuItem?
+    private var mainKeyboardItem: NSMenuItem?
+    private var statusMenuOpen = false
     private let applicationArtwork = Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap { NSImage(contentsOf: $0) }
     private var overlay: OverlayController?
     private var welcome: WelcomeController?
@@ -69,12 +73,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if ProcessInfo.processInfo.arguments.contains("--tasks") { openTasks() }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--show-menu") {
-            DispatchQueue.main.async { [weak self] in self?.statusItem?.button?.performClick(nil) }
+            Timer.scheduledTimer(timeInterval: 0.3, target: self, selector: #selector(showStatusMenuPreview), userInfo: nil, repeats: false)
         }
         if ProcessInfo.processInfo.arguments.contains("--playground") { openPlayground() }
         if ProcessInfo.processInfo.arguments.contains("--keyboard-control") { setPaused(false); overlay?.setKeyboardControl(true) }
         #endif
         NotificationCenter.default.addObserver(self, selector: #selector(displaysChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--show-menu") { return }
+        #endif
         let previewWelcome = ProcessInfo.processInfo.arguments.contains("--welcome")
         if previewWelcome || needsWelcome {
             DispatchQueue.main.async { [weak self] in self?.showWelcome(markSeen: !previewWelcome) }
@@ -86,12 +93,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func installMenu() {
         if NSApp.mainMenu == nil {
             let bar = NSMenu()
-            let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu
+            let appMenu = NSMenu(); appMenu.delegate = self; let appItem = NSMenuItem(); appItem.submenu = appMenu
             appMenu.addItem(withTitle: "About Jerry", action: #selector(showAbout), keyEquivalent: "").target = self
             appMenu.addItem(.separator())
             let ask = appMenu.addItem(withTitle: "Ask Jerry…", action: #selector(openTasks), keyEquivalent: "\r")
             ask.target = self; mainAskItem = ask; ask.keyEquivalentModifierMask = [.control, .option]
             appMenu.addItem(withTitle: "Expedition Journal…", action: #selector(showAgentActivity), keyEquivalent: "").target = self
+            mainKeyboardItem = appMenu.addItem(withTitle: "Show Onscreen Keyboard", action: #selector(showOnscreenKeyboard), keyEquivalent: "")
+            mainKeyboardItem?.target = self
             appMenu.addItem(.separator())
             appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
             appMenu.addItem(withTitle: "Quit Jerry", action: #selector(quit), keyEquivalent: "q").target = self
@@ -104,6 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = ExplorerRig.menuBarArtwork()
+        item.button?.setAccessibilityLabel("Jerry menu")
+        item.button?.setAccessibilityIdentifier("JerryMenuBarIcon")
         let menu = NSMenu()
         menu.autoenablesItems = false; menu.delegate = self
         let heading = NSMenuItem(title: "Jerry", action: nil, keyEquivalent: "")
@@ -114,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         keyboardItem = add("Take Control", action: #selector(toggleKeyboard), to: menu)
         keyboardItem.keyEquivalent = " "; keyboardItem.keyEquivalentModifierMask = [.control, .option]
+        onscreenKeyboardItem = add("Show Onscreen Keyboard", action: #selector(showOnscreenKeyboard), to: menu)
         idleItem = add("Enable Idle Exploration", action: #selector(toggleIdle), to: menu)
         stopTaskItem = add("Stop Task", action: #selector(stopTask), to: menu)
         menu.addItem(.separator())
@@ -129,6 +141,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = add("Quit Jerry", action: #selector(quit), to: menu)
         item.menu = menu; statusItem = item
         updateMenu()
+    }
+    #if DEBUG
+    @objc private func showStatusMenuPreview() {
+        guard let button = statusItem?.button, let menu = statusItem?.menu else { return }
+        menu.popUp(positioning: nil, at: .init(x: 0, y: button.bounds.minY), in: button)
+    }
+    #endif
+    func menuWillOpen(_ menu: NSMenu) {
+        if menu === statusItem?.menu {
+            statusMenuOpen = true
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--show-menu") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                    for control in self?.agentMenuControls() ?? [] { print("LOCAL MENU", control.label, control.frame); fflush(stdout) }
+                }
+            }
+            #endif
+        }
+    }
+    func menuDidClose(_ menu: NSMenu) {
+        if menu === statusItem?.menu { statusMenuOpen = false }
+    }
+    @objc private func showOnscreenKeyboard() {
+        do { try SystemOnscreenKeyboard.show() }
+        catch {
+            let alert = NSAlert(); alert.messageText = "Couldn’t open the onscreen keyboard"
+            alert.informativeText = error.localizedDescription + " You can also open it from the macOS Input menu or Accessibility settings."
+            alert.runModal()
+        }
+    }
+    /// In-process AppKit accessibility geometry, restricted to these two controls.
+    /// No AXPress/menu action is exposed to the agent: both still require a physical click.
+    private func agentMenuControls() -> [ExplorerComputer.LocalMenuControl] {
+        func quartz(_ rect: CGRect) -> CGRect? {
+            guard let primary = NSScreen.screens.first, rect.width > 4, rect.height > 4,
+                  rect.intersects(primary.frame) else { return nil }
+            return .init(x: rect.minX, y: primary.frame.maxY - rect.maxY, width: rect.width, height: rect.height)
+        }
+        var controls: [ExplorerComputer.LocalMenuControl] = []
+        if let button = statusItem?.button, let window = button.window, window.isVisible, !button.isHidden,
+           let frame = quartz(window.convertToScreen(button.convert(button.bounds, to: nil))) {
+            controls.append(.init(label: "Jerry menu (his exact menu bar icon)", role: kAXMenuBarItemRole, frame: frame, currentFrame: { [weak self] in
+                guard let button = self?.statusItem?.button, let window = button.window, window.isVisible, !button.isHidden else { return nil }
+                return quartz(window.convertToScreen(button.convert(button.bounds, to: nil)))
+            }))
+        }
+        if statusMenuOpen, let item = onscreenKeyboardItem, item.isEnabled, !item.isHidden,
+           let frame = quartz(item.accessibilityFrame()) {
+            controls.append(.init(label: item.title, role: kAXMenuItemRole, frame: frame, currentFrame: { [weak self, weak item] in
+                guard self?.statusMenuOpen == true, let item, !item.isHidden, item.isEnabled else { return nil }
+                return quartz(item.accessibilityFrame())
+            }))
+        }
+        return controls
     }
     private func add(_ title: String, action: Selector, to menu: NSMenu) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -235,6 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             controller.computer.photoStage = { [weak self] active in self?.overlay?.setPhotoMoment(active) }
             controller.computer.photoSubject = { [weak self] in self?.overlay?.photoSubject }
+            controller.computer.localMenuControls = { [weak self] in self?.agentMenuControls() ?? [] }
             controller.computer.reading = { [weak self] in self?.overlay?.setAgentReading($0) }
             overlay?.onAgentHandMoved = { [weak controller] in controller?.computer.moveHand($0) }
             controller.onBeforeInput = { [weak self] in self?.overlay?.agentInputVisible(false) }
@@ -370,6 +437,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         check(developerMenu === developer && developer?.items.contains { $0.action == #selector(triggerActivity(_:)) } == true, "activity tests are directly inside Developer Tools")
         check(statusItem?.menu?.items.allSatisfy { $0.submenu?.items.allSatisfy { $0.submenu == nil } ?? true } == true, "status menu has at most two levels")
         check(statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.isHidden == !UserDefaults.standard.bool(forKey: "developerToolsEnabled"), "developer menu follows the Advanced opt-in")
+        check(onscreenKeyboardItem?.action == #selector(showOnscreenKeyboard) && onscreenKeyboardItem?.submenu == nil, "onscreen keyboard is a direct Jerry menu command")
+        check(statusItem?.button?.accessibilityLabel() == "Jerry menu", "Jerry menu icon has an explicit accessibility label")
+        check(SystemOnscreenKeyboard.source() != nil, "macOS exposes a selectable system keyboard palette")
+        check(agentMenuControls().first?.frame.width ?? 0 > 4 && agentMenuControls().count == 1, "agent receives the exact live Jerry icon bounds without exposing other app controls")
         check(stopTaskItem?.isHidden == true, "Stop Task is hidden when no task is running")
         updateMenu()
         check(askItem.keyEquivalent == (GlobalShortcutAction.ask.load()?.keyEquivalent ?? "") && askItem.keyEquivalentModifierMask == (GlobalShortcutAction.ask.load()?.modifierFlags ?? []), "Ask Jerry advertises its configured global shortcut")
@@ -446,5 +517,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         playground?.close(); playground = nil
         #endif
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }; statusItem = nil
+    }
+}
+
+/// Public Text Input Source Services show the actual macOS keyboard palette.
+/// Modern macOS uses Assistive Control; older systems expose KeyboardViewer.
+@MainActor
+private enum SystemOnscreenKeyboard {
+    static let bundles = ["com.apple.inputmethod.AssistiveControl", "com.apple.KeyboardViewer"]
+    static func source() -> TISInputSource? {
+        guard let key = kTISPropertyInputSourceID else { return nil }
+        for id in bundles {
+            if let list = TISCreateInputSourceList([key: id] as CFDictionary, true)?.takeRetainedValue() as? [TISInputSource], let source = list.first { return source }
+        }
+        return nil
+    }
+    private static func flag(_ source: TISInputSource, _ key: CFString) -> Bool {
+        guard let pointer = TISGetInputSourceProperty(source, key) else { return false }
+        return (Unmanaged<CFTypeRef>.fromOpaque(pointer).takeUnretainedValue() as? Bool) == true
+    }
+    static func show() throws {
+        guard let source = source() else { throw AgentConnectionError(message: "macOS did not expose its keyboard palette.") }
+        if !flag(source, kTISPropertyInputSourceIsEnabled) {
+            guard TISEnableInputSource(source) == noErr else { throw AgentConnectionError(message: "macOS couldn’t enable Keyboard Viewer.") }
+        }
+        // A selected input source can retain stale state after its window closes.
+        if flag(source, kTISPropertyInputSourceIsSelected) { _ = TISDeselectInputSource(source) }
+        let result = TISSelectInputSource(source)
+        guard result == noErr else { throw AgentConnectionError(message: "macOS couldn’t show Keyboard Viewer (\(result)).") }
     }
 }
