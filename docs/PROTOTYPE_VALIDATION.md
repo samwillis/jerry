@@ -477,3 +477,7 @@ Debug and Developer ID local builds succeed. All 75 agent checks and 93 native c
 Removed the Show Onscreen Keyboard menu command and its local-menu target shortcut at the user’s request. Discarded the experimental keyboard-enabling helper. Jerry’s instructions now prioritise physically navigating Apple → System Settings → Accessibility → Keyboard, enabling Accessibility Keyboard himself, and checking the visible keys. Journal names, styling and milestone photos are unchanged.
 
 Rollback validation: Debug and Developer ID local builds pass, with 75 agent checks and 93 native checks. Source checks confirm no keyboard menu command, local-menu target provider or keyboard-enabling helper remains.
+
+### Polaroid proportions and shadow — 8 November 2026
+
+Changed journal photographs to a square image with narrow top/side borders and a deep caption strip, using a smaller 320-point print and a 1.7-degree tilt. The print is composited as one opaque surface before applying its soft outer shadow, removing the unintended shadow around the image and lettering. Tape moves with the print; padding keeps tilted corners clear of the page edges. The original saved JPEG is unchanged. Debug visual review of an isolated fixture confirms the square crop, full caption, tilt, tape and frame-only shadow.

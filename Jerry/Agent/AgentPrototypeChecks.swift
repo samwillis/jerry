@@ -29,7 +29,7 @@ enum AgentPrototypeChecks {
         let scene = SKScene(size: .init(width: 180, height: 160)); scene.backgroundColor = .clear; scene.addChild(rig)
         let view = SKView(frame: .init(x: 0, y: 0, width: 180, height: 160)); view.presentScene(scene)
         if let texture = view.texture(from: rig) {
-            NSImage(cgImage: texture.cgImage(), size: texture.size()).draw(in: .init(x: 450, y: 65, width: 100, height: 145))
+            NSImage(cgImage: texture.cgImage(), size: texture.size()).draw(in: .init(x: 270, y: 65, width: 100, height: 145))
         }
         image.unlockFocus()
         let jpeg = NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .jpeg, properties: [.compressionFactor: 0.85])!

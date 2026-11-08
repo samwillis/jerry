@@ -548,18 +548,22 @@ private struct JournalEntryView: View {
                 VStack(spacing: 0) {
                     JournalPhotograph(url: photoURL, caption: entry.text)
                         .overlay(Rectangle().stroke(.black.opacity(0.12), lineWidth: 0.5))
-                    Text(entry.text).font(Font(NotebookTheme.journalFont(20))).foregroundStyle(JournalPalette.ink)
-                        .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
-                        .padding(.horizontal, 4).padding(.top, 8).padding(.bottom, 7).textSelection(.enabled)
+                    Text(entry.text).font(Font(NotebookTheme.journalFont(19))).foregroundStyle(JournalPalette.ink)
+                        .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+                        .padding(.horizontal, 4).padding(.top, 8).padding(.bottom, 10).textSelection(.enabled)
                 }
-                .padding([.top, .horizontal], 10).padding(.bottom, 5).frame(maxWidth: 360)
+                .padding([.top, .horizontal], 12).frame(maxWidth: 320)
                 .background(Color(red: 1, green: 0.995, blue: 0.975))
                 .overlay(Rectangle().stroke(JournalPalette.leather.opacity(0.16), lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.14), radius: 3, x: 1, y: 3)
+                // Flatten the opaque print before shadowing: otherwise SwiftUI
+                // can shadow the photo and handwriting as separate descendants.
+                .compositingGroup()
+                .shadow(color: .black.opacity(0.15), radius: 4, x: 1, y: 3)
                 .overlay(alignment: .top) {
                     JournalTape().frame(width: 54, height: 18).rotationEffect(.degrees(-5)).offset(y: -8)
                 }
-                .padding(.vertical, 12)
+                .rotationEffect(.degrees(-1.7))
+                .padding(.horizontal, 10).padding(.vertical, 14)
             } else { Group {
                 if entry.kind == .response { Text(.init(entry.text)) }
                 else { Text(entry.text) }
@@ -601,16 +605,21 @@ private struct JournalPhotograph: View {
     @State private var image: NSImage?
     @State private var loaded = false
     var body: some View {
-        Group {
-            if let image {
-                Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
-                    .accessibilityLabel("Expedition photograph: " + caption)
-            } else {
-                Label(loaded ? "Photograph unavailable" : "Developing photograph…", systemImage: "photo")
-                    .font(Font(NotebookTheme.journalFont(17))).foregroundStyle(JournalPalette.faded)
-                    .frame(maxWidth: .infinity).frame(height: 120)
+        GeometryReader { geometry in
+            Group {
+                if let image {
+                    Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                        .accessibilityLabel("Expedition photograph: " + caption)
+                } else {
+                    Label(loaded ? "Photograph unavailable" : "Developing photograph…", systemImage: "photo")
+                        .font(Font(NotebookTheme.journalFont(17))).foregroundStyle(JournalPalette.faded)
+                }
             }
-        }.task(id: url) {
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipped()
+        }.aspectRatio(1, contentMode: .fit)
+        .background(JournalPalette.ink.opacity(0.025))
+        .task(id: url) {
             let data = await Task.detached(priority: .utility) { url.flatMap { try? Data(contentsOf: $0) } }.value
             guard !Task.isCancelled else { return }
             image = data.flatMap { NSImage(data: $0) }; loaded = true
