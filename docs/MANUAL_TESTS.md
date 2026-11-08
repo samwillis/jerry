@@ -223,7 +223,7 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 
 - [ ] The sidebar divider reaches the window top and slides with the sidebar, without a stationary fading line.
 - [ ] Compact defaults remain readable at 620 × 540; narrower sidebar-hidden windows and reopening near a screen edge keep controls on screen.
-- [ ] Journal toolbar controls use normal native sizing while content remains compact; native traffic lights align with the paper margin beside the stitching. Settings uses the same toolbar/title treatment without an eyebrow caption, and its sidebar divider reaches the top.
+- [ ] Journal toolbar controls use normal native sizing while content remains compact; native traffic lights align with the paper margin beside the stitching. Settings uses the same toolbar/title treatment without an eyebrow caption, and its sidebar shading and divider reach the top behind the window controls.
 
 - [ ] Abseil over both corners of a notebook window and a standard external window. The rope should follow the curved outline with a one-point clearance, retaining smooth tangent joins while climbing, descending and swinging. Custom external window shapes remain approximate.
 

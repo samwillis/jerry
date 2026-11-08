@@ -21,6 +21,11 @@ private final class PromptSurface: NSView {
     }
 }
 
+/// Decoration should not intercept titlebar dragging or sidebar clicks.
+private final class SettingsSidebarBackdrop: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 private final class SettingsCardView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NotebookTheme.leather.withAlphaComponent(0.045).setFill()
@@ -190,13 +195,18 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         return box
     }
     private func buildSettings(in content: NSView) {
-        let sidebar = NSView(); sidebar.wantsLayer = true; sidebar.layer?.backgroundColor = NotebookTheme.leather.withAlphaComponent(0.035).cgColor
+        let sidebar = NSView()
         sidebar.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(sidebar)
         let links = stack(in: sidebar, inset: 18); links.spacing = 5
         let main = NSView(); main.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(main)
         NSLayoutConstraint.activate([sidebar.leadingAnchor.constraint(equalTo: content.leadingAnchor), sidebar.topAnchor.constraint(equalTo: content.topAnchor), sidebar.bottomAnchor.constraint(equalTo: content.bottomAnchor), sidebar.widthAnchor.constraint(equalToConstant: 176), main.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), main.trailingAnchor.constraint(equalTo: content.trailingAnchor), main.topAnchor.constraint(equalTo: content.topAnchor), main.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
-        // Carry the notebook divider all the way through the titlebar.
+        // Keep the sidebar tint and divider continuous through the titlebar.
         if let root = content.superview {
+            let backdrop = SettingsSidebarBackdrop(); backdrop.wantsLayer = true
+            backdrop.layer?.backgroundColor = NotebookTheme.leather.withAlphaComponent(0.035).cgColor
+            backdrop.translatesAutoresizingMaskIntoConstraints = false
+            root.addSubview(backdrop, positioned: .below, relativeTo: content)
+            NSLayoutConstraint.activate([backdrop.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor), backdrop.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor), backdrop.topAnchor.constraint(equalTo: root.topAnchor), backdrop.bottomAnchor.constraint(equalTo: root.bottomAnchor)])
             let divider = NSView(); divider.wantsLayer = true
             divider.layer?.backgroundColor = NotebookTheme.leather.withAlphaComponent(0.14).cgColor
             divider.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(divider)
