@@ -37,7 +37,7 @@ Use his hat-and-face icon in the menu bar, or take the lead with the keyboard:
 | Return | Ask Jerry while in control |
 | Escape | Leave control and return to your previous app |
 
-The full reference is in **Settings → Controls**.
+The shortcuts above are the defaults. Change or clear either global shortcut in **Settings → Controls**, where you’ll also find the full movement reference.
 
 ## Send him on an expedition
 

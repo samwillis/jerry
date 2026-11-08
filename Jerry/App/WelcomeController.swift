@@ -26,20 +26,20 @@ private final class WelcomeExplorerScene: SKScene {
 }
 
 enum ExplorerControls {
-    static let rows = [
-        ["⌃⌥ Return", "Ask Jerry, from any app"], ["⌃⌥ Space", "Take or release control"],
+    @MainActor static var rows: [[String]] { [
+        [GlobalShortcutAction.ask.display, "Ask Jerry, from any app"], [GlobalShortcutAction.control.display, "Take or release control"],
         ["Arrows / WASD", "Move, climb or swing; Up grabs a hold"],
         ["Shift", "Run or climb faster"], ["Space", "Jump"], ["↓", "Step off an edge and parachute"],
         ["Hold G + arrows", "Aim the grappling hook; release G to fire"],
         ["Hold C", "Crouch"], ["Option + C", "Crouch and reach lower"],
         ["E", "Click at Jerry’s hand, including on ropes"],
         ["Return", "Ask Jerry"], ["Esc", "Return to your previous app"]
-    ]
-    static let groups: [(String, [[String]])] = [
+    ] }
+    @MainActor static var groups: [(String, [[String]])] { [
         ("From any app", [rows[1], rows[0]]),
         ("Movement", [rows[2], rows[4], rows[3], rows[5], rows[7], rows[11]]),
         ("Tools & tasks", [rows[6], rows[8], rows[9], rows[10]])
-    ]
+    ] }
 }
 
 /// A short, permission-free introduction. The full reference lives in Settings.
@@ -50,6 +50,8 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
     var onSetupAI: (() -> Void)?
     var onClose: (() -> Void)?
     private let illustration = SKView()
+    private var controlShortcutLabel: NSTextField!
+    private var askShortcutLabel: NSTextField!
     init() {
         let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 560, height: 450), styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "Welcome to Jerry"; window.titlebarAppearsTransparent = true
@@ -69,8 +71,8 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
         header.addArrangedSubview(illustration); header.addArrangedSubview(intro); content.addArrangedSubview(header)
         content.addArrangedSubview(text("Take control and turn your desktop into an adventure, or give Jerry a mission. He keeps a journal along the way.", size: 13))
         let shortcuts = NSStackView(); shortcuts.orientation = .vertical; shortcuts.alignment = .leading; shortcuts.spacing = 9
-        shortcuts.addArrangedSubview(text("⌃⌥ Space    Take control", size: 12, weight: .medium))
-        shortcuts.addArrangedSubview(text("⌃⌥ Return   Give Jerry a mission", size: 12, weight: .medium))
+        controlShortcutLabel = text("", size: 12, weight: .medium); askShortcutLabel = text("", size: 12, weight: .medium)
+        shortcuts.addArrangedSubview(controlShortcutLabel); shortcuts.addArrangedSubview(askShortcutLabel)
         let playHint = text("In control: arrows move · Space jumps · Esc returns.", size: 11); playHint.textColor = NotebookTheme.faded
         shortcuts.addArrangedSubview(playHint)
         content.addArrangedSubview(shortcuts)
@@ -95,7 +97,10 @@ final class WelcomeController: NSWindowController, NSWindowDelegate {
         label.preferredMaxLayoutWidth = 476
         return label
     }
-    func open(idleExploration: Bool) { illustration.isPaused = false; NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
+    func open(idleExploration: Bool) {
+        controlShortcutLabel.stringValue = GlobalShortcutAction.control.display + "    Take control"
+        askShortcutLabel.stringValue = GlobalShortcutAction.ask.display + "    Give Jerry a mission"
+        illustration.isPaused = false; NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
     @objc private func openGitHub() { NSWorkspace.shared.open(URL(string: "https://github.com/samwillis/jerry")!) }
     @objc private func startExploring() { onIdleChanged?(true); close() }
     @objc private func takeControl() { close(); onTakeControl?() }

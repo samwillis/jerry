@@ -226,3 +226,11 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - [ ] Journal toolbar controls use normal native sizing while content remains compact; native traffic lights align with the paper margin beside the stitching. Settings uses the same toolbar/title treatment without an eyebrow caption, and its sidebar divider reaches the top.
 
 - [ ] Abseil over both corners of a notebook window and a standard external window. The rope should follow the curved outline with a one-point clearance, retaining smooth tangent joins while climbing, descending and swinging. Custom external window shapes remain approximate.
+
+### Configurable global shortcuts
+
+- [ ] Record both actions in Settings → Controls; recording must not trigger either action. Verify the new combination works from a different app and the old combination no longer does.
+- [ ] Attempt the other Jerry action’s combination and a system-reserved combination. Reject conflicts without changing the saved choice.
+- [ ] Plain typing is rejected. Escape, changing section, closing Settings and switching apps cancel recording and restore global shortcuts.
+- [ ] Delete clears a shortcut, including after restart. Menu actions remain usable. Restore defaults restores both together.
+- [ ] Restart with custom shortcuts and confirm the menu, welcome guide and recorder show the saved choices. Check a non-US keyboard layout and modified function/navigation keys.

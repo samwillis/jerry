@@ -70,6 +70,11 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private let accessState = NSTextField(wrappingLabelWithString: "")
     private let recordingState = NSTextField(wrappingLabelWithString: "")
     private let generalState = NSTextField(wrappingLabelWithString: "")
+    private var shortcutRecorders: [GlobalShortcutAction: ShortcutRecorder] = [:]
+    private let shortcutError = NSTextField(wrappingLabelWithString: "")
+    var onShortcutChanged: ((GlobalShortcutAction, GlobalShortcut?) -> String?)?
+    var onShortcutRecording: ((Bool) -> Void)?
+    var onRestoreShortcuts: (() -> String?)?
     private let shortcutState = NSTextField(wrappingLabelWithString: "")
     private let disconnectButton = NSButton(title: "Disconnect", target: nil, action: nil)
     private let requestSettingsButton = NSButton(title: "Ask Jerry…", target: nil, action: nil)
@@ -278,7 +283,26 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     }
     private func buildControls(_ body: NSStackView) {
         body.spacing = 10
-        for (title, entries) in ExplorerControls.groups {
+        var shortcutRows: [NSView] = [label("Global shortcuts", size: 14, weight: .semibold)]
+        for action in GlobalShortcutAction.allCases {
+            let recorder = ShortcutRecorder(action: action)
+            recorder.widthAnchor.constraint(equalToConstant: 160).isActive = true
+            recorder.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            recorder.onRecordingChanged = { [weak self] value in self?.onShortcutRecording?(value); self?.refreshSettings() }
+            recorder.onChange = { [weak self] shortcut in
+                guard let callback = self?.onShortcutChanged else { return "Shortcuts are not available in this preview." }; return callback(action, shortcut)
+            }
+            recorder.onError = { [weak self] error in self?.shortcutError.stringValue = error ?? ""; self?.shortcutError.isHidden = error == nil }
+            shortcutRecorders[action] = recorder
+            let spacer = NSView(); spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            shortcutRows.append(row([label(action.title, size: 12), spacer, recorder]))
+        }
+        shortcutRows.append(note("Click a shortcut, then press keys. Delete clears it; Esc cancels."))
+        shortcutRows.append(row([button("Restore defaults", #selector(restoreGlobalShortcuts)), NSView()]))
+        body.addArrangedSubview(card(shortcutRows, width: 532, spacing: 8, inset: 12))
+        shortcutError.font = .systemFont(ofSize: 11); shortcutError.textColor = NotebookTheme.rust; shortcutError.isHidden = true
+        body.addArrangedSubview(shortcutError)
+        for (title, entries) in ExplorerControls.groups.dropFirst() {
             let heading = label(title, size: 14, weight: .semibold)
             let rows = entries.map { entry -> NSView in
                 let key = label(entry[0], size: 11, weight: .medium)
@@ -298,6 +322,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         body.addArrangedSubview(note("Checks the tool loop. No AI requests or clicks."))
     }
     private func refreshSettings() {
+        for (action, recorder) in shortcutRecorders { recorder.shortcut = action.load() }
         for (key, control) in preferenceButtons {
             let enabled = key == "launchAtLogin" ? SMAppService.mainApp.status == .enabled : (UserDefaults.standard.object(forKey: key) as? Bool ?? (key == "idleExploration"))
             control.state = enabled ? .on : .off
@@ -318,7 +343,16 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         shortcutState.stringValue = shortcutStatusProvider?() ?? ""
         shortcutState.isHidden = !shortcutState.stringValue.contains("unavailable")
     }
-    @objc private func settingsSectionChanged(_ sender: NSButton) { selectSettings(sender.title) }
+    @objc private func restoreGlobalShortcuts() {
+        for recorder in shortcutRecorders.values { recorder.cancelRecording() }
+        let error = onRestoreShortcuts?() ?? (onRestoreShortcuts == nil ? "Shortcuts are not available in this preview." : nil)
+        shortcutError.stringValue = error ?? ""; shortcutError.isHidden = error == nil
+        refreshSettings()
+    }
+    @objc private func settingsSectionChanged(_ sender: NSButton) {
+        for recorder in shortcutRecorders.values { recorder.cancelRecording() }
+        shortcutError.isHidden = true; selectSettings(sender.title)
+    }
     @objc private func preferenceChanged(_ sender: NSButton) {
         guard let key = sender.identifier?.rawValue else { return }
         if key == "launchAtLogin" {
@@ -785,6 +819,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         if notification.object as? NSWindow === journal { restoreJournalAfterInput = false }
         if notification.object as? NSWindow === promptWindow { finishPromptCancellation() }
         if notification.object as? NSWindow === window {
+            for recorder in shortcutRecorders.values { recorder.cancelRecording() }
             apiKey.stringValue = ""; credentials.cancelSignIn(); updateConnection()
             if returningToPrompt { returningToPrompt = false; DispatchQueue.main.async { [weak self] in self?.openPrompt(resumeControl: self?.resumeControlOnCancel ?? false) } }
         }
@@ -808,7 +843,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             return ((view as? NSTextField).map { [$0.stringValue] } ?? []) + view.subviews.flatMap(visibleText)
         }
         let controls = settingsPages["Controls"].map(visibleText) ?? []
-        results.append(("every documented control is visible without expanding a section", ExplorerControls.rows.allSatisfy { controls.contains($0[0]) }))
+        results.append(("every documented control is visible without expanding a section", ExplorerControls.rows.dropFirst(2).allSatisfy { controls.contains($0[0]) }))
         results.append(("offline connection test is hidden from the ordinary connection picker", provider.item(at: 0)?.isHidden == true))
         results.append(("local terrain and AI image sharing have separate preferences", preferenceButtons["exploreInsideWindows"] !== preferenceButtons["agentShareImages"] && preferenceButtons["agentShareImages"] != nil))
         requestField.stringValue = "Keep this request"

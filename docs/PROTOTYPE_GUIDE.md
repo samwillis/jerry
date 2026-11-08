@@ -101,3 +101,7 @@ An expedition stays open after Jerry replies. Use the prompt beside Jerry or the
 Selecting an older expedition only changes what you read. Its composer explicitly resumes that expedition; background progress remains attached to the active expedition. Export includes all histories and details. Histories live in memory until quitting.
 
 The journal, Settings, welcome and other substantial titled Jerry windows now participate in terrain and hide covered window edges in stacking order. Transparent explorer, keyboard-input and prompt panels remain excluded. Bringing another app in front hides the journal normally; physical input restores it behind other apps rather than forcing it to the front.
+
+### Choosing global shortcuts
+
+Open **Settings → Controls** and click the shortcut beside **Take or release control** or **Ask Jerry**, then press the new combination. Include Command, Option or Control. Delete clears the selected shortcut; Escape cancels recording. Restore defaults restores Control–Option–Space and Control–Option–Return together. Changes save immediately and apply without restarting. Conflicts leave the previous choice intact. The menu and welcome guide show the current combinations, and a cleared binding remains available through the menu.

@@ -106,6 +106,12 @@ The script submits to Apple, staples and validates the ticket, checks Gatekeeper
 - `Packages/ExpeditionCore`: platform-independent geometry, terrain construction, attachments, movement, route planning, mission rules, and runtime policy.
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md), [product plan](docs/PLAN.md), and [manual checks](docs/MANUAL_TESTS.md).
 
+## Global shortcuts
+
+**Settings → Controls → Global shortcuts** records the Take/release control and Ask Jerry bindings. Each can be cleared with Delete while recording; Escape cancels, and Restore defaults resets both. Custom combinations require Command, Option or Control and are saved in UserDefaults. The menu and welcome guide reflect the current bindings.
+
+`Jerry/App/GlobalShortcuts.swift` owns the shortcut value, preferences, local recorder and Carbon registration. Rebinding must retain the previous registration on conflict. Recording temporarily unregisters both global shortcuts and intercepts keys only in the Settings key window; commit/probe happens after key-up. Cancel, focus loss, section changes and closing Settings must restore registrations. No global keyboard monitor or extra Accessibility permission is needed for configuration. Native checks use an isolated preferences domain for persistence tests and exercise registration changes, conflicts, held-key suppression and clearing.
+
 ## Trigger an activity
 
 Enable **Developer Tools** in **Settings → Advanced**, then use Jerry menu → **Developer Tools** for walking, climbing, grappling, rope actions, parachuting or looking for the sock. The explorer approaches suitable real terrain first, then performs the activity and returns to the idle-exploration setting. Unreachable choices are labelled and disabled. Requests made during a jump/corner/flight queue safely for the next support. **Enable Idle Exploration** controls automatic wandering after the action finishes.

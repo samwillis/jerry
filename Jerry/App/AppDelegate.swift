@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
     private var askItem: NSMenuItem!
+    private var mainAskItem: NSMenuItem?
+    private var recordingShortcut = false
     private var stopTaskItem: NSMenuItem?
     private var runWhenExploring = UserDefaults.standard.bool(forKey: "runWhenExploring")
     private var fasterRopeWork = UserDefaults.standard.bool(forKey: "fasterRopeWork")
@@ -51,10 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay?.setFasterRopeWork(fasterRopeWork)
         overlay?.setPaused(isPaused)
         overlay?.show()
-        hotKey.onTrigger = { [weak self] in self?.toggleKeyboard() }
-        hotKey.register()
-        askHotKey.onTrigger = { [weak self] in self?.openTasks() }
-        askHotKey.register()
+        hotKey.onTrigger = { [weak self] in guard let self, !self.recordingShortcut else { return }; self.toggleKeyboard() }
+        hotKey.configure(GlobalShortcutAction.control.load())
+        askHotKey.onTrigger = { [weak self] in guard let self, !self.recordingShortcut else { return }; self.openTasks() }
+        askHotKey.configure(GlobalShortcutAction.ask.load())
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--trace-movement") { print("CONTROL global shortcut registered: \(hotKey.isRegistered)"); fflush(stdout) }
         #endif
@@ -88,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             appMenu.addItem(withTitle: "About Jerry", action: #selector(showAbout), keyEquivalent: "").target = self
             appMenu.addItem(.separator())
             let ask = appMenu.addItem(withTitle: "Ask Jerry…", action: #selector(openTasks), keyEquivalent: "\r")
-            ask.target = self; ask.keyEquivalentModifierMask = [.control, .option]
+            ask.target = self; mainAskItem = ask; ask.keyEquivalentModifierMask = [.control, .option]
             appMenu.addItem(withTitle: "Expedition Journal…", action: #selector(showAgentActivity), keyEquivalent: "").target = self
             appMenu.addItem(.separator())
             appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
@@ -202,8 +204,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             controller.onTaskStateChanged = { [weak self] in self?.updateMenu() }
             controller.shortcutStatusProvider = { [weak self] in
                 guard let self else { return "" }
-                if self.askHotKey.isRegistered && self.hotKey.isRegistered { return "Global shortcuts work from any app." }
-                return "A shortcut is unavailable. Use Ask Jerry or Take Control in the menu."
+                if self.recordingShortcut { return "" }
+                let unavailable = GlobalShortcutAction.allCases.filter { action in
+                    action.load() != nil && !(action == .control ? self.hotKey : self.askHotKey).isRegistered
+                }
+                return unavailable.isEmpty ? "" : unavailable.map { "\($0.title): shortcut unavailable. Choose another combination." }.joined(separator: "\n")
+            }
+            controller.onShortcutChanged = { [weak self] action, shortcut in
+                guard let self else { return "Jerry is not available." }; return self.changeShortcut(action, to: shortcut)
+            }
+            controller.onShortcutRecording = { [weak self] recording in
+                guard let self else { return }
+                self.recordingShortcut = recording
+                if recording { self.hotKey.close(); self.askHotKey.close() }
+                else { self.hotKey.configure(GlobalShortcutAction.control.load()); self.askHotKey.configure(GlobalShortcutAction.ask.load()) }
+                self.updateMenu()
+            }
+            controller.onRestoreShortcuts = { [weak self] in
+                guard let self else { return "Jerry is not available." }; return self.restoreShortcuts()
             }
             controller.onStop = { [weak self] in
                 guard let self else { return }
@@ -290,9 +308,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         debugItem?.state = showsDebug ? .on : .off
         keyboardItem?.state = overlay?.keyboardControlEnabled == true ? .on : .off
         keyboardItem?.title = overlay?.keyboardControlEnabled == true ? "Release Control" : "Take Control"
-        askItem?.toolTip = askHotKey.isRegistered ? "Control–Option–Return opens a prompt from any app." : "The shortcut is unavailable; use this menu item."
-        keyboardItem?.toolTip = hotKey.isRegistered ? "Control–Option–Space works from any app." : "The shortcut is unavailable; use this menu item."
+        for (action, item, registered) in [(GlobalShortcutAction.ask, askItem, askHotKey.isRegistered), (.control, keyboardItem, hotKey.isRegistered), (.ask, mainAskItem, askHotKey.isRegistered)] {
+            guard let item else { continue }
+            let shortcut = action.load()
+            item.keyEquivalent = recordingShortcut ? "" : (shortcut?.keyEquivalent ?? "")
+            item.keyEquivalentModifierMask = recordingShortcut ? [] : (shortcut?.modifierFlags ?? [])
+            item.toolTip = shortcut == nil ? "No global shortcut set." : (registered ? "\(shortcut!.display) works from any app." : "The shortcut is unavailable; use this menu item.")
+        }
         statusItem?.button?.toolTip = "Jerry — \(overlay?.keyboardControlEnabled == true ? "you're in control" : (idleExploration ? "exploring" : "resting"))"
+    }
+    private func changeShortcut(_ action: GlobalShortcutAction, to shortcut: GlobalShortcut?) -> String? {
+        if let shortcut {
+            guard shortcut.isValid else { return "Include Command, Option or Control in your shortcut." }
+            if let other = GlobalShortcutAction.allCases.first(where: { $0 != action && $0.load() == shortcut }) { return "That shortcut is already used for ‘\(other.title)’." }
+        }
+        let hotkey = action == .control ? hotKey : askHotKey
+        guard hotkey.configure(shortcut) else { return "That shortcut is unavailable. Try another combination." }
+        if recordingShortcut { hotkey.close() }
+        action.save(shortcut); updateMenu()
+        return nil
+    }
+    private func restoreShortcuts() -> String? {
+        let previousControl = GlobalShortcutAction.control.load(), previousAsk = GlobalShortcutAction.ask.load()
+        hotKey.close(); askHotKey.close()
+        guard hotKey.configure(GlobalShortcutAction.control.defaultShortcut), askHotKey.configure(GlobalShortcutAction.ask.defaultShortcut) else {
+            hotKey.close(); askHotKey.close(); hotKey.configure(previousControl); askHotKey.configure(previousAsk)
+            updateMenu(); return "The default shortcuts are unavailable. Your previous choices were kept."
+        }
+        for action in GlobalShortcutAction.allCases { action.save(action.defaultShortcut) }
+        updateMenu(); return nil
     }
     @objc private func displaysChanged() { overlay?.updateDisplay() }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
@@ -320,7 +364,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         check(statusItem?.menu?.items.allSatisfy { $0.submenu?.items.allSatisfy { $0.submenu == nil } ?? true } == true, "status menu has at most two levels")
         check(statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.isHidden == !UserDefaults.standard.bool(forKey: "developerToolsEnabled"), "developer menu follows the Advanced opt-in")
         check(stopTaskItem?.isHidden == true, "Stop Task is hidden when no task is running")
-        check(askItem.keyEquivalent == "\r" && askItem.keyEquivalentModifierMask == [.control, .option], "Ask Explorer advertises Control Option Return")
+        updateMenu()
+        check(askItem.keyEquivalent == (GlobalShortcutAction.ask.load()?.keyEquivalent ?? "") && askItem.keyEquivalentModifierMask == (GlobalShortcutAction.ask.load()?.modifierFlags ?? []), "Ask Jerry advertises its configured global shortcut")
         check(statusItem?.menu?.items.contains { $0.title == "Settings…" && $0.submenu == nil && $0.action == #selector(openSettings) } == true, "Settings opens a unified window without nested preferences")
         let commands = developerMenu.items.filter { $0.action == #selector(triggerActivity(_:)) }
         check(commands.count == ExplorerActivity.allCases.count - 1, "Actions contains explicit activities without duplicate automatic mode")
@@ -350,6 +395,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         check(askShortcut.isRegistered, "global Control Option Return shortcut registers")
         check(askShortcut.dispatchNativeCheck() == noErr && asks == 1 && presses == 1, "Ask shortcut routes only to its own callback")
         check(shortcut.dispatchNativeCheck() == noErr && presses == 2 && asks == 1, "control shortcut stays independent of Ask shortcut")
+        let custom = GlobalShortcut(keyCode: 79, modifiers: UInt32(controlKey | optionKey | cmdKey | shiftKey))
+        check(shortcut.configure(custom), "a global shortcut can be rebound to a new key and modifiers")
+        let probe = ExplorerControlHotKey(keyCode: 49, id: 3)
+        probe.register()
+        check(probe.isRegistered, "rebinding releases the previous combination")
+        probe.close()
+        check(!shortcut.configure(GlobalShortcutAction.ask.defaultShortcut) && shortcut.isRegistered, "a registration conflict preserves the existing shortcut")
+        check(shortcut.dispatchNativeCheck() == noErr && presses == 3 && asks == 1, "a rebound shortcut still routes once to the original action")
+        check(shortcut.configure(nil) && !shortcut.isRegistered, "clearing a shortcut unregisters it")
+        check(probe.configure(custom), "a disabled shortcut releases its custom combination")
+        probe.close()
+        let suiteName = "com.jerry.shortcut-checks.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        check(GlobalShortcutAction.control.load(from: defaults) == GlobalShortcutAction.control.defaultShortcut, "shortcut preferences keep the existing defaults on first launch")
+        GlobalShortcutAction.control.save(custom, to: defaults)
+        check(GlobalShortcutAction.control.load(from: defaults) == custom, "custom global shortcut persists its physical key and modifiers")
+        GlobalShortcutAction.control.save(nil, to: defaults)
+        check(GlobalShortcutAction.control.load(from: defaults) == nil, "an explicitly cleared shortcut stays disabled after reload")
+        GlobalShortcutAction.control.save(.init(keyCode: 0, modifiers: 0), to: defaults)
+        check(GlobalShortcutAction.control.load(from: defaults) == GlobalShortcutAction.control.defaultShortcut, "invalid saved shortcuts fall back to safe defaults")
+        check(!GlobalShortcut(keyCode: 0, modifiers: UInt32(shiftKey)).isValid && !GlobalShortcut(keyCode: 55, modifiers: UInt32(cmdKey)).isValid, "plain typing and modifier-only shortcuts are rejected")
         askShortcut.close()
         shortcut.close()
         check(!shortcut.isRegistered && !askShortcut.isRegistered, "global shortcut unregisters on cleanup")
@@ -361,6 +428,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #endif
     func applicationWillTerminate(_ notification: Notification) {
         DesktopAccess.shared.stop()
+        taskController?.onShortcutRecording = nil
         hotKey.close(); askHotKey.close()
         taskController?.closeAll(); taskController = nil
         welcome?.close(); welcome = nil
@@ -371,62 +439,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         playground?.close(); playground = nil
         #endif
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }; statusItem = nil
-    }
-}
-
-/// A registered system hotkey, rather than a global keyboard event monitor.
-@MainActor
-final class ExplorerControlHotKey {
-    private var reference: EventHotKeyRef?
-    private var handler: EventHandlerRef?
-    private var pressed = false
-    private let keyCode: UInt32
-    private let id: UInt32
-    init(keyCode: UInt32 = 49, id: UInt32 = 1) { self.keyCode = keyCode; self.id = id }
-    var onTrigger: (() -> Void)?
-    var isRegistered: Bool { reference != nil }
-    func register() {
-        guard reference == nil else { return }
-        var specs = [EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
-                     EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))]
-        let pointer = Unmanaged.passUnretained(self).toOpaque()
-        let installed = InstallEventHandler(GetApplicationEventTarget(), { _, event, pointer in
-            guard let pointer, let event else { return OSStatus(eventNotHandledErr) }
-            return MainActor.assumeIsolated {
-                let owner = Unmanaged<ExplorerControlHotKey>.fromOpaque(pointer).takeUnretainedValue()
-                var identifier = EventHotKeyID()
-                guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &identifier) == noErr,
-                      identifier.signature == 0x536f636b, identifier.id == owner.id else { return OSStatus(eventNotHandledErr) }
-                if GetEventKind(event) == UInt32(kEventHotKeyReleased) { owner.pressed = false }
-                else if !owner.pressed { owner.pressed = true; owner.onTrigger?() }
-                return noErr
-            }
-        }, 2, &specs, pointer, &handler)
-        guard installed == noErr else { return }
-        let result = RegisterEventHotKey(keyCode, UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x536f636b, id: id), GetApplicationEventTarget(), 0, &reference)
-        if result != noErr { close() }
-    }
-    #if DEBUG
-    func dispatchNativeCheck() -> OSStatus {
-        var event: EventRef?
-        let result = CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed), GetCurrentEventTime(), EventAttributes(kEventAttributeUserEvent), &event)
-        guard result == noErr, let event else { return result }
-        defer { ReleaseEvent(event) }
-        var identifier = EventHotKeyID(signature: 0x536f636b, id: id)
-        SetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size, &identifier)
-        let first = SendEventToEventTarget(event, GetApplicationEventTarget())
-        _ = SendEventToEventTarget(event, GetApplicationEventTarget()) // Holding must not toggle twice.
-        var released: EventRef?
-        if CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyReleased), GetCurrentEventTime(), EventAttributes(kEventAttributeUserEvent), &released) == noErr, let released {
-            SetEventParameter(released, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size, &identifier)
-            SendEventToEventTarget(released, GetApplicationEventTarget()); ReleaseEvent(released)
-        }
-        return first
-    }
-    #endif
-    func close() {
-        if let reference { UnregisterEventHotKey(reference) }; reference = nil
-        if let handler { RemoveEventHandler(handler) }; handler = nil
-        pressed = false
     }
 }
