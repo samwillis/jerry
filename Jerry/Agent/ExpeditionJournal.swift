@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import CoreText
 
 @MainActor
 final class ExpeditionJournal: ObservableObject {
@@ -171,6 +172,14 @@ enum NotebookTheme {
         if italic { descriptor = descriptor.withSymbolicTraits(.italic) }
         return NSFont(descriptor: descriptor, size: size) ?? base
     }
+    private static let journalFontRegistered: Bool = {
+        guard let url = Bundle.main.url(forResource: "Caveat", withExtension: "ttf") else { return false }
+        return CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+    }()
+    static func journalFont(_ size: CGFloat) -> NSFont {
+        _ = journalFontRegistered
+        return NSFont(name: "Caveat-Regular", size: size) ?? font(size)
+    }
     static func style(_ button: NSButton, primary: Bool = false) {
         button.bezelStyle = .rounded; button.bezelColor = primary ? ink : leather.withAlphaComponent(0.09)
         button.contentTintColor = primary ? paper : ink
@@ -307,6 +316,7 @@ struct ExpeditionJournalView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: journal.sidebarVisible)
         }
+        .font(Font(NotebookTheme.journalFont(17)))
         .foregroundStyle(JournalPalette.ink)
         .background(notebookPaper)
         .clipShape(RoundedRectangle(cornerRadius: NotebookTheme.cornerRadius))
@@ -318,25 +328,25 @@ struct ExpeditionJournalView: View {
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("EXPEDITIONS").font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.2)
+            Text("Expeditions").font(Font(NotebookTheme.journalFont(14))).tracking(0.4)
                 .foregroundStyle(JournalPalette.faded).padding(.horizontal, 9)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     if journal.expeditions.isEmpty {
-                        Text("No expeditions yet").font(.system(size: 12, design: .serif)).italic()
+                        Text("No expeditions yet").font(Font(NotebookTheme.journalFont(17))).italic()
                             .foregroundStyle(JournalPalette.faded).padding(9)
                     }
                     ForEach(journal.expeditions.reversed()) { expedition in
                         Button { journal.select(expedition.id); instruction = "" } label: {
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(expedition.title).font(.system(size: 12, weight: .medium, design: .serif))
+                                Text(expedition.title).font(Font(NotebookTheme.journalFont(17)))
                                     .lineLimit(2).multilineTextAlignment(.leading)
                                 HStack(spacing: 5) {
                                     if expedition.id == journal.activeID {
                                         Circle().fill(expedition.isRunning ? JournalPalette.rust : JournalPalette.ink).frame(width: 4, height: 4)
                                     }
                                     Text(expedition.date, format: .dateTime.day().month(.abbreviated).hour().minute())
-                                        .font(.system(size: 9, design: .monospaced))
+                                        .font(Font(NotebookTheme.journalFont(13)))
                                 }.foregroundStyle(JournalPalette.faded)
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
                             .background(journal.selectedID == expedition.id ? JournalPalette.leather.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 7))
@@ -354,27 +364,27 @@ struct ExpeditionJournalView: View {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         if let expedition = journal.selected {
                             Text(expedition.date, format: .dateTime.weekday(.wide).day().month(.wide))
-                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(JournalPalette.faded)
+                                .font(Font(NotebookTheme.journalFont(14))).foregroundStyle(JournalPalette.faded)
                             ForEach(expedition.entries) { entry in
                                 JournalEntryView(entry: entry, photoURL: journal.photoURL(for: entry), pauseFollowing: { journal.followsLatest = false }).id(entry.id)
                             }
                             if expedition.isRunning {
                                 HStack(spacing: 8) {
                                     ProgressView().controlSize(.small)
-                                    Text("Jerry is working…").font(.system(size: 12, design: .serif)).italic()
+                                    Text("Jerry is working…").font(Font(NotebookTheme.journalFont(17))).italic()
                                 }.foregroundStyle(JournalPalette.faded)
                             } else if expedition.isFinished || expedition.status != "Ready for your next direction" {
-                                Text(expedition.status).font(.system(size: 12, design: .serif)).italic().foregroundStyle(JournalPalette.faded)
+                                Text(expedition.status).font(Font(NotebookTheme.journalFont(17))).italic().foregroundStyle(JournalPalette.faded)
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 9) {
-                                Text("A new expedition").font(.system(size: 21, weight: .medium, design: .serif)).italic()
-                                Text("Where shall we go?").font(.system(size: 13, design: .serif)).foregroundStyle(JournalPalette.faded)
+                                Text("A new expedition").font(Font(NotebookTheme.journalFont(29))).italic()
+                                Text("Where shall we go?").font(Font(NotebookTheme.journalFont(18))).foregroundStyle(JournalPalette.faded)
                             }.padding(.top, 14)
                         }
                         if let issue = journal.storageIssue {
                             HStack(alignment: .top, spacing: 10) {
-                                Text(issue).font(.system(size: 12, design: .serif))
+                                Text(issue).font(Font(NotebookTheme.journalFont(17)))
                                 if journal.saveFailed { Button("Retry saving") { journal.retrySaving() }.buttonStyle(.link) }
                             }.foregroundStyle(JournalPalette.rust)
                         }
@@ -402,7 +412,7 @@ struct ExpeditionJournalView: View {
     private var composer: some View {
         HStack(spacing: 9) {
             TextField(journal.selected == nil ? "Give Jerry a mission…" : (journal.selectedID == journal.activeID ? "Add a direction…" : "Resume this expedition…"), text: $instruction)
-                .textFieldStyle(.plain).font(.system(size: 12, design: .serif))
+                .textFieldStyle(.plain).font(.custom("Courier", size: 12))
                 .focused($composing).onSubmit(submitInstruction)
                 .onChange(of: journal.composerFocusRevision) { _, _ in instruction = ""; composing = true }
                 .onChange(of: instruction) { _, text in if !text.isEmpty && journal.isRunning { stop() } }
@@ -497,50 +507,66 @@ private struct JournalEntryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(entry.photo != nil ? "A MEMENTO" : (entry.kind == .request ? "YOUR DIRECTION" : (entry.kind == .response ? "JERRY’S NOTES" : "ON THE TRAIL")))
-                    .font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1)
+                Text(entry.photo != nil ? "A memento" : (entry.kind == .request ? "Your direction" : (entry.kind == .response ? "Jerry’s notes" : "On the trail")))
+                    .font(Font(NotebookTheme.journalFont(14))).tracking(0.3)
                 Spacer()
-                Text(entry.date, format: .dateTime.hour().minute()).font(.system(size: 9, design: .monospaced))
+                Text(entry.date, format: .dateTime.hour().minute()).font(Font(NotebookTheme.journalFont(13)))
             }.foregroundStyle(JournalPalette.faded)
             if entry.photo != nil {
-                VStack(spacing: 10) {
+                VStack(spacing: 0) {
                     JournalPhotograph(url: photoURL, caption: entry.text)
-                    Text(entry.text).font(.custom("Noteworthy", size: 15)).foregroundStyle(JournalPalette.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                        .overlay(Rectangle().stroke(.black.opacity(0.12), lineWidth: 0.5))
+                    Text(entry.text).font(Font(NotebookTheme.journalFont(20))).foregroundStyle(JournalPalette.ink)
+                        .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+                        .padding(.horizontal, 4).padding(.top, 8).padding(.bottom, 7).textSelection(.enabled)
                 }
-                .padding(10).padding(.bottom, 8).frame(maxWidth: 360)
-                .background(Color(red: 1, green: 0.99, blue: 0.96))
+                .padding([.top, .horizontal], 10).padding(.bottom, 5).frame(maxWidth: 360)
+                .background(Color(red: 1, green: 0.995, blue: 0.975))
                 .overlay(Rectangle().stroke(JournalPalette.leather.opacity(0.16), lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.13), radius: 3, x: 1, y: 3)
+                .shadow(color: .black.opacity(0.14), radius: 3, x: 1, y: 3)
                 .overlay(alignment: .top) {
-                    Rectangle().fill(Color(red: 0.79, green: 0.71, blue: 0.48).opacity(0.35))
-                        .frame(width: 52, height: 16).rotationEffect(.degrees(-4)).offset(y: -8)
-                        .allowsHitTesting(false)
+                    JournalTape().frame(width: 54, height: 18).rotationEffect(.degrees(-5)).offset(y: -8)
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
             } else { Group {
                 if entry.kind == .response { Text(.init(entry.text)) }
                 else { Text(entry.text) }
             }
-            .font(entry.kind == .response ? .custom("Noteworthy", size: 14) : .system(size: 13, design: .serif)).lineSpacing(4).textSelection(.enabled)
+            .font(entry.kind == .request ? .custom("Courier", size: 12) : Font(NotebookTheme.journalFont(18))).lineSpacing(4).textSelection(.enabled)
             .foregroundStyle(entry.kind == .activity ? JournalPalette.faded : JournalPalette.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
             if entry.kind == .response {
-                Text("— Jerry").font(.custom("Noteworthy", size: 15)).foregroundStyle(JournalPalette.faded)
+                Text("— Jerry").font(Font(NotebookTheme.journalFont(20))).foregroundStyle(JournalPalette.faded)
             }
             }
             if !entry.details.isEmpty {
                 DisclosureGroup(isExpanded: $expanded) {
                     ScrollView {
-                        Text(entry.details).font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
+                        Text(entry.details).font(Font(NotebookTheme.journalFont(14))).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(10)
                     }.frame(maxHeight: 180).background(JournalPalette.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-                } label: { Text("Details").font(.system(size: 10)).foregroundStyle(JournalPalette.faded) }
+                } label: { Text("Details").font(Font(NotebookTheme.journalFont(15))).foregroundStyle(JournalPalette.faded) }
                 .onChange(of: expanded) { _, opened in if opened { pauseFollowing() } }
             }
         }
-        .padding(entry.kind == .request ? 10 : 0)
-        .background { if entry.kind == .request { RoundedRectangle(cornerRadius: 3).fill(JournalPalette.leather.opacity(0.055)) } }
+        .padding(entry.kind == .request ? 14 : 0)
+        .background {
+            if entry.kind == .request {
+                JournalPaperCutout().fill(Color(red: 1, green: 0.998, blue: 0.985))
+                    .shadow(color: .black.opacity(0.12), radius: 2, x: 0.5, y: 2)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if entry.kind == .request {
+                JournalTape().frame(width: 46, height: 16).rotationEffect(.degrees(-13)).offset(x: 15, y: -7)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if entry.kind == .request {
+                JournalTape().frame(width: 42, height: 16).rotationEffect(.degrees(-9)).offset(x: -13, y: 6)
+            }
+        }
+        .padding(.vertical, entry.kind == .request ? 9 : 0)
     }
 }
 
@@ -557,13 +583,43 @@ private struct JournalPhotograph: View {
                     .accessibilityLabel("Expedition photograph: " + caption)
             } else {
                 Label(loaded ? "Photograph unavailable" : "Developing photograph…", systemImage: "photo")
-                    .font(.system(size: 12, design: .serif)).foregroundStyle(JournalPalette.faded)
+                    .font(Font(NotebookTheme.journalFont(17))).foregroundStyle(JournalPalette.faded)
                     .frame(maxWidth: .infinity).frame(height: 120)
             }
         }.task(id: url) {
             let data = await Task.detached(priority: .utility) { url.flatMap { try? Data(contentsOf: $0) } }.value
             guard !Task.isCancelled else { return }
             image = data.flatMap { NSImage(data: $0) }; loaded = true
+        }
+    }
+}
+
+/// Translucent tape with uneven cut ends and a small reflected crease.
+private struct JournalTape: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size
+            Path { path in
+                path.move(to: .init(x: 1, y: 0)); path.addLine(to: .init(x: size.width - 1, y: 0.7))
+                path.addLine(to: .init(x: size.width - 2, y: size.height * 0.3))
+                path.addLine(to: .init(x: size.width, y: size.height * 0.55))
+                path.addLine(to: .init(x: size.width - 1, y: size.height))
+                path.addLine(to: .init(x: 0, y: size.height - 0.5))
+                path.addLine(to: .init(x: 1.5, y: size.height * 0.6))
+                path.addLine(to: .init(x: 0, y: size.height * 0.3)); path.closeSubpath()
+            }.fill(LinearGradient(colors: [Color(red: 0.88, green: 0.83, blue: 0.62).opacity(0.48), Color.white.opacity(0.35), Color(red: 0.82, green: 0.76, blue: 0.55).opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            Rectangle().fill(.white.opacity(0.3)).frame(height: 0.5).offset(y: 2)
+        }.allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+private struct JournalPaperCutout: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.move(to: .init(x: 0.5, y: 0.5))
+            path.addLine(to: .init(x: rect.width * 0.4, y: 0)); path.addLine(to: .init(x: rect.maxX, y: 0.8))
+            path.addLine(to: .init(x: rect.maxX - 0.5, y: rect.maxY)); path.addLine(to: .init(x: rect.width * 0.6, y: rect.maxY - 0.7))
+            path.addLine(to: .init(x: 0, y: rect.maxY)); path.closeSubpath()
         }
     }
 }

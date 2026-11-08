@@ -459,7 +459,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         if identifier.rawValue == "journalTitle" || identifier.rawValue == "settingsTitle" {
             let caption = identifier.rawValue == "settingsTitle" ? "Settings" : "Expedition journal"
             let title = NSTextField(labelWithString: caption)
-            title.font = NotebookTheme.font(17, weight: .medium, italic: true); title.textColor = NotebookTheme.ink; title.sizeToFit()
+            title.font = identifier.rawValue == "journalTitle" ? NotebookTheme.journalFont(24) : NotebookTheme.font(17, weight: .medium, italic: true); title.textColor = NotebookTheme.ink; title.sizeToFit()
             item.view = title; item.label = caption; item.visibilityPriority = .low; return item
         }
         let definition: (String, String, Selector)
@@ -846,6 +846,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     #if DEBUG
     func debugCheckSettings() -> [(String, Bool)] {
         var results: [(String, Bool)] = []
+        results.append(("journal handwriting loads from the bundled Caveat font", NotebookTheme.journalFont(18).familyName == "Caveat" && Bundle.main.url(forResource: "Caveat-OFL", withExtension: "txt") != nil))
         let initialSidebar = journalState.sidebarVisible
         toggleJournalSidebar()
         let hiddenSidebar = !journalState.sidebarVisible && journal.minSize.width == 360
