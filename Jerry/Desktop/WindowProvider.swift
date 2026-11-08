@@ -91,7 +91,13 @@ final class WindowProvider {
             // Shell helper windows often have transparent, screen-sized backing rectangles.
             guard !systemOwner else { continue }
             let climbable = ownWindow != nil || Self.canClimbWindow(bundle: bundle, layer: layer, frame: frame)
-            windows.append(DesktopWindow(id: id, frame: converted, canClimb: climbable))
+            // WindowServer does not publish the outline radius. Match our own
+            // notebook outline exactly and estimate standard AppKit windows by OS.
+            let radius: Double
+            if ownWindow is NotebookWindow { radius = Double(NotebookTheme.cornerRadius) }
+            else if #available(macOS 26.0, *) { radius = 16 }
+            else { radius = AbseilRope.cornerRadius }
+            windows.append(DesktopWindow(id: id, frame: converted, canClimb: climbable, cornerRadius: radius))
             if climbable {
                 if ["com.apple.inputmethod.AssistiveControl", "com.apple.KeyboardViewer"].contains(bundle ?? "") {
                     if keyboardWindowID == nil { keyboardWindowID = id }

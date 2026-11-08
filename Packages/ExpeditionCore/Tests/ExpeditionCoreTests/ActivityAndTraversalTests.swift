@@ -206,3 +206,31 @@ extension ActivityAndTraversalTests {
         }
     }
 }
+
+extension ActivityAndTraversalTests {
+    func testRopeKeepsEachWindowRadiusWhenResolvedAndRetensioned() {
+        let frame = WorldRect(x: 100, y: 100, width: 400, height: 200)
+        for radius in [0.0, 12, 16, 32, 64] {
+            let window = DesktopWindow(id: 1, frame: frame, cornerRadius: radius)
+            let terrain = TerrainSnapshot(windows: [window], viewport: .init(x: 0, y: 0, width: 1000, height: 800))
+            for edge in [TerrainEdge.left, .right] {
+                guard let base = RopeAnchor(windowID: 1, edge: edge).resolve(in: terrain) else { return XCTFail("Missing rope support") }
+                let inward = edge == .left ? 1.0 : -1.0
+                let center = WorldPoint(x: (edge == .left ? frame.minX : frame.maxX) + inward * radius, y: frame.maxY - radius)
+                XCTAssertEqual(base.topTangent.x, center.x, accuracy: 0.000001)
+                XCTAssertEqual(base.sideTangent.y, center.y, accuracy: 0.000001)
+                for y in [260.0, 200, 80] {
+                    let grip = WorldPoint(x: edge == .left ? 76 : 524, y: y)
+                    let guide = base.taut(toward: grip).taut(toward: grip)
+                    XCTAssertEqual(guide.topTangent, base.topTangent)
+                    XCTAssertEqual(hypot(guide.sideTangent.x - center.x, guide.sideTangent.y - center.y), radius + 1, accuracy: 0.000001)
+                    let curve = WorldPoint(x: guide.sideTangent.x - guide.control2.x, y: guide.sideTangent.y - guide.control2.y)
+                    let lead = WorldPoint(x: grip.x - guide.sideTangent.x, y: grip.y - guide.sideTangent.y)
+                    XCTAssertEqual((curve.x * lead.y - curve.y * lead.x) / (hypot(curve.x, curve.y) * hypot(lead.x, lead.y)), 0, accuracy: 0.000001)
+                    XCTAssertGreaterThan(curve.x * lead.x + curve.y * lead.y, 0)
+                    XCTAssertGreaterThan(guide.length(to: grip), 0)
+                }
+            }
+        }
+    }
+}

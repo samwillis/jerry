@@ -307,7 +307,8 @@ public struct NavigationGraph {
     }
     private func validRope(_ anchor: TerrainAttachment) -> Bool {
         guard let window = terrain.windows.first(where: { .window($0.id) == anchor.owner }) else { return false }
-        let topOffset = anchor.edge == .left ? AbseilRope.anchorInset : window.frame.width - AbseilRope.anchorInset
+        let inset = AbseilRope.pinInset(window: window.frame, cornerRadius: window.cornerRadius)
+        let topOffset = anchor.edge == .left ? inset : window.frame.width - inset
         return TerrainSupport.resolve(.init(owner: anchor.owner, edge: anchor.edge, offset: window.frame.height), in: terrain) != nil
             && TerrainSupport.resolve(.init(owner: anchor.owner, edge: .top, offset: topOffset), in: terrain) != nil
     }

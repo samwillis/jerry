@@ -98,10 +98,11 @@ public struct RopeAnchor: Equatable, Sendable {
             return .init(window: window.frame, frontOffset: offset)
         }
         guard edge == .left || edge == .right else { return nil }
-        let pin = edge == .left ? AbseilRope.anchorInset : window.frame.width - AbseilRope.anchorInset
+        let inset = AbseilRope.pinInset(window: window.frame, cornerRadius: window.cornerRadius)
+        let pin = edge == .left ? inset : window.frame.width - inset
         guard TerrainSupport.resolve(.init(owner: .window(windowID), edge: .top, offset: pin), in: terrain) != nil,
               TerrainSupport.resolve(.init(owner: .window(windowID), edge: edge, offset: window.frame.height - EdgeTraversal.lipHeight), in: terrain) != nil else { return nil }
-        return .init(window: window.frame, edge: edge)
+        return .init(window: window.frame, edge: edge, cornerRadius: window.cornerRadius)
     }
 }
 

@@ -224,7 +224,7 @@ public struct ExplorerInteraction {
         guard state == .abseiling || edgeMotion == .lowering,
               let step = route.first, let terrain,
               let window = terrain.windows.first(where: { .window($0.id) == step.from.owner }) else { return nil }
-        return AbseilRope(window: window.frame, edge: step.kind == .lowering ? step.to.edge : step.from.edge)
+        return AbseilRope(window: window.frame, edge: step.kind == .lowering ? step.to.edge : step.from.edge, cornerRadius: window.cornerRadius)
     }
     public var ropeAnchor: Point? { ropeGuide?.anchor }
     public var grappleTarget: Point? {

@@ -14,20 +14,30 @@ public struct AbseilRope {
     private let window: WorldRect
     private let edge: TerrainEdge
 
+    private let windowCornerRadius: Double
     private let frontOffset: Double?
     /// A hook over the front rim has one straight free span, without a side corner.
     public init(window: WorldRect, frontOffset: Double) {
-        self.window = window; edge = .front; self.frontOffset = frontOffset
+        self.window = window; edge = .front; self.frontOffset = frontOffset; windowCornerRadius = 0
         let pin = WorldPoint(x: window.minX + frontOffset, y: window.maxY + 1)
         anchor = pin; topTangent = pin; sideTangent = pin
         control1 = pin; control2 = pin; wrappedLength = 0
     }
 
-    public init(window: WorldRect, edge: TerrainEdge, grip: WorldPoint? = nil) {
+    public static func pinInset(window: WorldRect, cornerRadius: Double) -> Double {
+        let radius = fittedRadius(window: window, radius: cornerRadius)
+        return min(max(0, window.width / 2), max(anchorInset, radius + 8))
+    }
+    private static func fittedRadius(window: WorldRect, radius: Double) -> Double {
+        min(max(0, radius.isFinite ? radius : Self.cornerRadius), max(0, min(window.width, window.height) / 2))
+    }
+    public init(window: WorldRect, edge: TerrainEdge, grip: WorldPoint? = nil, cornerRadius: Double = AbseilRope.cornerRadius) {
         self.window = window; self.edge = edge; frontOffset = nil
         let inward = edge == .left ? 1.0 : -1.0
         let cornerX = edge == .left ? window.minX : window.maxX
-        let radius = Self.cornerRadius
+        let radius = Self.fittedRadius(window: window, radius: cornerRadius)
+        windowCornerRadius = radius
+        let pinInset = Self.pinInset(window: window, cornerRadius: radius)
         let arcRadius = radius + 1 // One point outside the rounded window border.
         let center = WorldPoint(x: cornerX + inward * radius, y: window.maxY - radius)
         var angle = Double.pi
@@ -40,9 +50,9 @@ public struct AbseilRope {
                 angle = min(.pi, max(.pi / 2, angle))
             }
         }
-        wrappedLength = Self.anchorInset - radius + arcRadius * (angle - .pi / 2)
+        wrappedLength = pinInset - radius + arcRadius * (angle - .pi / 2)
         let handle = 4.0 / 3 * tan((angle - .pi / 2) / 4)
-        anchor = .init(x: cornerX + inward * Self.anchorInset, y: window.maxY + 1)
+        anchor = .init(x: cornerX + inward * pinInset, y: window.maxY + 1)
         topTangent = .init(x: center.x, y: window.maxY + 1)
         sideTangent = .init(x: center.x + inward * arcRadius * cos(angle), y: center.y + arcRadius * sin(angle))
         control1 = .init(x: topTangent.x - inward * arcRadius * handle, y: topTangent.y)
@@ -55,6 +65,6 @@ public struct AbseilRope {
     }
     public func taut(toward grip: WorldPoint) -> AbseilRope {
         if let frontOffset { return .init(window: window, frontOffset: frontOffset) }
-        return .init(window: window, edge: edge, grip: grip)
+        return .init(window: window, edge: edge, grip: grip, cornerRadius: windowCornerRadius)
     }
 }

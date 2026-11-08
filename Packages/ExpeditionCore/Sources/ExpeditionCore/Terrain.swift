@@ -33,8 +33,11 @@ public struct DesktopWindow: Equatable, Sendable {
     public let id: UInt32
     public let frame: WorldRect
     public let canClimb: Bool
-    public init(id: UInt32, frame: WorldRect, canClimb: Bool = true) {
+    /// Rounded outline used by rope contact; ordinary ledges stay rectangular.
+    public let cornerRadius: Double
+    public init(id: UInt32, frame: WorldRect, canClimb: Bool = true, cornerRadius: Double = 10) {
         self.id = id; self.frame = frame; self.canClimb = canClimb
+        self.cornerRadius = min(max(0, cornerRadius.isFinite ? cornerRadius : 10), max(0, min(frame.width, frame.height) / 2))
     }
 }
 

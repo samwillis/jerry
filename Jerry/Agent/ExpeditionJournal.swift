@@ -96,6 +96,7 @@ final class ExpeditionJournal: ObservableObject {
 @MainActor
 enum NotebookTheme {
     static let marginX: CGFloat = 25
+    static let cornerRadius: CGFloat = 12
     static let paper = NSColor(calibratedRed: 0.98, green: 0.95, blue: 0.86, alpha: 1)
     static let ink = NSColor(calibratedRed: 0.24, green: 0.29, blue: 0.25, alpha: 1)
     static let faded = NSColor(calibratedRed: 0.45, green: 0.45, blue: 0.36, alpha: 1)
@@ -129,7 +130,7 @@ enum NotebookTheme {
         window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
         window.isMovableByWindowBackground = true; window.appearance = NSAppearance(named: .aqua)
-        let root = NotebookPaperView(); root.wantsLayer = true; root.layer?.cornerRadius = 12; root.layer?.masksToBounds = true
+        let root = NotebookPaperView(); root.wantsLayer = true; root.layer?.cornerRadius = cornerRadius; root.layer?.masksToBounds = true
         window.contentView = root
         if let toolbar {
             window.toolbarStyle = .unified; window.toolbar = toolbar
@@ -205,7 +206,7 @@ private final class NotebookPaperView: NotebookContentView {
         let stitches = NSBezierPath(); stitches.lineWidth = 1
         for y in stride(from: CGFloat(12), to: bounds.height, by: 10) { stitches.move(to: .init(x: 5, y: y)); stitches.line(to: .init(x: 5, y: y + 4)) }; stitches.stroke()
         NotebookTheme.leather.withAlphaComponent(0.25).setStroke()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 12, yRadius: 12).stroke()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: NotebookTheme.cornerRadius, yRadius: NotebookTheme.cornerRadius).stroke()
     }
 }
 
@@ -245,8 +246,8 @@ struct ExpeditionJournalView: View {
         }
         .foregroundStyle(JournalPalette.ink)
         .background(notebookPaper)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(JournalPalette.leather.opacity(0.22), lineWidth: 1).allowsHitTesting(false) }
+        .clipShape(RoundedRectangle(cornerRadius: NotebookTheme.cornerRadius))
+        .overlay { RoundedRectangle(cornerRadius: NotebookTheme.cornerRadius).strokeBorder(JournalPalette.leather.opacity(0.22), lineWidth: 1).allowsHitTesting(false) }
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: journal.sidebarVisible ? 560 : 360, minHeight: 380)
         .environment(\.colorScheme, .light)

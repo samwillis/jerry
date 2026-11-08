@@ -428,3 +428,9 @@ Disposable Keychain integration checks cover both legacy labels and secret prese
 Settings now uses a standard native unified toolbar with a centred serif title rather than the Base Camp eyebrow. Its sidebar divider reaches through the titlebar, its default height is 540 points, and section headings use 21-point type. The journal also uses a standard-size unified toolbar and native symbol sizing; its compact content fonts, spacing, composer and default window dimensions are unchanged. Shared paper views now handle toolbar layout through the same notebook content class.
 
 Debug build, 55 agent checks and 82 native checks pass. Interactive review covers the Settings General/Controls pages, journal toolbar, sidebar hide/show, and notebook divider/window-control placement. This iteration is a local UI preview; the GitHub 0.1.1 release remains unchanged.
+
+### Rope corner radius — 8 November 2026
+
+Replaced the single 10-point rope guide with a per-window radius carried through attachment resolution, route validation, edge transitions and retensioning. Notebook clipping and rope contact share the same 12-point constant. External windows use an estimated 16-point radius on macOS 26+ and the existing 10-point estimate on older systems. This does not add capture or private WindowServer APIs, and custom external outlines can still differ. The rope retains one-point clearance and tangent straight/curve joins; larger radii move the top pin inward to stay on the straight rim.
+
+All 167 core tests, 82 native checks and 55 agent checks pass. Added geometry checks for both sides at radii 0, 12, 16, 32 and 64, including attachment resolution, repeated retensioning and tangent free leads. Debug and Developer ID builds succeed and the signed preview passes strict signature verification. Visual matching against arbitrary third-party window shapes remains a manual check. This change is local; the GitHub 0.1.1 download is unchanged.
