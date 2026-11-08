@@ -77,6 +77,24 @@ open build/Distribution/Jerry.app
 
 This produces a host-architecture Release app and `build/Distribution/Jerry-local-arm64.zip` on Apple Silicon. It is an unsigned local prototype. Developer ID signing and notarisation are still needed before distributing it to other Macs. The app prevents a second expedition instance from launching; quit the existing copy before switching builds.
 
+## Developer ID signing and notarisation
+
+Sign in through **Xcode → Settings → Apple Accounts**; signing in to the Apple Developer app alone does not add an Xcode account. Select the distribution team and install a **Developer ID Application** certificate with its private key. An active membership and suitable team permissions are required. Do not change the existing bundle identifier when selecting a team.
+
+```sh
+./scripts/package-signed.sh "Developer ID Application: Company (TEAMID)" TEAMID
+```
+
+The script checks the local identity, builds a fresh host-architecture Release app with Hardened Runtime and a secure timestamp, omits the debugger entitlement, and verifies its signature. Signed app bundles stay in `~/Library/Developer/Jerry/SignedRelease` rather than synced Documents folders, where Finder metadata can invalidate strict signature verification. Direct-distribution builds run outside App Sandbox because Jerry interacts with other applications; Accessibility and Screen Recording permissions remain required where applicable. The local unsigned build workflow is unchanged.
+
+For notarisation, first store credentials using `xcrun notarytool store-credentials jerry-notary` in a user-controlled Terminal session, or configure a suitable App Store Connect API key. Keep passwords, keys and certificates outside the repository. Then pass the Keychain profile as the third argument:
+
+```sh
+./scripts/package-signed.sh "Developer ID Application: Company (TEAMID)" TEAMID jerry-notary
+```
+
+The script submits to Apple, staples and validates the ticket, checks Gatekeeper, then recreates the ZIP in `build/SignedDistribution`. A signature-only ZIP is labelled as not notarised and should not replace the notarised download. For interactive notarisation without separate credentials, archive with the same signing settings (and `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO`), then use Xcode Organizer’s direct-distribution workflow. Do not pass `SKIP_INSTALL=NO` globally: it also installs the Swift package object and turns the archive into a generic archive. The equivalent command-line export uses `method=developer-id`, `destination=upload`, `teamID`, and manual signing in an export-options plist, then `xcodebuild -exportArchive -allowProvisioningUpdates`. After Apple finishes processing, `xcodebuild -exportNotarizedApp -archivePath … -exportPath …` exports the notarised app. Verify the staple and Gatekeeper result before packaging. An unsigned local build does not validate this workflow. Test desktop permissions, Keychain access, AI sign-in and physical interactions with the signed build before publishing it.
+
 ## Structure
 
 - `Jerry/App`: lifecycle, menu bar controls and the shared desktop permission/setup flow.
