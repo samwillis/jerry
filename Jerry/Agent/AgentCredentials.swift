@@ -22,7 +22,9 @@ final class AgentCredentials {
         var scopes: [String]
     }
     // Persistent Keychain namespace: preserve saved connections across app renames.
-    private let service = "com.othersock.desktop.agent"
+    private let service: String
+    private var labelledAccounts: Set<String> = []
+    init(service: String = "com.othersock.desktop.agent") { self.service = service }
     private var listener: NWListener?
     private var loginTimeout: Task<Void, Never>?
     private var attempt: UUID?
@@ -54,7 +56,22 @@ final class AgentCredentials {
         status = "Disconnected"; onChange?()
     }
     private func query(_ name: String) -> [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: name] }
+    private func displayAttributes(_ name: String) -> [String: Any] {
+        [kSecAttrLabel as String: name == "chatgpt" ? "Jerry — ChatGPT" : "Jerry — API key",
+         kSecAttrDescription as String: name == "chatgpt" ? "Jerry ChatGPT connection" : "Jerry API key"]
+    }
+    private func updateDisplayAttributes(_ name: String) {
+        guard !labelledAccounts.contains(name) else { return }
+        var q = query(name)
+        // Relabel old items without reading or replacing their secret, and never
+        // interrupt an automatic status check with an authorisation dialog.
+        q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        if SecItemUpdate(q as CFDictionary, displayAttributes(name) as CFDictionary) == errSecSuccess {
+            labelledAccounts.insert(name)
+        }
+    }
     private func read(_ name: String) throws -> Data? {
+        updateDisplayAttributes(name)
         var q = query(name); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
         // Automatic status checks must not block startup behind a Keychain prompt.
         // Unsigned Debug/Release binaries can have different access identities.
@@ -67,12 +84,14 @@ final class AgentCredentials {
     }
     private func save(_ data: Data, as name: String) throws {
         let q = query(name)
-        let code = SecItemUpdate(q as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        var attributes = displayAttributes(name); attributes[kSecValueData as String] = data
+        let code = SecItemUpdate(q as CFDictionary, attributes as CFDictionary)
         if code == errSecItemNotFound {
-            var insert = q; insert[kSecValueData as String] = data; insert[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            guard SecItemAdd(insert as CFDictionary, nil) == errSecSuccess else { throw AgentConnectionError(message: "Could not save credentials to Keychain.") }; return
+            var insert = q.merging(attributes) { _, new in new }; insert[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            guard SecItemAdd(insert as CFDictionary, nil) == errSecSuccess else { throw AgentConnectionError(message: "Could not save credentials to Keychain.") }; labelledAccounts.insert(name); return
         }
         guard code == errSecSuccess else { throw AgentConnectionError(message: "Could not update credentials in Keychain.") }
+        labelledAccounts.insert(name)
     }
     static func randomToken() throws -> String {
         var bytes = [UInt8](repeating: 0, count: 32)

@@ -4,14 +4,47 @@ import FoundationModels
 import ExpeditionCore
 import Network
 import CryptoKit
+import Security
 
 @MainActor
 enum AgentPrototypeChecks {
+    private static func checkCredentialLabels() throws -> [(String, Bool)] {
+        // Exercise actual Keychain metadata with disposable, non-secret records.
+        // The production namespace and real account credentials are never used.
+        let service = "com.jerry.tests.credentials.\(UUID().uuidString)"
+        func query(_ account: String) -> [String: Any] {
+            [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
+        }
+        defer { for name in ["api-key", "chatgpt"] { SecItemDelete(query(name) as CFDictionary) } }
+        let account = AgentCredentials.Account(clientID: "test-client", subject: "test-subject", email: "test@example.invalid", accessToken: "not-a-real-token", refreshToken: "not-a-real-refresh-token", idToken: "", expiresAt: .distantFuture, scopes: [])
+        for (name, data) in [("api-key", Data("not-a-real-api-key".utf8)), ("chatgpt", try JSONEncoder().encode(account))] {
+            var item = query(name)
+            item[kSecValueData as String] = data; item[kSecAttrLabel as String] = "The Other Sock"
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { throw AgentConnectionError(message: "Could not create disposable Keychain check item.") }
+        }
+        func label(_ name: String) -> String? {
+            var q = query(name); q[kSecReturnAttributes as String] = true
+            q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+            var item: CFTypeRef?
+            guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess else { return nil }
+            return (item as? [String: Any])?[kSecAttrLabel as String] as? String
+        }
+        let credentials = AgentCredentials(service: service)
+        let preserved = try credentials.apiKey() == "not-a-real-api-key" && credentials.account?.clientID == account.clientID
+        var checks = [("legacy Keychain labels become Jerry without changing saved API keys or ChatGPT accounts", preserved && label("api-key") == "Jerry — API key" && label("chatgpt") == "Jerry — ChatGPT")]
+        credentials.removeAPIKey(); try credentials.saveAPIKey("new-test-key")
+        checks.append(("new Keychain entries use Jerry labels", label("api-key") == "Jerry — API key"))
+        try credentials.saveAPIKey("updated-test-key")
+        checks.append(("updating a saved key preserves Jerry labels and the other connection", try credentials.apiKey() == "updated-test-key" && label("api-key") == "Jerry — API key" && credentials.account?.clientID == account.clientID))
+        return checks
+    }
     static func run() async -> Bool {
         var passed = true
         func check(_ condition: Bool, _ label: String) { print("AGENT \(condition ? "PASS" : "FAIL") \(label)"); fflush(stdout); passed = passed && condition }
         let viewport = WorldRect(x: 0, y: 0, width: 1000, height: 800)
         do {
+            for (name, result) in try checkCredentialLabels() { check(result, name) }
             if #available(macOS 27.0, *) {
                 var calls = 0
                 let scripted = #"{"action":"inspect","targetID":"","text":"","x":0,"y":0,"amount":0}"#

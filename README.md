@@ -6,9 +6,9 @@
 
 Meet Jerry, a small adventurer who lives on your Mac. Take control and turn your windows into a platform game, or give him a mission and send him on an expedition. He keeps a journal along the way.
 
-**[Download Jerry for Mac ↓](https://github.com/samwillis/jerry/releases/download/v0.1.0/Jerry-v0.1.0-macos-universal.zip)** · [Release notes](https://github.com/samwillis/jerry/releases/tag/v0.1.0)
+**[Download Jerry for Mac ↓](https://github.com/samwillis/jerry/releases/download/v0.1.1/Jerry-v0.1.1-macos-universal.zip)** · [Release notes](https://github.com/samwillis/jerry/releases/tag/v0.1.1)
 
-macOS 14+ · Apple Silicon and Intel · v0.1.0 preview. Signed by Flutterbox Ltd. and notarised by Apple.
+macOS 14+ · Apple Silicon and Intel · v0.1.1 preview. Signed by Flutterbox Ltd. and notarised by Apple.
 
 https://github.com/user-attachments/assets/b6b0a2ad-a652-4d23-af81-e2b7e0d47de9
 
@@ -73,6 +73,6 @@ Jerry guides you through missing permissions for features you’ve enabled. You 
 
 Jerry is a macOS development preview targeting macOS 14 or later. Exploration currently stays on the primary display; multiple displays, full-screen traversal and Windows support are future work.
 
-Download the [v0.1.0 preview for Mac](https://github.com/samwillis/jerry/releases/tag/v0.1.0). This experimental build is signed by Flutterbox Ltd. and notarised by Apple. It includes Apple Silicon and Intel binaries; testing so far has been on the development Apple Silicon Mac.
+Download the [v0.1.1 preview for Mac](https://github.com/samwillis/jerry/releases/tag/v0.1.1). This experimental build is signed by Flutterbox Ltd. and notarised by Apple. It includes Apple Silicon and Intel binaries; testing so far has been on the development Apple Silicon Mac.
 
 To build and run it locally, see the [developer guide](AGENTS.md). The [product plan](docs/PLAN.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md) describe where the expedition goes next.

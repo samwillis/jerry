@@ -4,7 +4,7 @@ Instructions for coding agents and contributors working on Jerry. Run commands f
 
 ## Working on the app
 
-The bundle identifier and Keychain service are persistent compatibility identifiers. Keep them stable when changing the app’s public name, so existing preferences and credentials remain available.
+The bundle identifier and Keychain service are persistent compatibility identifiers. Keep them stable when changing the app’s public name, so existing preferences and credentials remain available. Keychain items must have explicit Jerry display labels; relabel legacy entries without replacing secrets or showing background authentication dialogs.
 
 - Use Swift, AppKit and SpriteKit for the native macOS app. Keep platform-independent terrain, movement and mission logic in `Packages/ExpeditionCore`.
 - Jerry is the single explorer. AI actions reach controls through his physical movement and interaction; preserve this behavior when changing task execution.
