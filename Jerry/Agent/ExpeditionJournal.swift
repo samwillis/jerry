@@ -125,12 +125,22 @@ enum NotebookTheme {
             button.setFrameOrigin(.init(x: converted.x, y: window.toolbar == nil ? converted.y : button.frame.minY))
         }
     }
-    static func install(on window: NSWindow, title: String, showsCaption: Bool = true) -> NSView {
+    static func install(on window: NSWindow, title: String, showsCaption: Bool = true, toolbar: NSToolbar? = nil) -> NSView {
         window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
         window.isMovableByWindowBackground = true; window.appearance = NSAppearance(named: .aqua)
         let root = NotebookPaperView(); root.wantsLayer = true; root.layer?.cornerRadius = 12; root.layer?.masksToBounds = true
         window.contentView = root
+        if let toolbar {
+            window.toolbarStyle = .unified; window.toolbar = toolbar
+            let body = NSView(); body.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(body)
+            NSLayoutConstraint.activate([
+                body.topAnchor.constraint(equalTo: (window.contentLayoutGuide as! NSLayoutGuide).topAnchor),
+                body.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14),
+                body.trailingAnchor.constraint(equalTo: root.trailingAnchor), body.bottomAnchor.constraint(equalTo: root.bottomAnchor)
+            ])
+            return body
+        }
         let header = NotebookHeaderView(); header.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(header)
         let caption = NSTextField(labelWithString: "◉  JERRY / " + title.uppercased())
         caption.isHidden = !showsCaption
@@ -163,7 +173,7 @@ private final class NotebookHeaderView: NSView {
     override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
 }
 
-final class NotebookContentView: NSView {
+class NotebookContentView: NSView {
     var onTitlebarLayout: ((CGFloat) -> Void)?
     private var previousTitlebarHeight: CGFloat = -1
     override func layout() {
@@ -181,8 +191,7 @@ final class NotebookContentView: NSView {
     }
 }
 
-private final class NotebookPaperView: NSView {
-    override func layout() { super.layout(); NotebookTheme.alignWindowButtons(in: self) }
+private final class NotebookPaperView: NotebookContentView {
     override var mouseDownCanMoveWindow: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
         NotebookTheme.paper.setFill(); bounds.fill()

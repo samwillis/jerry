@@ -116,10 +116,13 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
 
     override init(window: NSWindow?) { super.init(window: window) }
     convenience init() {
-        let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(624, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(540, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         self.init(window: window)
         window.title = "Jerry — Settings"; window.minSize = .init(width: 780, height: 464); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
-        let settingsBody = NotebookTheme.install(on: window, title: "Base camp")
+        let toolbar = NSToolbar(identifier: "JerrySettingsToolbar")
+        toolbar.delegate = self; toolbar.displayMode = .iconOnly; toolbar.sizeMode = .regular; toolbar.allowsUserCustomization = false
+        toolbar.centeredItemIdentifier = .init("settingsTitle")
+        let settingsBody = NotebookTheme.install(on: window, title: "Settings", toolbar: toolbar)
         buildSettings(in: settingsBody); buildPrompt(); buildJournal()
         computer.beforeInput = { [weak self] in
             guard let self else { return }
@@ -184,7 +187,14 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         sidebar.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(sidebar)
         let links = stack(in: sidebar, inset: 18); links.spacing = 5
         let main = NSView(); main.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(main)
-        NSLayoutConstraint.activate([sidebar.leadingAnchor.constraint(equalTo: content.leadingAnchor), sidebar.topAnchor.constraint(equalTo: content.topAnchor), sidebar.bottomAnchor.constraint(equalTo: content.bottomAnchor), sidebar.widthAnchor.constraint(equalToConstant: 180), main.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), main.trailingAnchor.constraint(equalTo: content.trailingAnchor), main.topAnchor.constraint(equalTo: content.topAnchor), main.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
+        NSLayoutConstraint.activate([sidebar.leadingAnchor.constraint(equalTo: content.leadingAnchor), sidebar.topAnchor.constraint(equalTo: content.topAnchor), sidebar.bottomAnchor.constraint(equalTo: content.bottomAnchor), sidebar.widthAnchor.constraint(equalToConstant: 176), main.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), main.trailingAnchor.constraint(equalTo: content.trailingAnchor), main.topAnchor.constraint(equalTo: content.topAnchor), main.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
+        // Carry the notebook divider all the way through the titlebar.
+        if let root = content.superview {
+            let divider = NSView(); divider.wantsLayer = true
+            divider.layer?.backgroundColor = NotebookTheme.leather.withAlphaComponent(0.14).cgColor
+            divider.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(divider)
+            NSLayoutConstraint.activate([divider.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), divider.widthAnchor.constraint(equalToConstant: 1), divider.topAnchor.constraint(equalTo: root.topAnchor), divider.bottomAnchor.constraint(equalTo: root.bottomAnchor)])
+        }
         for name in ["General", "AI", "Privacy & Access", "Controls", "Advanced"] {
             let button = NSButton()
             button.cell = NotebookNavigationCell(textCell: name)
@@ -200,7 +210,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
             let body = stack(in: document); body.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24).isActive = true
             settingsPages[name] = scroll
-            body.addArrangedSubview(label(name == "AI" ? "AI connection" : name, size: 23, weight: .semibold))
+            body.addArrangedSubview(label(name == "AI" ? "AI connection" : name, size: 21, weight: .semibold))
             switch name {
             case "General": buildGeneral(body)
             case "AI": buildAI(body)
@@ -385,31 +395,26 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private func configureJournalToolbar() {
         let toolbar = NSToolbar(identifier: "JerryExpeditionJournalToolbar")
         toolbar.delegate = self; toolbar.displayMode = .iconOnly; toolbar.allowsUserCustomization = false
-        journal.toolbarStyle = .unifiedCompact; journal.toolbar = toolbar
+        toolbar.sizeMode = .regular; journal.toolbarStyle = .unified; journal.toolbar = toolbar
     }
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.space, .space, .space, .init("journalSidebar"), .flexibleSpace, .init("journalTitle"), .flexibleSpace, .init("journalNew"), .init("journalSave")]
+        if toolbar.identifier == "JerrySettingsToolbar" { return [.flexibleSpace, .init("settingsTitle"), .flexibleSpace] }
+        return [.space, .space, .space, .init("journalSidebar"), .flexibleSpace, .init("journalTitle"), .flexibleSpace, .init("journalNew"), .init("journalSave")]
     }
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(toolbar) + [.init("journalFinish"), .init("journalStop")] }
-    private func journalToolbarImage(_ name: String, label: String) -> NSImage? {
-        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: label)?.withSymbolConfiguration(.init(pointSize: 14, weight: .regular)) else { return nil }
-        // A plain vector template keeps AppKit from enlarging a symbol to its
-        // toolbar default. Keep the smaller glyph centred inside the hit area.
-        let image = NSImage(size: .init(width: 20, height: 20), flipped: false) { _ in
-            let scale = 14 / max(symbol.size.width, symbol.size.height)
-            let width = symbol.size.width * scale, height = symbol.size.height * scale
-            symbol.draw(in: .init(x: (20 - width) / 2, y: (20 - height) / 2, width: width, height: height))
-            return true
-        }
-        image.isTemplate = true; image.accessibilityDescription = label
-        return image
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar) + (toolbar.identifier == "JerrySettingsToolbar" ? [] : [.init("journalFinish"), .init("journalStop")])
+    }
+    private func notebookToolbarImage(_ name: String, label: String) -> NSImage? {
+        NSImage(systemSymbolName: name, accessibilityDescription: label)?
+            .withSymbolConfiguration(.init(pointSize: 18, weight: .regular))
     }
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         let item = NSToolbarItem(itemIdentifier: identifier)
-        if identifier.rawValue == "journalTitle" {
-            let title = NSTextField(labelWithString: "Expedition journal")
-            title.font = NotebookTheme.font(14, weight: .medium, italic: true); title.textColor = NotebookTheme.ink; title.sizeToFit()
-            item.view = title; item.label = "Expedition journal"; item.visibilityPriority = .low; return item
+        if identifier.rawValue == "journalTitle" || identifier.rawValue == "settingsTitle" {
+            let caption = identifier.rawValue == "settingsTitle" ? "Settings" : "Expedition journal"
+            let title = NSTextField(labelWithString: caption)
+            title.font = NotebookTheme.font(17, weight: .medium, italic: true); title.textColor = NotebookTheme.ink; title.sizeToFit()
+            item.view = title; item.label = caption; item.visibilityPriority = .low; return item
         }
         let definition: (String, String, Selector)
         switch identifier.rawValue {
@@ -421,7 +426,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         default: return nil
         }
         item.label = definition.0; item.toolTip = definition.0
-        item.image = journalToolbarImage(definition.1, label: definition.0)
+        item.image = notebookToolbarImage(definition.1, label: definition.0)
         item.target = self; item.action = definition.2
         item.isEnabled = validateToolbarItem(item)
         return item
@@ -446,7 +451,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             item.isEnabled = validateToolbarItem(item)
             if item.itemIdentifier.rawValue == "journalSidebar" {
                 item.label = journalState.sidebarVisible ? "Hide sidebar" : "Show sidebar"; item.toolTip = item.label
-                item.image = journalToolbarImage("sidebar.left", label: item.label)
+                item.image = notebookToolbarImage("sidebar.left", label: item.label)
             }
         }
     }
