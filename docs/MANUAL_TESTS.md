@@ -11,6 +11,7 @@ Build and launch using the README. These are interactive acceptance checks, not 
 - [ ] Resume: breathing continues; Pause is enabled and Resume disabled.
 - [ ] Toggle debug guides while running and paused; only guides change, and clicks still pass through.
 - [ ] Switch between ordinary applications: overlay stays visible without gaining focus.
+- [ ] With only the explorer or quick prompt showing, Jerry is absent from Command–Tab and the Dock. Open Settings and the Expedition Journal; Command–Tab returns to Jerry. Minimize one window and close the other: Jerry stays in the switcher. Restore and close the last window: Jerry leaves the switcher and the Dock, but the menu bar icon and explorer remain.
 - [ ] Quit from the menu: explorer, overlay, guides, and status item disappear; no process remains.
 - [ ] Relaunch: exactly one explorer and one status item appear.
 

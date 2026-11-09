@@ -105,6 +105,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private var promptWindow: NSPanel!
     private var journal: NSWindow!
     private var restoreJournalAfterInput = false
+    var isJournalTemporarilyHidden: Bool { restoreJournalAfterInput }
     private var journalPositioned = false
     private var catalogTask: Task<Void, Never>?
     private var task: Task<Void, Never>?

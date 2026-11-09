@@ -26,7 +26,7 @@ open build/Build/Products/Debug/Jerry.app
 
 Or open `Jerry.xcodeproj`, select the **Jerry** scheme and **My Mac**, and run. If Xcode requests signing, select **Sign to Run Locally** for local development. The command-line build disables signing and is intended only for local use.
 
-Look just above the Dock, near the horizontal centre of the primary display. The app has no Dock icon; its primary interface is the menu bar and desktop overlay. Use the Jerry menu bar icon to control or quit it. Quit a running copy before launching a newly built version.
+Look just above the Dock, near the horizontal centre of the primary display. The primary interface is the menu bar and desktop overlay. Jerry appears in the Dock and the Command–Tab switcher while a regular window is open. Use the Jerry menu bar icon to control or quit it. Quit a running copy before launching a newly built version.
 
 Debug guides show exposed window tops in green, sides in pink, rescue screen boundaries in teal, and the character's input bounds in yellow. The label reports character state, climbable window count, and visible edge count. Terrain refreshes at approximately 10 Hz and uses window stacking order to subtract covered edges. Guides and geometry remain in logical points on the primary display.
 

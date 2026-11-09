@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var overlay: OverlayController?
     private var welcome: WelcomeController?
     private var taskController: AgentTaskController?
+    private var switcherUpdatePending = false
     private var needsWelcome: Bool { UserDefaults.standard.integer(forKey: "welcomeVersion") < 1 }
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
@@ -81,6 +82,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async { [weak self] in self?.showWelcome(markSeen: !previewWelcome) }
         } else if let permission = DesktopAccess.needed(for: DesktopAccess.shared.snapshot).first {
             DispatchQueue.main.async { DesktopAccess.shared.present(permission, openSettings: false) }
+        }
+    }
+
+    private var switcherActivationPolicy: NSApplication.ActivationPolicy {
+        // Cmd-H and a temporary order-out during a physical click leave the
+        // user's windows open. The overlay, manual controls and quick prompt
+        // are untitled panels and don't make Jerry a regular app on their own.
+        if NSApp.isHidden { return NSApp.activationPolicy() }
+        let hasWindow = taskController?.isJournalTemporarilyHidden == true || NSApp.windows.contains {
+            $0.styleMask.contains(.titled) && !$0.styleMask.contains(.nonactivatingPanel)
+                && $0.sheetParent == nil && ($0.isVisible || $0.isMiniaturized)
+        }
+        return hasWindow ? .regular : .accessory
+    }
+
+    func applicationDidUpdate(_ notification: Notification) {
+        guard !switcherUpdatePending, switcherActivationPolicy != NSApp.activationPolicy() else { return }
+        // Change policies outside AppKit's window update, after all ordering
+        // changes for this event have settled.
+        switcherUpdatePending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.switcherUpdatePending = false
+            let policy = self.switcherActivationPolicy
+            if policy != NSApp.activationPolicy() { NSApp.setActivationPolicy(policy) }
         }
     }
 
