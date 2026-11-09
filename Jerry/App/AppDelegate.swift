@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.updateMenu()
         }
         overlay?.onPromptRequested = { [weak self] in self?.openTasks() }
-        overlay?.onTaskInterrupted = { [weak self] in self?.taskController?.stop() }
+        overlay?.onTaskInterrupted = { [weak self] in self?.taskController?.interruptForLocalControl() }
         overlay?.setIdleExploration(idleExploration)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--inside-windows") { exploreInsideWindows = true }
@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         workspace.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
         workspace.addObserver(self, selector: #selector(spaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         workspace.addObserver(self, selector: #selector(frontAppChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        if UserDefaults.standard.bool(forKey: "jolConnected") { prepareTasks() }
         if ProcessInfo.processInfo.arguments.contains("--tasks") { openTasks() }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--show-menu") {
@@ -249,6 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             controller.explorerFrame = { [weak self] in self?.overlay?.explorerScreenFrame ?? .zero }
             overlay?.onExplorerMoved = { [weak controller] in controller?.updatePromptPosition() }
             taskController = controller
+            controller.startJOL()
         }
     }
     @objc private func openTasks() {
@@ -263,7 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func openSettings() { overlay?.setKeyboardControl(false); prepareTasks(); taskController?.openSettings() }
     @objc private func showTips() { overlay?.setKeyboardControl(false); prepareTasks(); taskController?.openSettings(section: "Controls") }
-    @objc private func stopTask() { taskController?.stop() }
+    @objc private func stopTask() { taskController?.interruptForLocalControl() }
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
         let credits = NSMutableAttributedString(string: "Your personal desktop explorer.\n\n")
@@ -304,7 +306,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         welcome?.open(idleExploration: idleExploration)
     }
-    @objc private func willSleep() { overlay?.setSleeping(true) }
+    @objc private func willSleep() { taskController?.interruptForLocalControl(); overlay?.setSleeping(true) }
     @objc private func didWake() { overlay?.setSleeping(false) }
     @objc private func frontAppChanged() { overlay?.recordFrontApp(); overlay?.checkDesktop() }
     @objc private func spaceChanged() { overlay?.desktopChanged() }

@@ -262,6 +262,20 @@ final class ExplorerRig: SKNode {
         return image
     }
 
+    /// The web logo uses the same silhouette and expression as the running rig.
+    static func runningBrandArtwork() -> (silhouette: CGPath, eyes: CGPath) {
+        let rig = ExplorerRig()
+        rig.select(.running, restart: true)
+        rig.seek(to: 0.174)
+        let paths = rig.bodySilhouettes()
+        let silhouette = paths.dropFirst().reduce(paths[0]) { $0.union($1) }
+        let eyes = CGMutablePath()
+        for eye in [rig.leftEye, rig.rightEye] {
+            if let path = eye.path { appendSilhouette(path, from: eye, to: rig, into: eyes) }
+        }
+        return (silhouette, eyes)
+    }
+
     private func buildBinoculars() {
         let casing = NSColor(calibratedRed: 0.19, green: 0.25, blue: 0.24, alpha: 1)
         let brass = NSColor(calibratedRed: 0.64, green: 0.53, blue: 0.32, alpha: 1)
@@ -432,7 +446,7 @@ final class ExplorerRig: SKNode {
         updateShadow()
     }
 
-    private func updateShadow() {
+    private func bodySilhouettes() -> [CGPath] {
         var paths: [CGPath] = []
         for group in [torso, head, backpack] {
             for case let part as PaintedPart in group.children {
@@ -442,6 +456,11 @@ final class ExplorerRig: SKNode {
             }
         }
         for limb in [leftArm, rightArm, leftLeg, rightLeg] { paths += limb.shadowPaths(in: self) }
+        return paths
+    }
+
+    private func updateShadow() {
+        var paths = bodySilhouettes()
         if !grappleGun.isHidden {
             for case let part as SKShapeNode in grappleGun.children {
                 if let shape = part.path {

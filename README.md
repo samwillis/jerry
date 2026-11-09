@@ -55,6 +55,10 @@ Jerry records your requests, his notes and what happens along the way in the **E
 
 Continue an expedition from the journal’s prompt box or the input beside Jerry. It stays open for follow-up directions until you finish it or start a new one. Expeditions are saved automatically on your Mac, so you can revisit and resume them after restarting Jerry. An unfinished mission reopens paused. You can also export a readable copy of the journal.
 
+## Jerry On Line
+
+An optional **Jerry On Line (JOL)** connection is also in development: connect Jerry to a server you choose to read his journal in a browser and send remote directions. Jerry keeps working locally without it. See the [JOL prototype and hosting guide](docs/JOL_SETUP.md); this feature is not part of the v0.1.2 download above.
+
 ## A little adventure between missions
 
 When Jerry has nothing else to do, he can wander your windows in search of patterned socks. Someone has to find out where they all go.
