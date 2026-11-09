@@ -6,9 +6,9 @@
 
 Meet Jerry, a small adventurer who lives on your Mac. Take control and turn your windows into a platform game, or give him a mission and send him on an expedition. He keeps a journal along the way.
 
-**[Download Jerry for Mac ↓](https://github.com/samwillis/jerry/releases/download/v0.1.2/Jerry-v0.1.2-macos-universal.zip)** · [Release notes](https://github.com/samwillis/jerry/releases/tag/v0.1.2)
+**[Download Jerry for Mac ↓](https://github.com/samwillis/jerry/releases/download/v0.1.3/Jerry-v0.1.3-macos-universal.zip)** · [Release notes](https://github.com/samwillis/jerry/releases/tag/v0.1.3)
 
-macOS 14+ · Apple Silicon and Intel · v0.1.2 preview. Signed by Flutterbox Ltd. and notarised by Apple.
+macOS 14+ · Apple Silicon and Intel · v0.1.3 preview. Signed by Flutterbox Ltd. and notarised by Apple.
 
 https://github.com/user-attachments/assets/b6b0a2ad-a652-4d23-af81-e2b7e0d47de9
 
@@ -57,7 +57,11 @@ Continue an expedition from the journal’s prompt box or the input beside Jerry
 
 ## Jerry On Line
 
-An optional **Jerry On Line (JOL)** connection is also in development: connect Jerry to a server you choose to read his journal in a browser and send remote directions. Jerry keeps working locally without it. See the [JOL prototype and hosting guide](docs/JOL_SETUP.md); this feature is not part of the v0.1.2 download above.
+**Jerry On Line (JOL)** brings your expedition journal to the browser. Read Jerry’s notes as he writes them, or send him a direction or start a new expedition while he’s running on your Mac.
+
+JOL is optional and self-hosted. Run your own instance on Neon using the [JOL hosting guide](docs/JOL_SETUP.md), or use a server you trust. In **Settings → Jerry On Line**, enter its HTTPS address, choose **Find Server**, then **Connect in Browser** to sign in. Once connected, **Open JOL** takes you to the web journal.
+
+New expedition notes sync when you connect. Older expeditions, photographs and technical details are optional. Remote directions require **Allow remote missions** on the Mac; that setting starts off each time you launch Jerry and pauses when you take manual control. Your AI credentials stay on your Mac, and Jerry keeps working and saving his journal locally without JOL.
 
 ## A little adventure between missions
 
@@ -79,6 +83,6 @@ Jerry guides you through missing permissions for features you’ve enabled. You 
 
 Jerry is a macOS development preview targeting macOS 14 or later. Exploration currently stays on the primary display; multiple displays, full-screen traversal and Windows support are future work.
 
-Download the [v0.1.2 preview for Mac](https://github.com/samwillis/jerry/releases/tag/v0.1.2). This experimental build is signed by Flutterbox Ltd. and notarised by Apple. It includes Apple Silicon and Intel binaries; testing so far has been on the development Apple Silicon Mac.
+The preview includes Apple Silicon and Intel binaries; testing so far has been on the development Apple Silicon Mac.
 
 To build and run it locally, see the [developer guide](AGENTS.md). The [product plan](docs/PLAN.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md) describe where the expedition goes next.
