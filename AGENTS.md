@@ -26,7 +26,7 @@ open build/Build/Products/Debug/Jerry.app
 
 Or open `Jerry.xcodeproj`, select the **Jerry** scheme and **My Mac**, and run. If Xcode requests signing, select **Sign to Run Locally** for local development. The command-line build disables signing and is intended only for local use.
 
-Look just above the Dock, near the horizontal centre of the primary display. The app has no Dock icon; its primary interface is the menu bar and desktop overlay. Use the Jerry menu bar icon to control or quit it. Quit a running copy before launching a newly built version.
+Look just above the Dock, near the horizontal centre of the primary display. The primary interface is the menu bar and desktop overlay. Jerry appears in the Dock and the Command–Tab switcher while a regular window is open. Use the Jerry menu bar icon to control or quit it. Quit a running copy before launching a newly built version.
 
 Debug guides show exposed window tops in green, sides in pink, rescue screen boundaries in teal, and the character's input bounds in yellow. The label reports character state, climbable window count, and visible edge count. Terrain refreshes at approximately 10 Hz and uses window stacking order to subtract covered edges. Guides and geometry remain in logical points on the primary display.
 
@@ -110,6 +110,14 @@ The script submits to Apple, staples and validates the ticket, checks Gatekeeper
 
 The journal saves to `~/Library/Application Support/Jerry/Expeditions/<UUID>/journal.jsonl`. Preserve the versioned append-only records and per-expedition directories. Journal photographs are local JPEG assets referenced by optional UUID filenames on entries; never automatically attach them to AI requests. Keep writes off the main thread, preserve streaming deltas and flush task/shutdown boundaries. A restored task must remain paused until the user gives a direction; never replay saved computer actions automatically. Credentials and opaque provider transcripts do not belong in journal files. Tests must pass `journalDirectory: nil` / `storageDirectory: nil` or use disposable directories, never the real history. See [journal storage](docs/JOURNAL_STORAGE.md).
 
+## Jerry On Line
+
+JOL is optional. `Jerry/Agent/JOL*` owns native discovery, Keychain sign-in, committed journal synchronization and remote command coordination; `jol/` contains the Neon Functions server, web reader, schema and fixtures. Never start networking or read real history from a fixture. Keep remote missions disabled on launch and pause them for local takeover. All remote tasks go through Jerry’s existing physical-action pipeline. Do not replay ambiguous computer actions after a disconnect or expired lease.
+
+Use `npm --prefix jol ci`, `npm --prefix jol run check`, `npm --prefix jol test` and `npm --prefix jol run build` from the repository root. `npm --prefix jol run preview` binds a synthetic web fixture to loopback only. `--jol-preview` opens the native Settings page without starting a connection. Hosted integration checks are explicitly opt-in (`npm --prefix jol run check:hosted`); they use gitignored deployment configuration and synthetic accounts/data. See [JOL setup and validation](docs/JOL_SETUP.md) before provisioning or deploying. Keep `.env*`, `.neon`, `.data`, credentials and deployed bundle outputs out of Git.
+
+Legacy login-Keychain ACL changes may ignore a modern no-UI query flag. Credential status checks first inspect display attributes and avoid unnecessary relabelling; their synchronous `nonInteractiveKeychain` scope restores the previous interaction setting before returning. Keep that scope on the MainActor without suspension. Explicit sign-in/save actions are separate from background status reads.
+
 ## Global shortcuts
 
 **Settings → Controls → Global shortcuts** records the Take/release control and Ask Jerry bindings. Each can be cleared with Delete while recording; Escape cancels, and Restore defaults resets both. Custom combinations require Command, Option or Control and are saved in UserDefaults. The menu and welcome guide reflect the current bindings.
@@ -148,6 +156,8 @@ For repeatable development checks, run the Debug executable with `--feature-chec
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Detailed prototype behavior](docs/PROTOTYPE_GUIDE.md)
 - [Computer-task integration](docs/AGENT_PROTOTYPE.md)
+- [Jerry On Line remote journal and mission proposal](docs/JOL_PLAN.md)
+- [Jerry On Line setup and prototype validation](docs/JOL_SETUP.md)
 - [Animation and rig workflow](docs/ANIMATION_WORKFLOW.md)
 - [Manual test checklist](docs/MANUAL_TESTS.md)
 - [Validation evidence and known limits](docs/PROTOTYPE_VALIDATION.md)

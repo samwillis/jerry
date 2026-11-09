@@ -11,6 +11,10 @@ import Security
 enum AgentPrototypeChecks {
     private static var previewOverlay: OverlayController?
     private static var previewController: AgentTaskController?
+    static func showJOLPreview() {
+        let controller = AgentTaskController(journalDirectory: nil); previewController = controller
+        controller.openSettings(section: "Jerry On Line")
+    }
     static func showJournalPreview() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("jerry-journal-preview-" + UUID().uuidString)
         let journal = ExpeditionJournal(storageDirectory: folder)
@@ -62,6 +66,50 @@ enum AgentPrototypeChecks {
         let controller = AgentTaskController(journalDirectory: folder); previewController = controller; controller.showActivity()
     }
 
+    private static func checkJOL() async throws -> [(String, Bool)] {
+        var checks: [(String, Bool)] = []
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("Jerry-JOL-Checks-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        let journals = temporary.appendingPathComponent("Expeditions")
+        let id = UUID(), row = UUID(), header = JournalRecord.Header(id: id, date: Date(), title: "The Paper Mountain")
+        let store = ExpeditionJournalStore(directory: journals) { _ in }
+        store.append(.init(event: .created, expedition: header), to: id)
+        let entry = ExpeditionJournal.Entry(id: row, date: Date(), kind: .response, text: "I reached the ridge.", details: "Private screen text", photo: UUID().uuidString + ".jpg")
+        store.append(.init(event: .entry, entry: entry), to: id)
+        store.append(.init(event: .detailsAppended, entryID: row, text: "More screen text"), to: id)
+        store.flush()
+        let sync = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Sync"), since: Date.distantPast, includeHistory: false, details: false, photos: false)
+        let batch = try await sync.nextBatches().first!
+        checks.append(("JOL reads committed journal records in order", batch.start == 1 && batch.records.count == 3 && batch.records.first?.event == .created))
+        checks.append(("JOL removes nested technical details and photograph references before upload", batch.records[1].entry?.details == "" && batch.records[1].entry?.photo == nil && batch.records[2].event == .redacted))
+        checks.append(("JOL retry preserves transport event IDs", try await sync.nextBatches().first?.records.map(\.id) == batch.records.map(\.id)))
+        try await sync.acknowledge(batch, cursor: 3)
+        let restored = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Sync"), since: .distantPast, includeHistory: false, details: false, photos: false)
+        checks.append(("JOL accepted cursor survives restarting without replay", try await restored.nextBatches().isEmpty))
+        let future = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Future"), since: Date().addingTimeInterval(10), includeHistory: false, details: false, photos: false)
+        checks.append(("JOL does not upload old journals without history opt-in", try await future.nextBatches().isEmpty))
+        await future.enableHistory()
+        checks.append(("JOL can add older expeditions on the same connection", try await future.nextBatches().first?.expeditionID == id))
+        await restored.enableDetails()
+        let details = try await restored.nextDetails()
+        checks.append(("JOL backfills only previously acknowledged details after opt-in",
+                       details.first?.changes.map(\.sequence) == [2, 3] && details.first?.through == 3))
+        if let first = details.first { try await restored.acknowledgeDetails(first) }
+        let enriched = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Sync"),
+                                        since: .distantPast, includeHistory: false, details: false, photos: false, backfillDetails: true)
+        checks.append(("JOL preserves the details cursor across restart", try await enriched.nextDetails().isEmpty))
+        let file = journals.appendingPathComponent(id.uuidString).appendingPathComponent("journal.jsonl")
+        let handle = try FileHandle(forWritingTo: file); try handle.seekToEnd(); try handle.write(contentsOf: Data("{\"incomplete\":".utf8)); try handle.close()
+        checks.append(("JOL never uploads an uncommitted partial last line", try await restored.nextBatches().isEmpty))
+        try await restored.rememberCommand(id, status: "started")
+        let receipts = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Sync"), since: .distantPast, includeHistory: false, details: false, photos: false)
+        checks.append(("JOL persists accepted command IDs to prevent action replay", await receipts.priorCommand(id) == "started"))
+        checks.append(("JOL accepts an HTTPS origin", (try? JOLManifest.serverURL("https://jol.example.com/"))?.absoluteString == "https://jol.example.com"))
+        checks.append(("JOL rejects credentials, paths and insecure server addresses", ["http://jol.example.com", "https://a:b@jol.example.com", "https://jol.example.com/other", "https://jol.example.com?token=secret"].allSatisfy { (try? JOLManifest.serverURL($0)) == nil }))
+        let offline = JOLController(journalDirectory: nil)
+        checks.append(("JOL is disconnected and remote missions disabled by default", !offline.connected && !offline.remoteArmed))
+        return checks
+    }
     private static func checkCredentialLabels() throws -> [(String, Bool)] {
         // Exercise actual Keychain metadata with disposable, non-secret records.
         // The production namespace and real account credentials are never used.
@@ -202,6 +250,7 @@ enum AgentPrototypeChecks {
         func check(_ condition: Bool, _ label: String) { print("AGENT \(condition ? "PASS" : "FAIL") \(label)"); fflush(stdout); passed = passed && condition }
         let viewport = WorldRect(x: 0, y: 0, width: 1000, height: 800)
         do {
+            for (name, result) in try await checkJOL() { check(result, name) }
             for (name, result) in try await checkJournalPersistence() { check(result, name) }
             for (name, result) in try checkCredentialLabels() { check(result, name) }
             if #available(macOS 27.0, *) {

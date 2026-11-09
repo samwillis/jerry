@@ -54,6 +54,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private let connection = NSTextField(wrappingLabelWithString: "")
     private let promptHint = NSTextField(wrappingLabelWithString: "")
     private var journalState: ExpeditionJournal!
+    private var jol: JOLController!
     private var assistantRows: [String: UUID] = [:]
     private var priorResponseIDs: Set<String> = []
     private var lastResponseRow: UUID?
@@ -104,6 +105,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private var promptWindow: NSPanel!
     private var journal: NSWindow!
     private var restoreJournalAfterInput = false
+    var isJournalTemporarilyHidden: Bool { restoreJournalAfterInput }
     private var journalPositioned = false
     private var catalogTask: Task<Void, Never>?
     private var task: Task<Void, Never>?
@@ -130,6 +132,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         let window = NotebookWindow(contentRect: .init(x: 0, y: 0, width: 780, height: min(540, max(464, (NSScreen.screens.first?.visibleFrame.height ?? 800) - 60))), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         self.init(window: window)
         journalState = ExpeditionJournal(storageDirectory: journalDirectory)
+        jol = JOLController(journalDirectory: journalDirectory, journalStore: journalState.committedStore)
         window.title = "Jerry — Settings"; window.minSize = .init(width: 780, height: 464); window.titlebarAppearsTransparent = true; window.isReleasedWhenClosed = false; window.delegate = self; window.center()
         let toolbar = NSToolbar(identifier: "JerrySettingsToolbar")
         toolbar.delegate = self; toolbar.displayMode = .iconOnly; toolbar.sizeMode = .regular; toolbar.allowsUserCustomization = false
@@ -153,6 +156,41 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         provider.selectItem(at: selectedProvider == 0 && !UserDefaults.standard.bool(forKey: "developerToolsEnabled") ? 1 : selectedProvider)
         providerChanged(); updateConnection()
     }
+    func startJOL() {
+        jol.interruptRemote = { [weak self] in self?.stop() }
+        jol.isBusy = { [weak self] in
+            guard let self else { return true }
+            return self.task != nil || self.missionActive || self.promptWindow.isVisible || self.window?.isKeyWindow == true
+        }
+        jol.execute = { [weak self] command in
+            guard let self else { return .init(status: "failed", message: "Jerry is unavailable") }
+            return await self.performRemote(command)
+        }
+        jol.start()
+    }
+    private func performRemote(_ command: JOLCommand) async -> JOLCommandResult {
+        guard jol.remoteArmed, !Task.isCancelled else { return .init(status: "failed", message: "Remote missions are paused on this Mac") }
+        if command.kind == "stop" {
+            guard command.expedition_id == journalState.activeID else { return .init(status: "failed", message: "That expedition is no longer active") }
+            stop(); return .init(status: "finished", message: "Jerry stopped at your direction")
+        }
+        guard !isTaskRunning, !promptWindow.isVisible, window?.isKeyWindow != true else { return .init(status: "failed", message: "Jerry is under local control. Send a fresh direction when he is ready.") }
+        if command.kind == "finish" {
+            guard command.expedition_id == journalState.activeID else { return .init(status: "failed", message: "That expedition is no longer active") }
+            journalState.finishActive(); return .init(status: "finished", message: "Expedition closed")
+        }
+        if command.kind == "continue" {
+            guard let id = command.expedition_id, journalState.expeditions.contains(where: { $0.id == id && !$0.isFinished }) else { return .init(status: "failed", message: "That expedition is not open") }
+        } else if command.kind == "start" { journalState.prepareNew() }
+        else { return .init(status: "failed", message: "Unknown remote direction") }
+        submit(prompt: command.prompt, expeditionID: command.expedition_id)
+        guard let running = task else { return .init(status: "failed", message: "Finish AI setup on this Mac, then send a fresh direction") }
+        let expected = runID
+        await running.value
+        journalState.flush()
+        guard runID == expected else { return .init(status: "uncertain", message: "Interrupted locally. Give Jerry a fresh direction to continue.") }
+        return .init(status: journalState.status.hasPrefix("Couldn’t") || computer.lastActionFailed ? "failed" : "finished", message: journalState.status)
+    }
     required init?(coder: NSCoder) { fatalError("Use init()") }
     func open() { refreshSettings(); showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil); autoLoadModels() }
     func openSettings(section: String = "General") { selectSettings(section); open() }
@@ -166,6 +204,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         }
     }
     func openPrompt(resumeControl: Bool = false) {
+        jol.localTakeover()
         if journalState.isRunning { stop() }
         resumeControlOnCancel = promptWindow.isVisible ? (resumeControlOnCancel || resumeControl) : resumeControl
         updatePromptHint(); onPromptOpened?(); updatePromptPosition(force: true)
@@ -212,7 +251,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             divider.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(divider)
             NSLayoutConstraint.activate([divider.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor), divider.widthAnchor.constraint(equalToConstant: 1), divider.topAnchor.constraint(equalTo: root.topAnchor), divider.bottomAnchor.constraint(equalTo: root.bottomAnchor)])
         }
-        for name in ["General", "AI", "Privacy & Access", "Controls", "Advanced"] {
+        for name in ["General", "AI", "Jerry On Line", "Privacy & Access", "Controls", "Advanced"] {
             let button = NSButton()
             button.cell = NotebookNavigationCell(textCell: name)
             button.title = name; button.target = self; button.action = #selector(settingsSectionChanged(_:))
@@ -231,6 +270,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             switch name {
             case "General": buildGeneral(body)
             case "AI": buildAI(body)
+            case "Jerry On Line": body.addArrangedSubview(NSHostingView(rootView: JOLSettingsView(connection: jol)))
             case "Privacy & Access": buildPrivacy(body)
             case "Controls": buildControls(body)
             default: buildAdvanced(body)
@@ -434,7 +474,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         configureJournalToolbar()
         let glass = NotebookContentView(); journal.contentView = glass
         glass.onTitlebarLayout = { [weak self] height in self?.journalState.toolbarHeight = height }
-        let host = NSHostingView(rootView: ExpeditionJournalView(journal: journalState, stop: { [weak self] in self?.stop() }, send: { [weak self] text, id in self?.submit(prompt: text, expeditionID: id) }))
+        let host = NSHostingView(rootView: ExpeditionJournalView(journal: journalState, stop: { [weak self] in self?.interruptForLocalControl() }, send: { [weak self] text, id in self?.jol.localTakeover(); self?.submit(prompt: text, expeditionID: id) }))
         host.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(host)
         NSLayoutConstraint.activate([host.leadingAnchor.constraint(equalTo: glass.leadingAnchor), host.trailingAnchor.constraint(equalTo: glass.trailingAnchor), host.topAnchor.constraint(equalTo: glass.topAnchor), host.bottomAnchor.constraint(equalTo: glass.bottomAnchor)])
     }
@@ -602,7 +642,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     func showActivity() {
         showJournal(); NSApp.activate(ignoringOtherApps: true); journal.makeKeyAndOrderFront(nil)
     }
-    func manualTakeover() { onPromptDismissed?(); resumeControlOnCancel = false; promptWindow.orderOut(nil); window?.orderOut(nil); stop() }
+    func manualTakeover() { jol.localTakeover(); onPromptDismissed?(); resumeControlOnCancel = false; promptWindow.orderOut(nil); window?.orderOut(nil); stop() }
     @objc private func hideJournal() { restoreJournalAfterInput = false; journal.orderOut(nil) }
     @objc private func showSettings() { open() }
     @objc private func doneSettings() { persistModel(); window?.close(); if promptWindow.isVisible { promptWindow.makeKeyAndOrderFront(nil) } }
@@ -739,7 +779,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         journalState.status = "Following your direction…"; journalState.isRunning = true; journalState.flush(); updateJournalToolbar(); showJournal(); onTaskStateChanged?(); onSubmitted?()
         task = Task { [weak self] in
             guard let self else { return }
-            defer { if self.runID == id { self.task = nil; self.journalState.isRunning = self.missionActive; self.updateJournalToolbar(); self.onTaskStateChanged?(); self.journalState.flush() } }
+            defer { if self.runID == id { self.task = nil; self.journalState.isRunning = self.missionActive; self.updateJournalToolbar(); self.onTaskStateChanged?(); self.journalState.flush(); self.jol.wakeCommands() } }
             do {
                 await previousTask?.value
                 try Task.checkCancellation()
@@ -839,6 +879,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             return .toolOutput(output)
         })
     }
+    func interruptForLocalControl() { jol.localTakeover(); stop() }
     @objc func stop() {
         let wasActive = task != nil || missionActive
         if wasActive { appendLog("Task stopped", "Cancelled the model request and pending physical actions.") }
@@ -856,6 +897,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         if notification.object as? NSWindow === window {
             for recorder in shortcutRecorders.values { recorder.cancelRecording() }
             apiKey.stringValue = ""; credentials.cancelSignIn(); updateConnection()
+            DispatchQueue.main.async { [weak self] in self?.jol.wakeCommands() }
             if returningToPrompt { returningToPrompt = false; DispatchQueue.main.async { [weak self] in self?.openPrompt(resumeControl: self?.resumeControlOnCancel ?? false) } }
         }
     }
@@ -870,7 +912,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         toggleJournalSidebar()
         results.append(("native journal toolbar toggles the sidebar and restores its minimum width", journal.toolbar != nil && hiddenSidebar && journalState.sidebarVisible == initialSidebar && journal.minSize.width == 560))
         results.append(("journal is a normal window with ordinary desktop ordering", journal.level == .normal && !(journal is NSPanel) && !journal.collectionBehavior.contains(.canJoinAllSpaces)))
-        results.append(("settings contains five independently scrollable sections", settingsPages.count == 5 && settingsPages.values.allSatisfy { $0 is NSScrollView }))
+        results.append(("settings contains six independently scrollable sections including optional JOL", settingsPages.count == 6 && settingsPages.values.allSatisfy { $0 is NSScrollView }))
         selectSettings("Privacy & Access")
         results.append(("settings navigation shows only the selected section", settingsPages.filter { !$0.value.isHidden }.map(\.key) == ["Privacy & Access"]))
         selectSettings("Controls")

@@ -3,7 +3,7 @@ import Foundation
 /// Versioned append-only records. Streaming changes store deltas, not repeated
 /// copies of the whole response. The directory is reserved for future assets.
 struct JournalRecord: Codable, Sendable {
-    enum Event: String, Codable, Sendable { case created, entry, textAppended, textReplaced, detailsAppended, state, titleChanged }
+    enum Event: String, Codable, Sendable { case created, entry, textAppended, textReplaced, detailsAppended, state, titleChanged, redacted }
     struct Header: Codable, Sendable { let id: UUID; let date: Date; var title: String }
     var version = 1
     var id = UUID()
@@ -64,6 +64,19 @@ final class ExpeditionJournalStore: @unchecked Sendable {
         }
     }
     func retry() { queue.async { [self] in writePending() } }
+    /// Take the sync snapshot on the writer queue, after fsync. A failed local
+    /// write must never be published remotely as a successfully saved note.
+    func committedData(for expedition: UUID) async throws -> Data? {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async { [self] in
+                writePending()
+                guard pending[expedition] == nil else { continuation.resume(returning: nil); return }
+                let url = directory.appendingPathComponent(expedition.uuidString).appendingPathComponent("journal.jsonl")
+                do { continuation.resume(returning: try Data(contentsOf: url)) }
+                catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
     /// Used at task boundaries and shutdown; drains preceding queued records too.
     func flush() { queue.sync { writePending() } }
     private func writePending() {
@@ -149,7 +162,7 @@ final class ExpeditionJournalStore: @unchecked Sendable {
             }
             guard var expedition = loaded else { continue }
             switch record.event {
-            case .created: break
+            case .created, .redacted: break
             case .titleChanged:
                 if let title = record.text, !title.isEmpty { expedition.header.title = title }
             case .entry:

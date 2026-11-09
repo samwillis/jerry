@@ -28,6 +28,7 @@ final class ExpeditionJournal: ObservableObject {
     @Published private(set) var storageIssue: String?
     @Published private(set) var saveFailed = false
     private var store: ExpeditionJournalStore?
+    var committedStore: ExpeditionJournalStore? { store }
     private var restoreWarning: String?
     static var defaultDirectory: URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first

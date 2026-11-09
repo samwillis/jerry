@@ -5,3 +5,10 @@ DerivedData/
 xcuserdata/
 *.xcuserstate
 .swiftpm/
+node_modules/
+.env
+.env.*
+!.env.example
+.neon
+jol/dist/
+jol/.data/

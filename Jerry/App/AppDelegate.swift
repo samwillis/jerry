@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var overlay: OverlayController?
     private var welcome: WelcomeController?
     private var taskController: AgentTaskController?
+    private var switcherUpdatePending = false
     private var needsWelcome: Bool { UserDefaults.standard.integer(forKey: "welcomeVersion") < 1 }
     private var idleItem: NSMenuItem!
     private var keyboardItem: NSMenuItem!
@@ -41,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.updateMenu()
         }
         overlay?.onPromptRequested = { [weak self] in self?.openTasks() }
-        overlay?.onTaskInterrupted = { [weak self] in self?.taskController?.stop() }
+        overlay?.onTaskInterrupted = { [weak self] in self?.taskController?.interruptForLocalControl() }
         overlay?.setIdleExploration(idleExploration)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--inside-windows") { exploreInsideWindows = true }
@@ -66,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         workspace.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
         workspace.addObserver(self, selector: #selector(spaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         workspace.addObserver(self, selector: #selector(frontAppChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        if UserDefaults.standard.bool(forKey: "jolConnected") { prepareTasks() }
         if ProcessInfo.processInfo.arguments.contains("--tasks") { openTasks() }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--show-menu") {
@@ -80,6 +82,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async { [weak self] in self?.showWelcome(markSeen: !previewWelcome) }
         } else if let permission = DesktopAccess.needed(for: DesktopAccess.shared.snapshot).first {
             DispatchQueue.main.async { DesktopAccess.shared.present(permission, openSettings: false) }
+        }
+    }
+
+    private var switcherActivationPolicy: NSApplication.ActivationPolicy {
+        // Cmd-H and a temporary order-out during a physical click leave the
+        // user's windows open. The overlay, manual controls and quick prompt
+        // are untitled panels and don't make Jerry a regular app on their own.
+        if NSApp.isHidden { return NSApp.activationPolicy() }
+        let hasWindow = taskController?.isJournalTemporarilyHidden == true || NSApp.windows.contains {
+            $0.styleMask.contains(.titled) && !$0.styleMask.contains(.nonactivatingPanel)
+                && $0.sheetParent == nil && ($0.isVisible || $0.isMiniaturized)
+        }
+        return hasWindow ? .regular : .accessory
+    }
+
+    func applicationDidUpdate(_ notification: Notification) {
+        guard !switcherUpdatePending, switcherActivationPolicy != NSApp.activationPolicy() else { return }
+        // Change policies outside AppKit's window update, after all ordering
+        // changes for this event have settled.
+        switcherUpdatePending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.switcherUpdatePending = false
+            let policy = self.switcherActivationPolicy
+            if policy != NSApp.activationPolicy() { NSApp.setActivationPolicy(policy) }
         }
     }
 
@@ -249,6 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             controller.explorerFrame = { [weak self] in self?.overlay?.explorerScreenFrame ?? .zero }
             overlay?.onExplorerMoved = { [weak controller] in controller?.updatePromptPosition() }
             taskController = controller
+            controller.startJOL()
         }
     }
     @objc private func openTasks() {
@@ -263,7 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func openSettings() { overlay?.setKeyboardControl(false); prepareTasks(); taskController?.openSettings() }
     @objc private func showTips() { overlay?.setKeyboardControl(false); prepareTasks(); taskController?.openSettings(section: "Controls") }
-    @objc private func stopTask() { taskController?.stop() }
+    @objc private func stopTask() { taskController?.interruptForLocalControl() }
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
         let credits = NSMutableAttributedString(string: "Your personal desktop explorer.\n\n")
@@ -304,7 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         welcome?.open(idleExploration: idleExploration)
     }
-    @objc private func willSleep() { overlay?.setSleeping(true) }
+    @objc private func willSleep() { taskController?.interruptForLocalControl(); overlay?.setSleeping(true) }
     @objc private func didWake() { overlay?.setSleeping(false) }
     @objc private func frontAppChanged() { overlay?.recordFrontApp(); overlay?.checkDesktop() }
     @objc private func spaceChanged() { overlay?.desktopChanged() }

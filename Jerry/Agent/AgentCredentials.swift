@@ -2,6 +2,7 @@ import AppKit
 import CryptoKit
 import Network
 import Security
+import LocalAuthentication
 
 struct AgentConnectionError: LocalizedError {
     let message: String
@@ -65,19 +66,41 @@ final class AgentCredentials {
         var q = query(name)
         // Relabel old items without reading or replacing their secret, and never
         // interrupt an automatic status check with an authorisation dialog.
-        q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
-        if SecItemUpdate(q as CFDictionary, displayAttributes(name) as CFDictionary) == errSecSuccess {
+        let context = LAContext(); context.interactionNotAllowed = true
+        q[kSecUseAuthenticationContext as String] = context
+        var lookup = q; lookup[kSecReturnAttributes as String] = true; lookup[kSecMatchLimit as String] = kSecMatchLimitOne
+        var found: CFTypeRef?
+        let code = Self.nonInteractiveKeychain { SecItemCopyMatching(lookup as CFDictionary, &found) }
+        let expected = displayAttributes(name)
+        if code == errSecSuccess, let attributes = found as? [String: Any],
+           attributes[kSecAttrLabel as String] as? String == expected[kSecAttrLabel as String] as? String,
+           attributes[kSecAttrDescription as String] as? String == expected[kSecAttrDescription as String] as? String {
+            labelledAccounts.insert(name); return
+        }
+        guard code == errSecSuccess else { return }
+        if Self.nonInteractiveKeychain({ SecItemUpdate(q as CFDictionary, expected as CFDictionary) }) == errSecSuccess {
             labelledAccounts.insert(name)
         }
+    }
+    /// Legacy login-keychain ACL changes can ignore the modern no-UI query key.
+    /// This synchronous MainActor scope restores the previous process setting
+    /// before any other app-owned credential operation can run.
+    static func nonInteractiveKeychain<T>(_ body: () throws -> T) rethrows -> T {
+        var prior: DarwinBoolean = true
+        let known = SecKeychainGetUserInteractionAllowed(&prior) == errSecSuccess
+        if known { SecKeychainSetUserInteractionAllowed(false) }
+        defer { if known { SecKeychainSetUserInteractionAllowed(prior.boolValue) } }
+        return try body()
     }
     private func read(_ name: String) throws -> Data? {
         updateDisplayAttributes(name)
         var q = query(name); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
         // Automatic status checks must not block startup behind a Keychain prompt.
         // Unsigned Debug/Release binaries can have different access identities.
-        q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        let context = LAContext(); context.interactionNotAllowed = true
+        q[kSecUseAuthenticationContext as String] = context
         var result: CFTypeRef?
-        let code = SecItemCopyMatching(q as CFDictionary, &result)
+        let code = Self.nonInteractiveKeychain { SecItemCopyMatching(q as CFDictionary, &result) }
         if code == errSecItemNotFound { return nil }
         guard code == errSecSuccess else { throw AgentConnectionError(message: "Keychain could not be read (\(code)).") }
         return result as? Data
