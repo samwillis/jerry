@@ -6,9 +6,9 @@
 
 Meet Jerry, a small adventurer who lives on your Mac. Take control and turn your windows into a platform game, or give him a mission and send him on an expedition. He keeps a journal along the way.
 
-**[Download Jerry for Mac ↓](https://github.com/samwillis/jerry/releases/download/v0.1.3/Jerry-v0.1.3-macos-universal.zip)** · [Release notes](https://github.com/samwillis/jerry/releases/tag/v0.1.3)
+**[Download Jerry for Mac ↓](https://github.com/samwillis/jerry/releases/download/v0.1.4/Jerry-v0.1.4-macos-universal.zip)** · [Release notes](https://github.com/samwillis/jerry/releases/tag/v0.1.4)
 
-macOS 14+ · Apple Silicon and Intel · v0.1.3 preview. Signed by Flutterbox Ltd. and notarised by Apple.
+macOS 14+ · Apple Silicon and Intel · v0.1.4 preview. Signed by Flutterbox Ltd. and notarised by Apple.
 
 https://github.com/user-attachments/assets/b6b0a2ad-a652-4d23-af81-e2b7e0d47de9
 
@@ -59,9 +59,15 @@ Continue an expedition from the journal’s prompt box or the input beside Jerry
 
 **Jerry On Line (JOL)** brings your expedition journal to the browser. Read Jerry’s notes as he writes them, or send him a direction or start a new expedition while he’s running on your Mac.
 
-JOL is optional and self-hosted. Run your own instance on Neon using the [JOL hosting guide](docs/JOL_SETUP.md), or use a server you trust. In **Settings → Jerry On Line**, enter its HTTPS address, choose **Find Server**, then **Connect in Browser** to sign in. Once connected, **Open JOL** takes you to the web journal.
+JOL is built on Neon. Lakebase Postgres stores journal entries and mission requests, Neon Auth handles sign-in, Neon Functions serves the web journal and API, and Neon Object Storage holds shared photographs. [Explore Neon](https://neon.com/).
 
-New expedition notes sync when you connect. Older expeditions, photographs and technical details are optional. Remote directions require **Allow remote missions** on the Mac; that setting starts off each time you launch Jerry and pauses when you take manual control. Your AI credentials stay on your Mac, and Jerry keeps working and saving his journal locally without JOL.
+**Neon Realtime** uses live SQL queries to update the web journal as new notes arrive. It also lets the JOL server notify your Mac when a new direction is queued. [Read the Neon Realtime docs](https://neon.com/docs/realtime/overview).
+
+JOL is optional. Run your own instance on Neon or use a server you trust. In **Settings → Jerry On Line**, enter its HTTPS address, choose **Find Server**, then **Connect in Browser** to sign in. Once connected, **Open JOL** takes you to the web journal. [JOL hosting guide](docs/JOL_SETUP.md).
+
+New expedition notes sync when you connect. Older expeditions, photographs and technical details are optional. To send directions remotely, turn on **Allow remote missions** on the Mac. It starts off each time you launch Jerry and pauses when you take manual control. Your AI credentials stay on your Mac, and Jerry keeps working and saving his journal locally without JOL.
+
+To add existing and future photographs to the expeditions you already share, choose **Share Journal Photographs…** under **Settings → Jerry On Line → Journal sharing**. Update your JOL server to v0.1.4 for this option.
 
 ## A little adventure between missions
 

@@ -200,7 +200,6 @@ const note = {
     kind: "response",
     text: "A live field note",
     details: "",
-    photo: photo.toUpperCase().replace(".JPG", ".jpg"),
   },
 };
 await api(
@@ -223,6 +222,7 @@ try {
     id: string;
     text: string;
     details: string;
+    photo: string | null;
     photo_ready: boolean;
   };
   const subscription = realtime.subscribe<Note>(sealed);
@@ -282,7 +282,7 @@ try {
     (rows) => rows.some((r) => r.id === entry && r.details === detail[0].text),
     20_000,
   );
-  const upload = await fetch(origin + "/api" + photoPath, {
+  const upload = await fetch(origin + "/api" + photoPath + "?entry=" + entry, {
     method: "PUT",
     headers: {
       Authorization: "Bearer " + tokens.access_token,
@@ -291,7 +291,8 @@ try {
     },
     body: image,
   });
-  assert.equal(upload.status, 200, "private photo upload");
+  assert.equal(upload.status, 200, "private photo backfill");
+  assert.equal((await upload.json()).entryLinked, true);
   await subscription.awaitRows(
     (rows) => rows.some((r) => r.id === entry && r.photo_ready),
     20_000,
@@ -314,6 +315,12 @@ try {
     check();
   });
   assert.equal(published.details, detail[0].text);
+  assert.equal(published.photo, photo);
+  await api(
+    `/devices/${device}/expeditions/${exp}/batches`,
+    { start: 1, records: [created, note] },
+    true,
+  );
   await collection.cleanup();
   subscription.unsubscribe();
   console.log(

@@ -4,6 +4,7 @@ struct JOLSettingsView: View {
     @ObservedObject var connection: JOLController
     @State private var confirmHistory = false
     @State private var confirmDetails = false
+    @State private var confirmPhotos = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Your explorer. On line.").font(.custom("Caveat", size: 27))
@@ -31,7 +32,7 @@ struct JOLSettingsView: View {
                 }
                 GroupBox("Journal sharing") {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Sharing notes\(connection.sharePhotos ? ", photographs" : "")\(connection.shareDetails || connection.backfillDetails ? ", and technical details" : "").")
+                        Text("Sharing notes\(connection.sharePhotos || connection.backfillPhotos ? ", photographs" : "")\(connection.shareDetails || connection.backfillDetails ? ", and technical details" : "").")
                         if connection.includeHistory {
                             Text("Older expeditions are included.").foregroundStyle(.secondary)
                         } else {
@@ -39,6 +40,10 @@ struct JOLSettingsView: View {
                         }
                         if !connection.shareDetails && !connection.backfillDetails {
                             Button("Share Technical Details…") { confirmDetails = true }
+                                .disabled(connection.working)
+                        }
+                        if !connection.sharePhotos && !connection.backfillPhotos {
+                            Button("Share Journal Photographs…") { confirmPhotos = true }
                                 .disabled(connection.working)
                         }
                         if let issue = connection.sharingIssue {
@@ -86,6 +91,11 @@ struct JOLSettingsView: View {
             Button("Share Technical Details") { connection.shareTechnicalDetails() }
         } message: {
             Text("Include technical details from past and future shared expeditions. Details may contain screen content.")
+        }
+        .confirmationDialog("Share journal photographs?", isPresented: $confirmPhotos) {
+            Button("Share Journal Photographs") { connection.shareJournalPhotos() }
+        } message: {
+            Text("Upload photographs from expeditions you share with this JOL server, including photographs Jerry has already taken. Photographs can contain screen content.")
         }
     }
 }

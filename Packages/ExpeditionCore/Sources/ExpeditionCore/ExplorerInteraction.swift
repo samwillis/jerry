@@ -944,11 +944,16 @@ public struct ExplorerInteraction {
             return
         }
         let anchorX = min(max(feet.x, 24), terrain.viewport.maxX - 24)
-        if ropeSession == nil || abs((ropeSession?.anchor.resolve(in: terrain)?.anchor.x ?? 0) - anchorX) > 90 {
+        if pendingGrapple == nil,
+           ropeSession == nil || abs((ropeSession?.anchor.resolve(in: terrain)?.anchor.x ?? 0) - anchorX) > 90 {
             // Prefer an actual window roof above the destination. The display
             // rim is the fallback for global menus and otherwise empty desktop.
             let roofs = terrain.surfaces.filter { $0.id.edge == .top && anchorX >= $0.start.x + 24 && anchorX <= $0.end.x - 24 && ($0.id.owner == .window(UInt32.max) || $0.start.y > target.y + 60) && $0.start.y > position.y + 65 }.sorted { $0.start.y < $1.start.y }
-            if let roof = roofs.first { _ = fireGrapple(toward: .init(x: anchorX, y: roof.start.y)) }
+            for roof in roofs {
+                // A visible rim may still have an obstructed hook arc or no
+                // room to hang. Try the next pin from the same launch point.
+                if fireGrapple(toward: .init(x: anchorX, y: roof.start.y)) { break }
+            }
         }
         let velocity = ropeSession?.body.velocity.x ?? 0
         let steer = min(1, max(-1, dx * 0.06 - velocity * 0.08))

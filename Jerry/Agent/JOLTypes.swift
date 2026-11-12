@@ -12,6 +12,7 @@ struct JOLManifest: Codable, Sendable {
         let photos: Bool
         let realtime: Bool
         var detailsBackfill: Bool? = nil
+        var photosBackfill: Bool? = nil
     }
     let version: Int
     let instanceID: String

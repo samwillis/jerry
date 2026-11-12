@@ -8,6 +8,7 @@ final class JOLController: ObservableObject {
     @Published var shareDetails = false
     @Published var includeHistory = false
     @Published private(set) var backfillDetails = false
+    @Published private(set) var backfillPhotos = false
     @Published private(set) var manifest: JOLManifest?
     @Published private(set) var connected = false
     @Published private(set) var working = false
@@ -43,6 +44,7 @@ final class JOLController: ObservableObject {
             sharePhotos = UserDefaults.standard.bool(forKey: "jolSharePhotos"); shareDetails = UserDefaults.standard.bool(forKey: "jolShareDetails")
             includeHistory = UserDefaults.standard.bool(forKey: "jolHistory")
             backfillDetails = UserDefaults.standard.bool(forKey: "jolBackfillDetails")
+            backfillPhotos = UserDefaults.standard.bool(forKey: "jolBackfillPhotos")
             try makeSync(account); runLoop()
         } catch { status = error.localizedDescription }
     }
@@ -73,7 +75,9 @@ final class JOLController: ObservableObject {
                 defaults.set(manifest.origin, forKey: "jolAddress"); defaults.set(Date(), forKey: "jolSince")
                 defaults.set(self.sharePhotos, forKey: "jolSharePhotos"); defaults.set(self.shareDetails, forKey: "jolShareDetails"); defaults.set(self.includeHistory, forKey: "jolHistory")
                 self.backfillDetails = false
+                self.backfillPhotos = false
                 defaults.set(false, forKey: "jolBackfillDetails")
+                defaults.set(false, forKey: "jolBackfillPhotos")
                 defaults.set(true, forKey: "jolConnected"); self.connected = true
                 try self.makeSync(account); self.runLoop()
             } catch is CancellationError {} catch { self.status = error.localizedDescription }
@@ -127,10 +131,7 @@ final class JOLController: ObservableObject {
         Task {
             defer { if epoch == generation { working = false } }
             do {
-                guard let manifest, let url = URL(string: manifest.origin) else { return }
-                let data = try await JOLHTTP.data(URLRequest(url: url.appendingPathComponent(".well-known/jerry-online")))
-                let found = try JSONDecoder().decode(JOLManifest.self, from: data)
-                try found.validate(for: url)
+                let found = try await refreshManifest()
                 guard connected, epoch == generation else { return }
                 guard found.capabilities.detailsBackfill == true else {
                     sharingIssue = "Update your JOL server to share technical details on an existing connection."
@@ -144,10 +145,40 @@ final class JOLController: ObservableObject {
             }
         }
     }
+    func shareJournalPhotos() {
+        guard connected, let sync, !working, !sharePhotos, !backfillPhotos else { return }
+        let generation = epoch
+        working = true
+        sharingIssue = nil
+        Task {
+            defer { if epoch == generation { working = false } }
+            do {
+                let found = try await refreshManifest()
+                guard connected, epoch == generation else { return }
+                guard found.capabilities.photos, found.capabilities.photosBackfill == true else {
+                    sharingIssue = "Update your JOL server to share photographs on an existing connection."
+                    return
+                }
+                backfillPhotos = true
+                UserDefaults.standard.set(true, forKey: "jolBackfillPhotos")
+                await sync.enablePhotos()
+            } catch {
+                if epoch == generation { sharingIssue = error.localizedDescription }
+            }
+        }
+    }
+    private func refreshManifest() async throws -> JOLManifest {
+        guard let manifest, let url = URL(string: manifest.origin) else { throw CancellationError() }
+        let data = try await JOLHTTP.data(URLRequest(url: url.appendingPathComponent(".well-known/jerry-online")))
+        let found = try JSONDecoder().decode(JOLManifest.self, from: data)
+        try found.validate(for: url)
+        guard found.instanceID == manifest.instanceID else { throw JOLError(message: "This JOL server has changed. Reconnect to share your journal.") }
+        return found
+    }
     private func makeSync(_ account: JOLCredentials.Account) throws {
         guard let journalDirectory else { return }
         let support = journalDirectory.deletingLastPathComponent().appendingPathComponent("JOL/\(account.manifest.instanceID)/\(account.deviceID.uuidString)")
-        sync = try JOLSyncStore(journals: journalDirectory, directory: support, since: UserDefaults.standard.object(forKey: "jolSince") as? Date ?? Date(), includeHistory: includeHistory, details: shareDetails, photos: sharePhotos, writer: journalStore, backfillDetails: backfillDetails)
+        sync = try JOLSyncStore(journals: journalDirectory, directory: support, since: UserDefaults.standard.object(forKey: "jolSince") as? Date ?? Date(), includeHistory: includeHistory, details: shareDetails, photos: sharePhotos, writer: journalStore, backfillDetails: backfillDetails, backfillPhotos: backfillPhotos)
     }
     private func request(_ path: String, body: Data? = nil, method: String? = nil, contentType: String = "application/json", generation: UUID) async throws -> Data {
         guard connected, epoch == generation, !Task.isCancelled, let account = try credentials.load() else { throw CancellationError() }
@@ -195,9 +226,17 @@ final class JOLController: ObservableObject {
                         }
                         try await sync.acknowledgeDetails(batch)
                     }
-                    if self.manifest?.capabilities.photos == true {
+                    if self.manifest?.capabilities.photos == true || self.backfillPhotos {
                         for photo in try await sync.nextPhotos() {
-                            _ = try await self.request(path + "/expeditions/\(photo.expeditionID.uuidString.lowercased())/photos/\(photo.filename.lowercased())", body: photo.data, method: "PUT", contentType: "image/jpeg", generation: generation)
+                            let upload = path + "/expeditions/\(photo.expeditionID.uuidString.lowercased())/photos/\(photo.filename.lowercased())"
+                            let entry = self.backfillPhotos ? "?entry=\(photo.entryID.uuidString.lowercased())" : ""
+                            let response = try await self.request(upload + entry, body: photo.data, method: "PUT", contentType: "image/jpeg", generation: generation)
+                            if self.backfillPhotos {
+                                struct PhotoAck: Decodable { let entryLinked: Bool? }
+                                guard try JSONDecoder().decode(PhotoAck.self, from: response).entryLinked == true else {
+                                    throw JOLError(message: "JOL did not attach the photograph to its journal entry.")
+                                }
+                            }
                             try await sync.acknowledgePhoto(photo)
                             uploaded = true
                         }

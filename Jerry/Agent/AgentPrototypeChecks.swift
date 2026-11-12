@@ -74,7 +74,11 @@ enum AgentPrototypeChecks {
         let id = UUID(), row = UUID(), header = JournalRecord.Header(id: id, date: Date(), title: "The Paper Mountain")
         let store = ExpeditionJournalStore(directory: journals) { _ in }
         store.append(.init(event: .created, expedition: header), to: id)
-        let entry = ExpeditionJournal.Entry(id: row, date: Date(), kind: .response, text: "I reached the ridge.", details: "Private screen text", photo: UUID().uuidString + ".jpg")
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 12, pixelsHigh: 8, bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        bitmap.bitmapData?.initialize(repeating: 240, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        let photograph = bitmap.representation(using: .jpeg, properties: [:])!
+        let filename = try await store.savePhoto(photograph, to: id)
+        let entry = ExpeditionJournal.Entry(id: row, date: Date(), kind: .response, text: "I reached the ridge.", details: "Private screen text", photo: filename)
         store.append(.init(event: .entry, entry: entry), to: id)
         store.append(.init(event: .detailsAppended, entryID: row, text: "More screen text"), to: id)
         store.flush()
@@ -86,6 +90,12 @@ enum AgentPrototypeChecks {
         try await sync.acknowledge(batch, cursor: 3)
         let restored = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Sync"), since: .distantPast, includeHistory: false, details: false, photos: false)
         checks.append(("JOL accepted cursor survives restarting without replay", try await restored.nextBatches().isEmpty))
+        checks.append(("JOL keeps saved photographs local until explicitly shared", try await restored.nextPhotos().isEmpty))
+        await restored.enablePhotos()
+        let photos = try await restored.nextPhotos()
+        checks.append(("JOL finds an existing photograph and the acknowledged entry it belongs to",
+                       photos.count == 1 && photos.first?.entryID == row && photos.first?.data == photograph))
+        if let photo = photos.first { try await restored.acknowledgePhoto(photo) }
         let future = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Future"), since: Date().addingTimeInterval(10), includeHistory: false, details: false, photos: false)
         checks.append(("JOL does not upload old journals without history opt-in", try await future.nextBatches().isEmpty))
         await future.enableHistory()
@@ -96,8 +106,9 @@ enum AgentPrototypeChecks {
                        details.first?.changes.map(\.sequence) == [2, 3] && details.first?.through == 3))
         if let first = details.first { try await restored.acknowledgeDetails(first) }
         let enriched = try JOLSyncStore(journals: journals, directory: temporary.appendingPathComponent("Sync"),
-                                        since: .distantPast, includeHistory: false, details: false, photos: false, backfillDetails: true)
+                                        since: .distantPast, includeHistory: false, details: false, photos: false, backfillDetails: true, backfillPhotos: true)
         checks.append(("JOL preserves the details cursor across restart", try await enriched.nextDetails().isEmpty))
+        checks.append(("JOL does not re-upload an acknowledged photograph after restart", try await enriched.nextPhotos().isEmpty))
         let file = journals.appendingPathComponent(id.uuidString).appendingPathComponent("journal.jsonl")
         let handle = try FileHandle(forWritingTo: file); try handle.seekToEnd(); try handle.write(contentsOf: Data("{\"incomplete\":".utf8)); try handle.close()
         checks.append(("JOL never uploads an uncommitted partial last line", try await restored.nextBatches().isEmpty))

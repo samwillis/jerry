@@ -48,6 +48,10 @@ type Command = {
   expedition_id: string | null;
   created_at: Stamp;
 };
+const commandInProgress = (command: Command) =>
+  ["queued", "received", "started"].includes(command.status);
+const commandNeedsAttention = (command: Command) =>
+  ["failed", "expired", "uncertain"].includes(command.status);
 const id = (row: { id: string }) => row.id;
 const expeditionKey = (row: { device_id: string; id: string }) =>
   row.device_id + "/" + row.id;
@@ -408,6 +412,7 @@ function ExpeditionPage({
   const [direction, setDirection] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [watchedCommands, setWatchedCommands] = useState(() => new Set<string>());
   const pages = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const following = useRef(true);
@@ -434,6 +439,17 @@ function ExpeditionPage({
       ]),
     ).values(),
   ].sort((a, b) => a.position - b.position);
+  // A failure is a notice for work seen in this view. A fresh load still
+  // shows outstanding work but doesn't replay failures from command history.
+  useEffect(() => {
+    const pending = deliveries.rows?.filter(commandInProgress);
+    if (!pending?.length) return;
+    setWatchedCommands((previous) =>
+      pending.every((command) => previous.has(command.id))
+        ? previous
+        : new Set([...previous, ...pending.map(id)]),
+    );
+  }, [deliveries.rows]);
   const commands = [...(deliveries.rows ?? [])]
     .sort(newest)
     .filter(
@@ -441,14 +457,8 @@ function ExpeditionPage({
         (!selected ||
           command.expedition_id === selected.id ||
           command.expedition_id == null) &&
-        [
-          "queued",
-          "received",
-          "started",
-          "failed",
-          "expired",
-          "uncertain",
-        ].includes(command.status),
+        (commandInProgress(command) ||
+          (commandNeedsAttention(command) && watchedCommands.has(command.id))),
     )
     .slice(0, 8);
   const delayed =
@@ -498,11 +508,14 @@ function ExpeditionPage({
     const key = JSON.stringify([device.id, selected?.id, kind, prompt]);
     if (submission.current?.key !== key)
       submission.current = { key, id: crypto.randomUUID() };
+    const commandID = submission.current.id;
+    // The Mac can report a failure before the first in-progress update.
+    setWatchedCommands((previous) => new Set(previous).add(commandID));
     setSending(true);
     setError("");
     try {
       await api.read("/commands", {
-        id: submission.current.id,
+        id: commandID,
         deviceID: device.id,
         expeditionID: selected?.id,
         kind,
@@ -651,6 +664,20 @@ function ExpeditionPage({
                       }}
                     >
                       Cancel
+                    </Button>
+                  )}
+                  {commandNeedsAttention(command) && (
+                    <Button
+                      className="quiet"
+                      onClick={() =>
+                        setWatchedCommands((previous) => {
+                          const next = new Set(previous);
+                          next.delete(command.id);
+                          return next;
+                        })
+                      }
+                    >
+                      Dismiss
                     </Button>
                   )}
                 </div>

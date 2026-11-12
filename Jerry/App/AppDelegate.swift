@@ -86,11 +86,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var switcherActivationPolicy: NSApplication.ActivationPolicy {
-        // Cmd-H and a temporary order-out during a physical click leave the
-        // user's windows open. The overlay, manual controls and quick prompt
-        // are untitled panels and don't make Jerry a regular app on their own.
+        // Cmd-H leaves the user's windows open. The overlay, manual controls
+        // and quick prompt don't make Jerry a regular app on their own.
         if NSApp.isHidden { return NSApp.activationPolicy() }
-        let hasWindow = taskController?.isJournalTemporarilyHidden == true || NSApp.windows.contains {
+        let hasWindow = NSApp.windows.contains {
             $0.styleMask.contains(.titled) && !$0.styleMask.contains(.nonactivatingPanel)
                 && $0.sheetParent == nil && ($0.isVisible || $0.isMiniaturized)
         }
@@ -266,13 +265,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             overlay?.onAgentHandMoved = { [weak controller] in controller?.computer.moveHand($0) }
             controller.onBeforeInput = { [weak self] in self?.overlay?.agentInputVisible(false) }
             controller.onAfterInput = { [weak self] in self?.overlay?.agentInputVisible(true) }
+            controller.computer.prepareDesktop = { [weak self] in
+                if NSApp.isActive { self?.overlay?.restoreExternalFocus() }
+            }
             controller.onPromptCancelled = { [weak self] in self?.overlay?.setKeyboardControl(true) }
             controller.onPromptOpened = { [weak self] in self?.overlay?.setIdleExploration(false) }
             controller.onPromptDismissed = { [weak self] in guard let self else { return }; self.overlay?.setIdleExploration(self.idleExploration) }
-            controller.onSubmitted = { [weak self] in
-                guard let self else { return }
-                self.overlay?.beginAgent(); self.overlay?.restoreExternalFocus()
-            }
+            controller.onSubmitted = { [weak self] in self?.overlay?.beginAgent() }
             controller.explorerFrame = { [weak self] in self?.overlay?.explorerScreenFrame ?? .zero }
             overlay?.onExplorerMoved = { [weak controller] in controller?.updatePromptPosition() }
             taskController = controller

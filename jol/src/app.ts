@@ -130,6 +130,7 @@ export function createApp({
         journal: true,
         commands: true,
         photos: !!s3,
+        photosBackfill: !!s3,
         realtime: !!live,
         detailsBackfill: true,
       },
@@ -571,6 +572,7 @@ export function createApp({
           .regex(/^[a-f0-9-]{36}\.jpg$/i)
           .parse(c.req.param("filename"))
           .toLowerCase();
+      const entry = uuid.optional().parse(c.req.query("entry"));
       await device(d, c.get("identity").id, c.req.raw);
       if (
         !(
@@ -581,6 +583,20 @@ export function createApp({
         ).rows.length
       )
         throw new APIError(404, "Expedition not found");
+      if (entry) {
+        const row = (
+          await db.query(
+            "SELECT photo FROM jol_entries WHERE device_id=$1 AND expedition_id=$2 AND id=$3",
+            [d, e, entry],
+          )
+        ).rows[0];
+        if (!row) throw new APIError(404, "Journal entry not found");
+        if (row.photo && row.photo.toLowerCase() !== filename)
+          throw new APIError(
+            409,
+            "This journal entry already has a different photograph",
+          );
+      }
       const body = new Uint8Array(await c.req.arrayBuffer());
       if (
         body.length > 4_000_000 ||
@@ -600,11 +616,25 @@ export function createApp({
           CacheControl: "private, no-store",
         }),
       );
-      await db.query(
-        "INSERT INTO jol_assets(device_id,expedition_id,filename,object_key) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-        [d, e, filename, key],
-      );
-      return c.json({ ok: true });
+      await db.transaction(async (q) => {
+        if (entry) {
+          // Attach the photograph without changing the accepted journal event.
+          const result = await q.query(
+            "UPDATE jol_entries SET photo=COALESCE(photo,$4) WHERE device_id=$1 AND expedition_id=$2 AND id=$3 AND (photo IS NULL OR lower(photo)=$4) RETURNING id",
+            [d, e, entry, filename],
+          );
+          if (!result.rows.length)
+            throw new APIError(
+              409,
+              "The journal photograph changed during upload",
+            );
+        }
+        await q.query(
+          "INSERT INTO jol_assets(device_id,expedition_id,filename,object_key) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+          [d, e, filename, key],
+        );
+      });
+      return c.json({ ok: true, ...(entry ? { entryLinked: true } : {}) });
     },
   );
   app.get(

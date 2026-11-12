@@ -104,8 +104,6 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
     private var modelsSection: NSView!
     private var promptWindow: NSPanel!
     private var journal: NSWindow!
-    private var restoreJournalAfterInput = false
-    var isJournalTemporarilyHidden: Bool { restoreJournalAfterInput }
     private var journalPositioned = false
     private var catalogTask: Task<Void, Never>?
     private var task: Task<Void, Never>?
@@ -139,17 +137,16 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         toolbar.centeredItemIdentifier = .init("settingsTitle")
         let settingsBody = NotebookTheme.install(on: window, title: "Settings", toolbar: toolbar)
         buildSettings(in: settingsBody); buildPrompt(); buildJournal()
-        computer.beforeInput = { [weak self] in
+        computer.beforeInput = { [weak self] point in
             guard let self else { return }
-            self.restoreJournalAfterInput = self.journal.isVisible
-            self.journal.orderOut(nil); self.onBeforeInput?()
+            if let screen = NSScreen.screens.first, self.journal.isVisible,
+               self.journal.frame.contains(ExplorerDesktopClick.quartzPoint(point, primaryTop: screen.frame.maxY)) {
+                // Expose the control under the journal without closing the window.
+                self.journal.orderBack(nil)
+            }
+            self.onBeforeInput?()
         }
-        computer.afterInput = { [weak self] in
-            guard let self else { return }
-            self.onAfterInput?()
-            if self.restoreJournalAfterInput { self.journal.orderBack(nil) }
-            self.restoreJournalAfterInput = false
-        }
+        computer.afterInput = { [weak self] in self?.onAfterInput?() }
         credentials.onChange = { [weak self] in self?.updateConnection() }
         let savedProvider = UserDefaults.standard.object(forKey: "agentProvider") as? Int
         let selectedProvider = savedProvider.flatMap { (0...2).contains($0) ? $0 : nil } ?? (credentials.account == nil && credentials.hasAPIKey ? 2 : 1)
@@ -204,7 +201,6 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         }
     }
     func openPrompt(resumeControl: Bool = false) {
-        jol.localTakeover()
         if journalState.isRunning { stop() }
         resumeControlOnCancel = promptWindow.isVisible ? (resumeControlOnCancel || resumeControl) : resumeControl
         updatePromptHint(); onPromptOpened?(); updatePromptPosition(force: true)
@@ -474,7 +470,7 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         configureJournalToolbar()
         let glass = NotebookContentView(); journal.contentView = glass
         glass.onTitlebarLayout = { [weak self] height in self?.journalState.toolbarHeight = height }
-        let host = NSHostingView(rootView: ExpeditionJournalView(journal: journalState, stop: { [weak self] in self?.interruptForLocalControl() }, send: { [weak self] text, id in self?.jol.localTakeover(); self?.submit(prompt: text, expeditionID: id) }))
+        let host = NSHostingView(rootView: ExpeditionJournalView(journal: journalState, stop: { [weak self] in self?.interruptForLocalControl() }, send: { [weak self] text, id in self?.submit(prompt: text, expeditionID: id) }))
         host.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(host)
         NSLayoutConstraint.activate([host.leadingAnchor.constraint(equalTo: glass.leadingAnchor), host.trailingAnchor.constraint(equalTo: glass.trailingAnchor), host.topAnchor.constraint(equalTo: glass.topAnchor), host.bottomAnchor.constraint(equalTo: glass.bottomAnchor)])
     }
@@ -637,13 +633,13 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
             journal.setFrameTopLeftPoint(.init(x: frame.maxX - journal.frame.width - 20, y: frame.maxY - 24))
             journalPositioned = true
         }
-        journal.orderFront(nil)
+        if !journal.isVisible && !journal.isMiniaturized { journal.orderFront(nil) }
     }
     func showActivity() {
         showJournal(); NSApp.activate(ignoringOtherApps: true); journal.makeKeyAndOrderFront(nil)
     }
     func manualTakeover() { jol.localTakeover(); onPromptDismissed?(); resumeControlOnCancel = false; promptWindow.orderOut(nil); window?.orderOut(nil); stop() }
-    @objc private func hideJournal() { restoreJournalAfterInput = false; journal.orderOut(nil) }
+    @objc private func hideJournal() { journal.orderOut(nil) }
     @objc private func showSettings() { open() }
     @objc private func doneSettings() { persistModel(); window?.close(); if promptWindow.isVisible { promptWindow.makeKeyAndOrderFront(nil) } }
     @objc private func newJournalExpedition() {
@@ -892,7 +888,6 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         updateJournalToolbar()
     }
     func windowWillClose(_ notification: Notification) {
-        if notification.object as? NSWindow === journal { restoreJournalAfterInput = false }
         if notification.object as? NSWindow === promptWindow { finishPromptCancellation() }
         if notification.object as? NSWindow === window {
             for recorder in shortcutRecorders.values { recorder.cancelRecording() }
@@ -912,6 +907,14 @@ final class AgentTaskController: NSWindowController, NSWindowDelegate, NSComboBo
         toggleJournalSidebar()
         results.append(("native journal toolbar toggles the sidebar and restores its minimum width", journal.toolbar != nil && hiddenSidebar && journalState.sidebarVisible == initialSidebar && journal.minSize.width == 560))
         results.append(("journal is a normal window with ordinary desktop ordering", journal.level == .normal && !(journal is NSPanel) && !journal.collectionBehavior.contains(.canJoinAllSpaces)))
+        if let screen = NSScreen.screens.first {
+            showJournal()
+            let frame = journal.frame
+            computer.beforeInput?(ExplorerDesktopClick.quartzPoint(.init(x: frame.midX, y: frame.midY), primaryTop: screen.frame.maxY))
+            computer.afterInput?()
+            results.append(("physical input leaves the journal ordered onscreen in the same position", journal.isVisible && journal.frame == frame))
+            journal.orderOut(nil)
+        }
         results.append(("settings contains six independently scrollable sections including optional JOL", settingsPages.count == 6 && settingsPages.values.allSatisfy { $0 is NSScrollView }))
         selectSettings("Privacy & Access")
         results.append(("settings navigation shows only the selected section", settingsPages.filter { !$0.value.isHidden }.map(\.key) == ["Privacy & Access"]))

@@ -4,7 +4,7 @@ import Foundation
 actor JOLSyncStore {
     struct Receipt: Codable, Sendable { let command: JOLCommand; let status: String; let result: String }
     struct Batch: Sendable { let expeditionID: UUID; let start: Int; let records: [JournalRecord] }
-    struct Photo: Sendable { let expeditionID: UUID; let filename: String; let data: Data }
+    struct Photo: Sendable { let expeditionID: UUID; let entryID: UUID; let filename: String; let data: Data }
     struct DetailChange: Encodable, Sendable {
         let sequence: Int
         let id: UUID
@@ -33,14 +33,16 @@ actor JOLSyncStore {
     private let details: Bool
     private var backfillDetails: Bool
     private let photos: Bool
+    private var backfillPhotos: Bool
     private var state: State
     private var eligible: [UUID: Bool] = [:]
     private struct Snapshot { let size: Int; let modified: Date?; let records: [JournalRecord] }
     private var snapshots: [UUID: Snapshot] = [:]
-    init(journals: URL, directory: URL, since: Date, includeHistory: Bool, details: Bool, photos: Bool, writer: ExpeditionJournalStore? = nil, backfillDetails: Bool = false) throws {
+    init(journals: URL, directory: URL, since: Date, includeHistory: Bool, details: Bool, photos: Bool, writer: ExpeditionJournalStore? = nil, backfillDetails: Bool = false, backfillPhotos: Bool = false) throws {
         self.journals = journals; self.since = since; self.includeHistory = includeHistory; self.details = details; self.photos = photos
         self.writer = writer
         self.backfillDetails = backfillDetails
+        self.backfillPhotos = backfillPhotos
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         stateURL = directory.appendingPathComponent("sync.json")
         if FileManager.default.fileExists(atPath: stateURL.path) { state = try JSONDecoder().decode(State.self, from: Data(contentsOf: stateURL)) }
@@ -65,6 +67,7 @@ actor JOLSyncStore {
     func acknowledgeReceipt(_ id: UUID) throws { state.receipts[id.uuidString] = nil; try save() }
     func enableHistory() { includeHistory = true }
     func enableDetails() { backfillDetails = true }
+    func enablePhotos() { backfillPhotos = true }
     func nextBatches() async throws -> [Batch] {
         try await expeditions().compactMap { id, records in
             let cursor = state.cursors[id.uuidString] ?? 0
@@ -115,16 +118,17 @@ actor JOLSyncStore {
         try save()
     }
     func nextPhotos() async throws -> [Photo] {
-        guard photos else { return [] }
+        guard photos || backfillPhotos else { return [] }
         var result: [Photo] = []
         for (id, records) in try await expeditions() {
             for record in records.prefix(state.cursors[id.uuidString] ?? 0) {
-                guard let filename = record.entry?.photo, filename.hasSuffix(".jpg"), UUID(uuidString: String(filename.dropLast(4))) != nil,
+                guard let entry = record.entry, let filename = entry.photo, filename.hasSuffix(".jpg"), UUID(uuidString: String(filename.dropLast(4))) != nil,
                       !state.photos.contains(id.uuidString + "/" + filename) else { continue }
                 let url = journals.appendingPathComponent(id.uuidString).appendingPathComponent(filename)
                 guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]), values.isRegularFile == true, values.isSymbolicLink != true,
                       (values.fileSize ?? 0) <= 4_000_000, let data = try? Data(contentsOf: url) else { continue }
-                result.append(Photo(expeditionID: id, filename: filename, data: data)); if result.count >= 3 { return result }
+                result.append(Photo(expeditionID: id, entryID: entry.id, filename: filename, data: data))
+                if result.count >= 3 { return result }
             }
         }
         return result

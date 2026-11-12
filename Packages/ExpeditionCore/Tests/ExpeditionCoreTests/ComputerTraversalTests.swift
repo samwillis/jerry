@@ -2,6 +2,28 @@ import XCTest
 @testable import ExpeditionCore
 
 final class ComputerTraversalTests: XCTestCase {
+    func testAgentUsesDisplayRimWhenOverlappingDialogRoofsBlockTheHook() {
+        let viewport = WorldRect(x: 0, y: 0, width: 1710, height: 1107)
+        let rim = DesktopWindow(id: UInt32.max, frame: .init(x: 0, y: 1106, width: 1710, height: 1))
+        let dialog = DesktopWindow(id: 30, frame: .init(x: 415, y: 468, width: 880, height: 448))
+        let behind = DesktopWindow(id: 40, frame: .init(x: 578, y: 162, width: 891, height: 757))
+        let terrain = TerrainSnapshot(windows: [rim, dialog, behind], viewport: viewport)
+        var explorer = ExplorerInteraction(position: .init(x: 1109, y: 0), bounds: .init(minimum: .init(x: 24, y: 0), maximum: .init(x: 1686, y: 1031)))
+        explorer.autonomous = true
+        explorer.updateTerrain(terrain)
+        explorer.setKeyboardControl(true)
+
+        let button = WorldPoint(x: 652.5, y: 500)
+        for _ in 0..<60 * 20 {
+            explorer.steerAgent(towardHand: button)
+            explorer.advance(by: 1.0 / 60)
+        }
+        let localX = (button.x - explorer.position.x) * explorer.facing
+        XCTAssertTrue((-8...36).contains(localX))
+        XCTAssertLessThan(hypot(localX - 10, button.y - explorer.position.y - 46), 29,
+                          "feet \(explorer.position), state \(explorer.state)")
+    }
+
     func testPhysicalAutopilotUsesARealRopeAndMakesProgress() {
         let rim = DesktopWindow(id: UInt32.max, frame: .init(x: 0, y: 799, width: 1000, height: 1))
         let terrain = TerrainSnapshot(windows: [rim], viewport: .init(x: 0, y: 0, width: 1000, height: 800))

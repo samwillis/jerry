@@ -13,7 +13,7 @@ The first version includes:
 - Durable remote **new expedition**, **continue**, **finish**, **stop** and **cancel queued direction** commands. Normal directions queue while busy. Live interruption/steering is not implemented; Stop followed by a fresh direction is the current path.
 - Device possession checks, owner isolation, command leases/fences, durable accepted-command IDs and completion receipts. An ambiguous interrupted command does not automatically repeat physical actions.
 
-Remote missions start disabled after every app launch. Enable **Allow remote missions** on the Mac when ready. Taking manual control or opening the local task prompt pauses remote operation; re-enable it explicitly afterwards. Losing an execution lease stops the remote task. A disconnected server never blocks local journal writing.
+Remote missions start disabled after every app launch. Enable **Allow remote missions** on the Mac when ready. Directions submitted from the Mac keep this setting enabled, and remote directions wait while Jerry handles local work. Taking manual control pauses remote operation. Losing an execution lease stops the remote task. A disconnected server never blocks local journal writing.
 
 This is an owner-only prototype, not a production service. Reader/controller invitations, account/cloud deletion and retention controls, quotas for a public service and cross-device expedition handoff remain future work. Disconnecting disables that Mac’s server connection but preserves its cloud journals for its owner. Native local files remain unchanged.
 
@@ -108,6 +108,8 @@ The sync state contains cursors, uploaded photo names and command receipts. Auth
 In **Settings → Jerry On Line → Journal sharing**, choose **Share Older Expeditions…** to add locally saved expeditions from before the connection. Choose **Share Technical Details…** to include the Details from shared expeditions, including records already uploaded. Technical details can include screen content. Both options preserve the current Mac enrollment and its note cursors. Details added to a notes-only connection use a separate cursor and send only the omitted detail fields. Previously uploaded notes and photos stay in place.
 
 The server stores ordered events and materialized entries in Postgres. Batches are deduplicated by stable event IDs and acknowledged only after their transaction commits. Gaps and conflicting retries are rejected. Details backfill enriches existing records and preserves their original retry digests. A remote photograph is a separate private Storage object with its own sharing choice.
+
+Choose **Share Journal Photographs…** under **Journal sharing** to add photographs to expeditions you already share. Jerry uploads existing and future photographs from those expeditions. It preserves the accepted journal records and links each private photo to its existing entry.
 
 The browser subscribes to Macs, recent expeditions, the selected expedition and its newest entries, and the selected Mac’s command status. The photo readiness flag updates when the private object is registered. Earlier pages are fetched on demand. When a live collection fails, its view reads from the API while reconnecting. Healthy collections do not use periodic API reads.
 
