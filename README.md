@@ -75,6 +75,12 @@ When Jerry has nothing else to do, he can wander your windows in search of patte
 
 Turn off **Explore when idle** if you’d rather he stayed put. You can still drag him, take control or give him a mission.
 
+## Marchers Rescue
+
+Choose **Marchers Rescue** from the Jerry menu for a puzzle on your desktop. A hatch at the top of the screen drops a line of small marchers. They plod along your windows and fall off edges, and some drop off the bottom of the screen. Jerry hurries over and hands out skills to get them to the exit door: umbrellas, climbing, blockers, bridges, tunnels and the occasional explosion. Drag a window and the level changes under them; Jerry works out a new plan as you go.
+
+See [Marchers Rescue](docs/MARCHERS_MODE.md) for the rules and how Jerry decides.
+
 ## Make yourself at home
 
 No account is needed for idle exploration or keyboard movement. Extra abilities are optional:

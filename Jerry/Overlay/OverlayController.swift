@@ -313,6 +313,9 @@ final class OverlayController {
     }
 
     func setIdleExploration(_ enabled: Bool) { scene.setIdleExploration(enabled) }
+    var marchersActive: Bool { scene.marchersActive }
+    var marchersStatus: String? { scene.marchersStatus }
+    func setMarchersMode(_ enabled: Bool) { refreshTerrain(); scene.setMarchersMode(enabled) }
     var idleExplorationEnabled: Bool { scene.idleExplorationEnabled }
     var activityStatus: String { scene.activityStatus }
     var availableActivities: Set<ExplorerActivity> { scene.availableActivities }

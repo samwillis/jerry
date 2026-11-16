@@ -52,7 +52,7 @@ The report prints counts and existing screen-capture permission status, and neve
 swift test --package-path Packages/ExpeditionCore
 ```
 
-These tests cover input state, coordinates, terrain, IK, contacts, seeded routing, all travel modes, mission beats, interruption, route continuation after landing, changing-terrain soak scenarios, and runtime policy. Native focus, click-through, and window alignment still require the interactive checks in the manual checklist.
+These tests cover input state, coordinates, terrain, IK, contacts, seeded routing, all travel modes, mission beats, interruption, route continuation after landing, changing-terrain soak scenarios, runtime policy, and Marchers Rescue rules and rescues. Native focus, click-through, and window alignment still require the interactive checks in the manual checklist.
 
 Quit the running app before native checks to avoid global-shortcut conflicts. For native panel/lifecycle checks (Debug build, no real sleep or Space changes):
 
@@ -101,7 +101,7 @@ The script submits to Apple, staples and validates the ticket, checks Gatekeeper
 - `Jerry/Overlay`: transparent, non-activating overlay and display layout.
 - `Jerry/Desktop`: window metadata discovery and platform filtering.
 - `Jerry/Agent`: AI providers, credentials, computer interaction, Settings and the journal.
-- `Jerry/Rendering`: shared explorer rig, painted parts, mission props, ropes, and development guides.
+- `Jerry/Rendering`: shared explorer rig, painted parts, mission props, ropes, Marchers Rescue artwork, and development guides.
 - `Jerry/Playground`: Debug-only clip controls, fake terrain, contact editing, and scale comparison.
 - `Packages/ExpeditionCore`: platform-independent geometry, terrain construction, attachments, movement, route planning, mission rules, and runtime policy.
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md), [product plan](docs/PLAN.md), and [manual checks](docs/MANUAL_TESTS.md).
@@ -134,6 +134,10 @@ Grapple launches are limited to 35° from vertical at the muzzle, or 10° within
 
 Aiming shows a green snapped rim when it is reachable, or an orange marker when no valid anchor is selected. Starting aim suggests a nearby rim; holding G redirects the arrows from movement/swinging to aiming. Release G to fire and return the arrows to movement. The mouse does not steer the aim. Refiring while hanging keeps the old rope attached while the new hook flies. The explorer transfers to the new line only after it latches; a failed shot leaves the old line intact. Left/right applies force along the rope tangent, with a 260 pt/s drive cap; opposite input brakes the swing.
 
+## Marchers Rescue
+
+**Jerry menu → Marchers Rescue** toggles a falling-walker puzzle played on the real windows; see [Marchers Rescue](docs/MARCHERS_MODE.md). Rules, destructible window material, planning and Jerry's reach live in `Packages/ExpeditionCore/Sources/ExpeditionCore/Marcher*.swift`; `Jerry/Rendering/MarcherLayer.swift` draws it and `ExplorerScene` hosts `MarcherCoach`. Keep the shared deterministic `MarcherPhysics` step for both the live level and the planner. Skills are handed out only within Jerry's reach while he travels through the normal route graph. The search runs off the main actor from a value snapshot; discard stale results. Idle exploration stays suspended while the mode runs. Use generic names and original artwork, not those of any existing game. Run `swift test --package-path Packages/ExpeditionCore --filter MarcherTests`; on-screen behaviour needs the manual checks.
+
 ## Animation playground
 
 Enable Developer Tools in **Settings → Advanced**, then open **Developer Tools → Animation Playground…** from the Jerry menu, or quit the current app and run its executable with `--playground`. Preview every motion (including Landing), switch facing and background, pause/restart, slow playback, show joints, and tune stride, cadence, and bounce. **Preview time (pauses)** freezes an exact frame for inspection. Drag climbing handholds, the rope anchor, the grab pivot, or the body. A small actual-size explorer appears alongside the enlarged version. See [animation workflow and rig details](docs/ANIMATION_WORKFLOW.md).
@@ -158,6 +162,7 @@ For repeatable development checks, run the Debug executable with `--feature-chec
 - [Computer-task integration](docs/AGENT_PROTOTYPE.md)
 - [Jerry On Line remote journal and mission proposal](docs/JOL_PLAN.md)
 - [Jerry On Line setup and prototype validation](docs/JOL_SETUP.md)
+- [Marchers Rescue](docs/MARCHERS_MODE.md)
 - [Animation and rig workflow](docs/ANIMATION_WORKFLOW.md)
 - [Manual test checklist](docs/MANUAL_TESTS.md)
 - [Validation evidence and known limits](docs/PROTOTYPE_VALIDATION.md)
