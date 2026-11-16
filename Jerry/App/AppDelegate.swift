@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var mainAskItem: NSMenuItem?
     private var recordingShortcut = false
     private var stopTaskItem: NSMenuItem?
+    private var marchersItem: NSMenuItem?
     private var runWhenExploring = UserDefaults.standard.bool(forKey: "runWhenExploring")
     private var fasterRopeWork = UserDefaults.standard.bool(forKey: "fasterRopeWork")
     private var debugItem: NSMenuItem?
@@ -141,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         keyboardItem = add("Take Control", action: #selector(toggleKeyboard), to: menu)
         keyboardItem.keyEquivalent = " "; keyboardItem.keyEquivalentModifierMask = [.control, .option]
         idleItem = add("Enable Idle Exploration", action: #selector(toggleIdle), to: menu)
+        marchersItem = add("Marchers Rescue", action: #selector(toggleMarchers), to: menu)
         stopTaskItem = add("Stop Task", action: #selector(stopTask), to: menu)
         menu.addItem(.separator())
 
@@ -205,6 +207,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.set(idleExploration, forKey: "idleExploration")
         setPaused(false)
         overlay?.setIdleExploration(idleExploration)
+        updateMenu()
+    }
+    @objc private func toggleMarchers() {
+        guard let overlay else { return }
+        let enabled = !overlay.marchersActive
+        if enabled { setPaused(false) }
+        overlay.setMarchersMode(enabled)
         updateMenu()
     }
     @objc private func toggleKeyboard() {
@@ -339,6 +348,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stopTaskItem?.isHidden = taskController?.isTaskRunning != true
         statusItem?.menu?.items.first { $0.title == "Developer Tools" }?.isHidden = !UserDefaults.standard.bool(forKey: "developerToolsEnabled")
         idleItem?.state = idleExploration ? .on : .off
+        marchersItem?.state = overlay?.marchersActive == true ? .on : .off
+        marchersItem?.toolTip = overlay?.marchersStatus ?? "Marchers drop from the top of the screen; Jerry hands out skills to guide them to the exit."
         debugItem?.state = showsDebug ? .on : .off
         keyboardItem?.state = overlay?.keyboardControlEnabled == true ? .on : .off
         keyboardItem?.title = overlay?.keyboardControlEnabled == true ? "Release Control" : "Take Control"

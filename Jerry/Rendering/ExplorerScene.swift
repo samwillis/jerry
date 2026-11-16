@@ -10,6 +10,10 @@ final class ExplorerScene: SKScene {
     private let shotRope = SKShapeNode()
     private let hook = SKShapeNode()
     private let props = ExpeditionProps()
+    private let marcherLayer = MarcherLayer()
+    private var marcherCoach: MarcherCoach?
+    private var marcherPlanning = false
+    private var marcherGeneration = 0
     private let controlMarker = SKShapeNode()
     private let pointerExtension = SKShapeNode()
     private let aimGuide = SKShapeNode()
@@ -77,6 +81,8 @@ final class ExplorerScene: SKScene {
     func setAgentMode(_ enabled: Bool) {
         guard agentMode != enabled else { return }
         agentMode = enabled; agentTarget = nil; agentReading = false; setPhotoMoment(false)
+        // Marchers mode pauses during an AI task; its artwork returns when the level resumes.
+        if enabled { marcherLayer.isHidden = true }
         interaction?.setKeyboardControl(enabled)
         interaction?.setIdleExploration(false)
         if enabled { interaction?.updateBounds(.init(minimum: .init(x: 24, y: 0), maximum: .init(x: size.width - 24, y: size.height - 76))) }
@@ -92,6 +98,7 @@ final class ExplorerScene: SKScene {
         super.init(size: size)
         backgroundColor = .clear
         scaleMode = .resizeFill
+        addChild(marcherLayer)
         addChild(rope); addChild(shotRope)
         shotRope.strokeColor = .init(calibratedRed: 0.72, green: 0.57, blue: 0.32, alpha: 1); shotRope.lineWidth = 1.2; shotRope.zPosition = 1
         rope.strokeColor = .init(calibratedRed: 0.72, green: 0.57, blue: 0.32, alpha: 1)
@@ -138,8 +145,8 @@ final class ExplorerScene: SKScene {
             interaction?.updateBounds(safeOrigins)
         }
         interaction?.autonomous = true
-        interaction?.runsMission = idleExplorationEnabled
-        interaction?.setIdleExploration(idleExplorationEnabled)
+        interaction?.runsMission = idleExplorationEnabled && marcherCoach == nil
+        interaction?.setIdleExploration(idleExplorationEnabled && marcherCoach == nil)
         interaction?.setRunWhenExploring(runWhenExploring)
         interaction?.setFasterRopeWork(fasterRopeWork)
         applyPlacement()
@@ -164,7 +171,57 @@ final class ExplorerScene: SKScene {
         applyPlacement()
     }
     func setIdleExploration(_ enabled: Bool) {
-        idleExplorationEnabled = enabled; interaction?.setIdleExploration(enabled); applyPlacement()
+        idleExplorationEnabled = enabled
+        // Marchers mode keeps Jerry's attention on the line; wandering resumes when it ends.
+        if marcherCoach == nil { interaction?.setIdleExploration(enabled) }
+        applyPlacement()
+    }
+
+    var marchersActive: Bool { marcherCoach != nil }
+    var marchersStatus: String? { marcherCoach?.status }
+    func setMarchersMode(_ enabled: Bool) {
+        guard enabled != (marcherCoach != nil) else { return }
+        marcherGeneration += 1
+        marcherPlanning = false
+        if enabled {
+            let snapshot = (agentMode ? nil : terrain) ?? TerrainSnapshot(windows: [], viewport: WorldRect(x: usableFrame.minX, y: usableFrame.minY + 2, width: usableFrame.width, height: max(0, usableFrame.height - 2)))
+            var coach = MarcherCoach(terrain: snapshot)
+            coach.plansInline = false
+            marcherCoach = coach
+            interaction?.setIdleExploration(false)
+        } else {
+            marcherCoach = nil
+            if !agentMode { interaction?.setIdleExploration(idleExplorationEnabled) }
+        }
+        marcherLayer.update(coach: marcherCoach)
+        applyPlacement()
+    }
+    /// Where Jerry signals skills from: his raised hand.
+    private var marcherHand: WorldPoint? {
+        guard let interaction else { return nil }
+        return WorldPoint(x: interaction.position.x + interaction.facing * 8, y: interaction.position.y + 52)
+    }
+    private func advanceMarchers(by elapsed: Double) {
+        guard marcherCoach != nil, !agentMode, elapsed > 0 else { return }
+        marcherCoach!.advance(by: elapsed, hand: marcherHand)
+        if let terrain, interaction != nil, interaction?.keyboardControlEnabled == false {
+            marcherCoach!.steer(&interaction!, terrain: terrain, by: elapsed)
+        }
+        if !marcherPlanning, let request = marcherCoach!.nextPlanningRequest() {
+            // The look-ahead search runs off the main thread; the level keeps moving meanwhile.
+            marcherPlanning = true
+            let generation = marcherGeneration
+            Task.detached(priority: .utility) { [weak self] in
+                let plan = request.solve()
+                await self?.receiveMarcherPlan(plan, for: request, generation: generation)
+            }
+        }
+        marcherLayer.update(coach: marcherCoach)
+    }
+    private func receiveMarcherPlan(_ plan: MarcherPlan?, for request: MarcherPlanningRequest, generation: Int) {
+        guard generation == marcherGeneration else { return }
+        marcherPlanning = false
+        marcherCoach?.receive(plan, for: request)
     }
     func setGrappleAiming(_ enabled: Bool) {
         grappleAiming = enabled; aimGuide.isHidden = !enabled
@@ -265,6 +322,7 @@ final class ExplorerScene: SKScene {
         }
         #endif
         interaction?.updateTerrain(next, sampleElapsed: sampleElapsed)
+        if !agentMode { marcherCoach?.updateTerrain(next) }
         #if DEBUG
         if !startedActivityDemo, let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--activity=") }),
            let activity = ExplorerActivity(rawValue: String(argument.dropFirst("--activity=".count))) {
@@ -304,6 +362,7 @@ final class ExplorerScene: SKScene {
         let previousState = interaction?.state
         let previousLandingCount = interaction?.landingCount
         interaction?.advance(by: elapsed * playbackRate)
+        advanceMarchers(by: elapsed * playbackRate)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--freeze-grapple"), interaction?.state == .grappling, (interaction?.ropeSession?.age ?? 0) > 0.15 { setExpeditionPaused(true) }
         if ProcessInfo.processInfo.arguments.contains("--freeze-swing"), interaction?.state == .swinging, interaction?.ropeSession?.isTakingUp == false, (interaction?.ropeSession?.age ?? 0) > 0.5 { setExpeditionPaused(true) }
@@ -368,6 +427,7 @@ final class ExplorerScene: SKScene {
         let target = interaction.mission.target.flatMap { anchor in terrain.flatMap { TerrainSupport.resolve(anchor, in: $0) } }
         var facing = interaction.facing
         if stationary, let target { facing = target.x >= interaction.position.x ? 1 : -1 }
+        if stationary, !agentMode, let signal = marcherCoach?.signals.last { facing = signal.to.x >= interaction.position.x ? 1 : -1 }
         explorer.xScale = facing
         explorer.setShadowOcclusion(windows: terrain?.windows.map {
             .init(x: $0.frame.minX, y: $0.frame.minY, width: $0.frame.width, height: $0.frame.height)
@@ -426,6 +486,13 @@ final class ExplorerScene: SKScene {
         if agentCelebrating, stationary, interaction.ropeSession == nil, !interaction.agentCeilingHanging,
            interaction.attachment?.edge != .left, interaction.attachment?.edge != .right {
             explorer.handTargets = (.init(x: -18, y: 75), .init(x: 20, y: 78))
+        }
+        if let signal = marcherCoach?.signals.last, signal.age < 0.45, !agentMode, interaction.ropeSession == nil, motion != .climbing {
+            // Point at the marcher who is getting the skill.
+            let shoulder = explorer.shoulderHeight
+            let dx = (signal.to.x - interaction.position.x) * facing, dy = signal.to.y - interaction.position.y - shoulder
+            let length = max(1, hypot(dx, dy))
+            explorer.handTargets = (.init(x: -6, y: 40), .init(x: 4 + dx / length * 24, y: shoulder + dy / length * 24))
         }
         photoMoment.position = .init(x: interaction.position.x, y: interaction.position.y + 112)
         if interaction.hasPendingGrapple { explorer.handTargets = (.init(x: -4, y: 61), .init(x: 20, y: 46)) }

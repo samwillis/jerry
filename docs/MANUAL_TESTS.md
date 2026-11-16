@@ -266,3 +266,19 @@ Automated checks use isolated preferences and synthetic grant snapshots; they do
 - From the screen floor, aim 10° from vertical and just beyond: the former can snap to a reachable roof; the latter must remain invalid. Repeat facing left.
 - From an elevated ledge or rope, repeat at 35° and just beyond. Rejected shots must leave an existing rope attached. Swinging an attached rope remains unrestricted by these launch limits.
 - Request a distant grapple activity while on the floor: Jerry should walk to a suitable point beneath the roof before firing. In AI mode, crossing the desktop should begin with walking instead of a wide diagonal hook.
+
+## Marchers Rescue
+
+Automated coverage: `swift test --package-path Packages/ExpeditionCore --filter MarcherTests`. On macOS, use a Debug build, and also check a Release build for frame timing.
+
+- [ ] **Jerry menu → Marchers Rescue** shows a check mark. A hatch appears at the top centre of the primary display, and an exit door appears on an exposed window top. The status label reads `Level 1 · Get ready…` and then counts Out, In and Lost.
+- [ ] Marchers drop from the hatch, walk along window tops, turn at taller windows and the screen sides, and fall past the bottom of the visible screen when nothing catches them.
+- [ ] Jerry stops wandering and travels towards the line. He points and throws a token only at marchers within reach, and the marcher changes behaviour: umbrella, climbing, blocking, building, bashing, mining, digging or a countdown.
+- [ ] Drag a window with marchers, a tunnel, bricks or the exit on it. Everything moves with the window, and Jerry's later skills reflect the new layout.
+- [ ] Cover the exit with another window, or close its window. The exit moves to another exposed window top.
+- [ ] Clicks still pass through the overlay to the windows underneath, and dragging Jerry still works. Taking control lets you walk Jerry nearer the line, and he keeps signalling within reach.
+- [ ] An AI task pauses the level, and the level resumes when the task ends.
+- [ ] When a level finishes, its result shows for about 6 s, then the next level starts with a new exit.
+- [ ] Turning the mode off removes all its artwork and restores idle exploration if it was enabled.
+- [ ] `--performance-report` stays near 30 fps with 20 marchers on a crowded desktop.
+
