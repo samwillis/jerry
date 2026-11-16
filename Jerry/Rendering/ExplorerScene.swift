@@ -81,6 +81,8 @@ final class ExplorerScene: SKScene {
     func setAgentMode(_ enabled: Bool) {
         guard agentMode != enabled else { return }
         agentMode = enabled; agentTarget = nil; agentReading = false; setPhotoMoment(false)
+        // Marchers mode pauses during an AI task; its artwork returns when the level resumes.
+        if enabled { marcherLayer.isHidden = true }
         interaction?.setKeyboardControl(enabled)
         interaction?.setIdleExploration(false)
         if enabled { interaction?.updateBounds(.init(minimum: .init(x: 24, y: 0), maximum: .init(x: size.width - 24, y: size.height - 76))) }
@@ -180,6 +182,7 @@ final class ExplorerScene: SKScene {
     func setMarchersMode(_ enabled: Bool) {
         guard enabled != (marcherCoach != nil) else { return }
         marcherGeneration += 1
+        marcherPlanning = false
         if enabled {
             let snapshot = (agentMode ? nil : terrain) ?? TerrainSnapshot(windows: [], viewport: WorldRect(x: usableFrame.minX, y: usableFrame.minY + 2, width: usableFrame.width, height: max(0, usableFrame.height - 2)))
             var coach = MarcherCoach(terrain: snapshot)
@@ -216,8 +219,8 @@ final class ExplorerScene: SKScene {
         marcherLayer.update(coach: marcherCoach)
     }
     private func receiveMarcherPlan(_ plan: MarcherPlan?, for request: MarcherPlanningRequest, generation: Int) {
-        marcherPlanning = false
         guard generation == marcherGeneration else { return }
+        marcherPlanning = false
         marcherCoach?.receive(plan, for: request)
     }
     func setGrappleAiming(_ enabled: Bool) {
@@ -424,7 +427,7 @@ final class ExplorerScene: SKScene {
         let target = interaction.mission.target.flatMap { anchor in terrain.flatMap { TerrainSupport.resolve(anchor, in: $0) } }
         var facing = interaction.facing
         if stationary, let target { facing = target.x >= interaction.position.x ? 1 : -1 }
-        if stationary, let signal = marcherCoach?.signals.last { facing = signal.to.x >= interaction.position.x ? 1 : -1 }
+        if stationary, !agentMode, let signal = marcherCoach?.signals.last { facing = signal.to.x >= interaction.position.x ? 1 : -1 }
         explorer.xScale = facing
         explorer.setShadowOcclusion(windows: terrain?.windows.map {
             .init(x: $0.frame.minX, y: $0.frame.minY, width: $0.frame.width, height: $0.frame.height)

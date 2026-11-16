@@ -300,7 +300,8 @@ private final class MarcherSprite: SKNode {
             figure.position.y = abs(CGFloat(sin(m.stride * 0.55))) * 0.5
         case .falling:
             legs = (0.25, -0.25)
-            arms = m.umbrellaOpen ? (2.9, 2.9) : (2.5 + CGFloat(sin(t * 18)) * 0.3, -2.5 - CGFloat(sin(t * 18)) * 0.3)
+            let flail = CGFloat(sin(t * 18)) * 0.3
+            arms = m.umbrellaOpen ? (2.9, 2.9) : (2.5 + flail, -2.5 - flail)
         case .climbing:
             let phase = CGFloat(sin(t * 9))
             legs = (0.9 + phase * 0.4, 0.9 - phase * 0.4)
